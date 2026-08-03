@@ -417,6 +417,96 @@ The isolated V2 Cloudflare tunnel, `brain`, `manage`, and `manage-realtime` host
 14. **Claude Code boundary:** Claude may begin isolated dashboard information architecture and implementation from the frozen handoff; do not cut over the legacy hostname until both semantic-memory and dashboard acceptance gates pass.
 
 The governing architecture rule remains: **Hermes first; build only verified gaps.**
+
+## ForkedBrain command center operations
+
+Current accepted release: `20260803T1408Z`
+
+Runtime contract:
+
+- container: `forkedbrain`
+- image: `mark-forkedbrain:20260803T1408Z`
+- loopback origin: `http://127.0.0.1:9320`
+- application network: `27am3wgv7vkohkenprml4s3p`
+- release link: `/srv/mark-v2/forkedbrain/current`
+- read-only database: `/srv/mark-v2/forkedbrain/data/crypto-intelligence.db`
+- runtime environment: `/srv/mark-v2/secrets/forkedbrain.env`
+- mounted Hermes password file: `/srv/mark-v2/secrets/forkedbrain-hermes-password`
+
+### Routine status
+
+```bash
+docker ps --filter name=^/forkedbrain$ --format '{{.Names}} {{.Image}} {{.Status}} {{.Ports}}'
+curl -fsS http://127.0.0.1:9320/api/health
+docker inspect forkedbrain --format '{{.HostConfig.ReadonlyRootfs}} {{.Config.User}} {{json .HostConfig.SecurityOpt}}'
+```
+
+Expected state is healthy, `127.0.0.1:9320->3000/tcp`, read-only root filesystem, user `nextjs`, and `no-new-privileges:true`.
+
+### Restart
+
+```bash
+docker restart forkedbrain
+docker inspect forkedbrain --format '{{.State.Health.Status}}'
+curl -fsS http://127.0.0.1:9320/api/health
+```
+
+Do not treat `starting` as accepted. Wait for `healthy` and require `{"status":"ok","database":"ok"}`.
+
+### Stop and start
+
+```bash
+docker stop forkedbrain
+docker start forkedbrain
+```
+
+Stopping ForkedBrain does not stop Hermes, OpenViking, Coolify, the V2 tunnel, or the legacy Crypto service.
+
+### Roll back the application
+
+The latest accepted predecessor is retained as stopped container `forkedbrain-rollback-20260803T1357Z` and image `mark-forkedbrain:20260803T1357Z`.
+
+```bash
+docker stop forkedbrain
+docker rename forkedbrain forkedbrain-failed-<utc-release>
+docker rename forkedbrain-rollback-20260803T1357Z forkedbrain
+docker update --restart=unless-stopped forkedbrain
+docker start forkedbrain
+```
+
+Then wait for healthy status and run the routine status checks. Do not remove the failed container until its logs are captured and the cause is understood.
+
+### Refresh the read-only database copy
+
+Never mount a live WAL-mode workstation database directly into production. Create a consistent copy with SQLite's backup mechanism, switch only the copy to `journal_mode=DELETE`, and validate it before transfer:
+
+```bash
+sqlite3 <source-database> ".backup '<temporary-copy>'"
+sqlite3 <temporary-copy> "PRAGMA journal_mode=DELETE; PRAGMA quick_check; PRAGMA foreign_key_check;"
+```
+
+Require `ok`, no foreign-key rows, the expected 164 indexed memories, and the expected source/event/artifact reconciliation. Stop ForkedBrain, replace only `/srv/mark-v2/forkedbrain/data/crypto-intelligence.db`, restore owner/group and mode `0440`, start ForkedBrain, and repeat API, restart, and hash checks. Never replace the authoritative local handoff while performing this refresh.
+
+### API acceptance
+
+The health endpoint is intentionally available only on the loopback origin. Every data or chat endpoint must reject a request without Cloudflare's authenticated identity header. With an approved identity, require:
+
+- graph HTTP `200`, exactly 20 total visible nodes, 16 ranked memory records, at least one retained research conversation when conversation data exists, and the current total of 164 indexed memories
+- detail HTTP `200` with real body, metadata, and stored insights where available
+- chat reaches Hermes; a provider-credit error is acceptable only while the documented provider balance remains exhausted
+- unknown or unapproved identities receive HTTP `401`
+
+### Root-domain verification
+
+Before root DNS exists, add `forkedbrain.fyi` to the existing Cloudflare Access application with the same exact-email policy used for management. Then add the root tunnel ingress immediately before the final `http_status:404` rule:
+
+```yaml
+- hostname: forkedbrain.fyi
+  service: http://127.0.0.1:9320
+```
+
+Validate the ingress file before restarting cloudflared. Externally, an unauthenticated request must redirect to the existing Cloudflare Access organization. Test Mark and Darshan separately. After authentication, verify the overview, graph, real memory detail, search/filter, and Hermes credit-state message. Recheck `brain`, `manage`, `manage-realtime`, and `intel` after the root change.
+
 # Cloudflare domain change gate
 
 `intel.forkedbrain.fyi` is the live legacy Crypto Intelligence endpoint on the old VPS. Treat its DNS record, `crypto-intel` tunnel, public-hostname route, and connector as protected production state.

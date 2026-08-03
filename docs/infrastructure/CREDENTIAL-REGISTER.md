@@ -1,6 +1,6 @@
 # Redacted Credential Register
 
-**Last audited:** 2026-07-31 17:53 UTC  
+**Last audited:** 2026-08-03 13:44 UTC
 **Rule:** this file records credential existence, owner, location, status, and required action—never the credential value.
 
 ## Current credential inventory
@@ -18,6 +18,7 @@
 | Coolify realtime/Pusher credentials | Coolify realtime | `/data/coolify/source/.env`; owner-only local copy under `.secrets/credentials/new-vps/` | ID, key, and secret are set; raw values are confined to private credential storage | Preserve in encrypted backup |
 | Coolify root administrator | Mark (`gerhartmark@gmail.com`) | Raw temporary password exists only in `.secrets/credentials/new-vps/ALL-CREDENTIALS.txt`; Coolify stores its hash in PostgreSQL | Created and verified on 2026-07-31; root-team role is `owner`; public registration is disabled; bootstrap variables were not persisted to Coolify's `.env` | Darshan/Mark should rotate the temporary password after HTTPS login becomes available and update the master credential record |
 | Hermes dashboard basic-auth credentials | Mark (`gerhartmark@gmail.com`) | Raw password and session-signing secret in `.secrets/credentials/new-vps/ALL-CREDENTIALS.txt`; supported `dashboard.basic_auth` hash/signing configuration in mode-`0600` `/opt/data/config.yaml` | Created and login-verified through `brain.forkedbrain.fyi`; no dashboard secret exists in Coolify's service environment or either container environment | Rotate the temporary dashboard password after Mark accepts the login; retain the signing secret unless intentionally invalidating all sessions |
+| ForkedBrain Hermes credential mount | ForkedBrain runtime | Existing Hermes dashboard password is referenced from `/srv/mark-v2/secrets/forkedbrain-hermes-password` and mounted read-only at `/run/secrets/hermes-dashboard-password`; the application environment stores only the file path | Active; no new password was created; no raw password exists in the container environment, image, source, or ordinary documentation | Rotate together with the Hermes dashboard credential and update both owner-only runtime files before restarting ForkedBrain |
 | OpenViking root API key | Mark / memory administrator | Raw value in `.secrets/credentials/new-vps/ALL-CREDENTIALS.txt`; active hashed record inside `openviking_data` | Active; never provided to Hermes; staging copy removed | Use only for account recovery/administration; rotate on suspected exposure and update the owner-only master |
 | OpenViking Hermes tenant API key | Hermes user/agent | Raw value in `.secrets/credentials/new-vps/ALL-CREDENTIALS.txt`; active copy in mode-`0600` `/opt/data/.env`; hashed server record inside `openviking_data` | Active and provider-verified; absent from Compose and container environment | Rotate jointly in OpenViking and Hermes; re-run write/search/read plus restart acceptance |
 | OpenViking encryption master key | Mark / memory service | `.secrets/credentials/new-vps/ALL-CREDENTIALS.txt`, `.secrets/credentials/new-vps/openviking/master.key`, and mode-`0600` native service storage | Active and separately escrowed; required to recover encrypted memory data | Include only in an encrypted off-server backup; loss can make restored content unreadable |
@@ -105,6 +106,7 @@ The environment file initially had mode `0644` after the official installer. It 
 7. Migrate only explicitly approved active credentials from the old VPS; no Telegram or legacy application credential has entered V2 yet.
 8. Rotate the migrated OpenAI Platform key before production cutover and replace the Hermes pool entry without exposing the value.
 9. After V2 cutover, reassess Darshan's full Cloudflare role and revoke the local account certificate when ongoing tunnel management is no longer required.
+10. Fund the approved OpenAI Platform project or explicitly approve another Hermes provider before treating ForkedBrain selected-memory chat as available.
 
 ## Account ownership standard
 

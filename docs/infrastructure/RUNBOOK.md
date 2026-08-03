@@ -220,39 +220,38 @@ The configuration backup created before schema migration is:
 /opt/data/config.yaml.pre-migrate-20260731T1138Z
 ```
 
-### Hermes OpenAI provider
+### Hermes model provider
 
-The active primary provider is Hermes' native `openai-api` pool with default model `gpt-5.6-sol`. The raw key is not present in Compose or ordinary environment variables. Hermes persists the active copy at `/opt/data/auth.json`, which must remain mode `0600` and be included only in encrypted backups.
+The active primary provider is Hermes' native Anthropic provider with default model `claude-sonnet-5`. This is the shared brain provider for ForkedBrain and the Crypto Intelligence dashboard. No Hermes source, tool, memory, or prompt behavior was patched for this switch.
+
+The raw provider key is stored only in the owner-only credential bundle and `/opt/data/.env`. The runtime file must remain mode `0600`, owned by Hermes UID/GID `10000:10000`, and included only in encrypted backups. The dashboard container receives no model-provider credential.
 
 Verify without exposing the key:
 
 ```bash
-docker exec hermes-27am3wgv7vkohkenprml4s3p hermes auth status openai-api
-docker exec hermes-27am3wgv7vkohkenprml4s3p hermes auth list
 docker exec hermes-27am3wgv7vkohkenprml4s3p hermes config get model.provider
 docker exec hermes-27am3wgv7vkohkenprml4s3p hermes config get model.default
-docker exec hermes-27am3wgv7vkohkenprml4s3p stat -c '%n|%a|%u:%g' /opt/data/auth.json
+docker exec hermes-27am3wgv7vkohkenprml4s3p hermes config check
+docker exec hermes-27am3wgv7vkohkenprml4s3p stat -c '%n|%a|%u:%g' /opt/data/.env
 ```
 
 Expected provider state:
 
 ```text
-openai-api: logged in
-mark-openai-api
-model.provider=openai-api
-model.default=gpt-5.6-sol
-/opt/data/auth.json mode 600
+model.provider=anthropic
+model.default=claude-sonnet-5
+configuration valid at schema 33
+/opt/data/.env mode 600, owner 10000:10000
 ```
 
-The provider-free configuration backup is:
+The pre-switch configuration and provider-file backups are:
 
 ```text
-/opt/data/config.yaml.pre-openai-api-20260731T1225Z
+/opt/data/operator-backups/provider-switch-20260803T151944Z/config.yaml
+/opt/data/operator-backups/provider-switch-20260803T151944Z/provider.env
 ```
 
-To rotate the migrated key, first create the replacement in Mark's OpenAI Platform account and store it in the approved owner-only credential record. Add it through secret stdin, validate one minimal call, then remove the old pool entry. Never place the raw key in a command argument, Compose file, documentation, or chat.
-
-The initial smoke test loaded about 14K input tokens despite its tiny prompt because Hermes included its full baseline context. Treat Sol as the quality baseline, not the automatic choice for every workload. Establish representative Crypto tests before adding Terra/Luna routing or a lean ingestion profile.
+The former OpenAI pool remains historical and inactive. Its project currently reports exhausted quota. Do not silently switch providers or delete historical authentication state. Any future change requires a provider backup, one isolated minimal response, configuration validation, a Hermes restart, and a real application-level Ask test.
 
 The gateway status may briefly retain a recent-history message that the pre-restart process is gone. That message was produced by the deliberate restart acceptance test; verify the current process and dashboard before treating it as an incident.
 
@@ -408,7 +407,7 @@ The isolated V2 Cloudflare tunnel, `brain`, `manage`, and `manage-realtime` host
 5. **Completed:** deploy the official self-hosted OpenViking provider as a separate internal Coolify service with persistent encrypted storage and no public exposure.
 6. **Completed:** connect Hermes through the official OpenViking provider path and verify tenancy, write/search/read, independent restarts, consistent backup, disposable restore, credential escrow, and temporary-access cleanup.
 7. **Completed:** add and live-test only the thin Crypto-specific identity, visible provenance, replay guard, and receipt logic that Hermes/OpenViking do not already provide.
-8. Establish role-based Sol/Terra/Luna routing only from measured Crypto workloads, not speculation.
+8. Keep `claude-sonnet-5` as the shared Hermes default until measured Crypto workloads justify a different native provider or model.
 9. **Completed for synthetic data:** run native URL/document/transcript/event acceptance, exact retrieval, replay-skip, failure-receipt, and cleanup tests.
 10. **Superseded by the complete plan:** the earlier 47-source/66-event bundle remains a historical dry-run artifact.
 11. **Completed:** build and independently verify the complete 131-source/artifact plus 66-event semantic bundle, normalized dashboard database, 89-file media archive, and Claude Code handoff.
@@ -493,7 +492,7 @@ The health endpoint is intentionally available only on the loopback origin. Ever
 
 - graph HTTP `200`, exactly 20 total visible nodes, 16 ranked memory records, at least one retained research conversation when conversation data exists, and the current total of 164 indexed memories
 - detail HTTP `200` with real body, metadata, and stored insights where available
-- chat reaches Hermes; a provider-credit error is acceptable only while the documented provider balance remains exhausted
+- chat reaches Hermes and returns a non-empty answer through the configured native Anthropic provider
 - unknown or unapproved identities receive HTTP `401`
 
 ### Root-domain verification
@@ -506,6 +505,53 @@ Before root DNS exists, add `forkedbrain.fyi` to the existing Cloudflare Access 
 ```
 
 Validate the ingress file before restarting cloudflared. Externally, an unauthenticated request must redirect to the existing Cloudflare Access organization. Test Mark and Darshan separately. After authentication, verify the overview, graph, real memory detail, search/filter, and Hermes credit-state message. Recheck `brain`, `manage`, `manage-realtime`, and `intel` after the root change.
+
+## Crypto Intelligence dashboard operations
+
+Current accepted release: `20260803T155532Z`
+
+Runtime contract:
+
+- container: `crypto-dashboard`
+- image: `mark-crypto-dashboard:20260803T155532Z`
+- loopback origin: `http://127.0.0.1:9330`
+- application network: `27am3wgv7vkohkenprml4s3p`
+- database directory: `/srv/mark-v2/crypto-dashboard/data`
+- private media archive: `/srv/mark-v2/crypto-legacy-media/v1`
+- runtime environment: `/srv/mark-v2/secrets/crypto-dashboard.env`
+- mounted Hermes password file: `/srv/mark-v2/secrets/forkedbrain-hermes-password`
+- versioned deployment definition: `dashboard/deploy/docker-compose.production.yml`
+
+### Routine status
+
+```bash
+docker ps --filter name=^/crypto-dashboard$ --format '{{.Names}} {{.Image}} {{.Status}} {{.Ports}}'
+curl -fsS http://127.0.0.1:9330/api/health
+docker inspect crypto-dashboard --format '{{.HostConfig.ReadonlyRootfs}} {{.Config.User}} {{json .HostConfig.SecurityOpt}}'
+```
+
+Expected state is healthy, `127.0.0.1:9330->5183/tcp`, read-only root filesystem, user `dashboard`, and `no-new-privileges:true`. The database directory is the only writable application mount. Media and the Hermes password file are read only.
+
+### Authenticated acceptance
+
+The static interface must be protected by Cloudflare Access. Every data endpoint also requires the verified Access identity header and rejects missing or unknown identities with HTTP `401`. With an approved identity, require:
+
+- brief reports 66 events, 47 sources, and 89 media files
+- media streaming supports byte ranges and returns HTTP `206`
+- Ask returns `mode=hermes`, `state=connected`, a non-empty answer, and at least one canonical evidence record
+- database `PRAGMA integrity_check` is `ok` and `PRAGMA foreign_key_check` returns no rows
+
+### Restart and rollback
+
+Before restart, record the database SHA-256 and brief counts. Restart only `crypto-dashboard`, wait for healthy, and require the same checksum and counts.
+
+The pre-route Cloudflare tunnel configuration is retained at:
+
+```text
+/srv/mark-v2/operator-backups/20260803T154358Z-cloudflared-crypto-route/config.yml
+```
+
+To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, stop and rename only `crypto-dashboard`, then recreate the prior accepted image with the same environment, mounts, loopback port, network, and hardening settings. Do not alter Hermes, OpenViking, ForkedBrain, or the legacy `intel.forkedbrain.fyi` service.
 
 # Cloudflare domain change gate
 

@@ -1,0 +1,20 @@
+tunnel: faa04374-384f-4eea-a3e6-0c56ef2c309d
+credentials-file: /etc/cloudflared/faa04374-384f-4eea-a3e6-0c56ef2c309d.json
+metrics: 127.0.0.1:20241
+no-autoupdate: true
+
+ingress:
+  - hostname: manage.forkedbrain.fyi
+    path: ^/terminal/ws.*
+    service: http://127.0.0.1:6002
+  - hostname: manage-realtime.forkedbrain.fyi
+    service: http://127.0.0.1:6001
+  - hostname: manage.forkedbrain.fyi
+    service: http://127.0.0.1:8000
+  - hostname: brain.forkedbrain.fyi
+    service: http://127.0.0.1:9119
+  - hostname: crypto.forkedbrain.fyi
+    service: http://127.0.0.1:9330
+  - hostname: forkedbrain.fyi
+    service: http://127.0.0.1:9320
+  - service: http_status:404

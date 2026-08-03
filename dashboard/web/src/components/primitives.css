@@ -67,19 +67,12 @@
 .status-glyph {
   display: inline-grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   border-radius: var(--radius-pill);
-  font-size: 0.625rem;
-  font-weight: 700;
-  color: var(--surface-void);
+  border: 1px solid currentColor;
   flex: none;
 }
-.status-good .status-glyph { background: var(--status-good); }
-.status-warning .status-glyph { background: var(--status-warning); }
-.status-serious .status-glyph { background: var(--status-serious); }
-.status-critical .status-glyph { background: var(--status-critical); }
-.status-neutral .status-glyph { background: var(--ink-faint); }
 .status-good { color: var(--status-good); }
 .status-warning { color: var(--status-warning); }
 .status-serious { color: var(--status-serious); }

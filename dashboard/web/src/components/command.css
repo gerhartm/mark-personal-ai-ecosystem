@@ -167,8 +167,10 @@
 }
 .answer-message {
   font-size: 0.875rem;
+  line-height: 1.65;
   color: var(--ink-secondary);
   max-width: 62ch;
+  white-space: pre-wrap;
 }
 .answer-label {
   color: var(--ink-faint);

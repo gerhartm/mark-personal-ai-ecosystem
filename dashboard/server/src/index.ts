@@ -4,6 +4,9 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MEDIA_ROOT, audit, all, one, run } from './db.js';
+import { buildAskContext } from './ask-context.js';
+import { askHermes, cleanHermesError } from './hermes-client.js';
+import { accessHeaderRequired, requestActor, requestIdentity } from './request-auth.js';
 import * as t from './tools.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -11,19 +14,25 @@ const WEB_DIST = resolve(HERE, '..', '..', 'web', 'dist');
 const PORT = Number(process.env.PORT ?? 5183);
 const HOST = process.env.HOST ?? '127.0.0.1';
 
-/**
- * Local single-user mode. In deployment this identity comes from the verified
- * Cloudflare Access assertion; here it is a fixed local operator so the audit
- * trail and note authorship are still real.
- */
-const ACTOR = process.env.CRYPTO_ACTOR ?? 'local-operator';
-
 const app = Fastify({ logger: false, bodyLimit: 1_000_000 });
 
-app.addHook('onSend', async (_req, reply) => {
+app.addHook('onSend', async (req, reply) => {
   reply.header('X-Content-Type-Options', 'nosniff');
   reply.header('Referrer-Policy', 'no-referrer');
   reply.header('X-Frame-Options', 'DENY');
+  reply.header(
+    'Content-Security-Policy',
+    "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:",
+  );
+  if (req.url.startsWith('/api/')) reply.header('Cache-Control', 'private, no-store');
+});
+
+app.addHook('preHandler', async (req, reply) => {
+  if (!accessHeaderRequired || req.url.startsWith('/api/health')) return;
+  const identity = requestIdentity(req);
+  if (!identity.authorized) {
+    return reply.code(401).send({ error: 'unauthorized', message: 'Authentication is required.' });
+  }
 });
 
 const list = (v: unknown): string[] | undefined => {
@@ -155,11 +164,11 @@ app.put('/api/events/:id/notes', async (req, reply) => {
     id,
     next,
     body.text.trim(),
-    ACTOR,
+    requestActor(req),
     new Date().toISOString(),
     'pending',
   );
-  audit(ACTOR, 'note.append', id, { revision: next });
+  audit(requestActor(req), 'note.append', id, { revision: next });
   return { event_id: id, revision: next, memory_state: 'pending' };
 });
 
@@ -177,14 +186,14 @@ app.post('/api/views', async (req, reply) => {
     JSON.stringify(body.query ?? {}),
     new Date().toISOString(),
   );
-  audit(ACTOR, 'view.create', id);
+  audit(requestActor(req), 'view.create', id);
   return { id };
 });
 
 app.delete('/api/views/:id', async (req) => {
   const { id } = req.params as { id: string };
   run('DELETE FROM saved_views WHERE id = ?', id);
-  audit(ACTOR, 'view.delete', id);
+  audit(requestActor(req), 'view.delete', id);
   return { ok: true };
 });
 
@@ -197,12 +206,34 @@ app.delete('/api/views/:id', async (req) => {
  * plane is not connected it says so and offers deterministic lexical search
  * instead, clearly labelled as search rather than an answer.
  */
-app.post('/api/ask', async (req) => {
+const askAttempts = new Map<string, number[]>();
+
+function isAskRateLimited(key: string) {
+  const now = Date.now();
+  const recent = (askAttempts.get(key) ?? []).filter((time) => time > now - 60_000);
+  if (recent.length >= 12) return true;
+  recent.push(now);
+  askAttempts.set(key, recent);
+  return false;
+}
+
+app.post('/api/ask', async (req, reply) => {
   const body = req.body as { question?: string };
   const question = (body?.question ?? '').trim();
-  audit(ACTOR, 'ask', undefined, { length: question.length });
+  if (question.length < 3 || question.length > 2_000) {
+    return reply.code(400).send({
+      error: 'invalid_question',
+      message: 'Enter a question between 3 and 2,000 characters.',
+    });
+  }
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isAskRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before asking again.' });
+  }
+  audit(actor, 'ask', undefined, { length: question.length });
 
-  const connected = Boolean(process.env.HERMES_URL);
+  const connected = Boolean(process.env.HERMES_BASE_URL);
   if (!connected) {
     const results = question ? t.search(question, 12).results : [];
     return {
@@ -214,13 +245,27 @@ app.post('/api/ask', async (req) => {
       results,
     };
   }
-  return {
-    mode: 'hermes',
-    state: 'not_implemented_locally',
-    message: 'Hermes transport is gated behind the Phase 1B interface proof and is not wired in this local build.',
-    question,
-    results: [],
-  };
+  const context = buildAskContext(question);
+  try {
+    const answer = await askHermes(context.input);
+    return {
+      mode: 'hermes',
+      state: 'connected',
+      answer,
+      message: answer,
+      question,
+      results: context.hits,
+      evidence_count: context.records,
+    };
+  } catch (error) {
+    return reply.code(503).send({
+      mode: 'error',
+      state: 'hermes_unavailable',
+      message: cleanHermesError(error instanceof Error ? error.message : error),
+      question,
+      results: context.hits,
+    });
+  }
 });
 
 /* ------------------------------------------------------------------ */
@@ -245,7 +290,7 @@ app.get('/api/media/:ref', async (req, reply) => {
   const root = resolve(MEDIA_ROOT);
   const target = resolve(join(root, normalize(asset.relative_path)));
   if (!target.startsWith(root + '/')) {
-    audit(ACTOR, 'media.traversal_blocked', ref);
+    audit(requestActor(req), 'media.traversal_blocked', ref);
     return reply.code(404).send();
   }
   if (!existsSync(target)) {
@@ -257,7 +302,7 @@ app.get('/api/media/:ref', async (req, reply) => {
     });
   }
 
-  audit(ACTOR, 'media.read', ref);
+  audit(requestActor(req), 'media.read', ref);
   const size = statSync(target).size;
   const type =
     { json: 'application/json', txt: 'text/plain', pdf: 'application/pdf', mp4: 'video/mp4', mp3: 'audio/mpeg' }[
@@ -305,7 +350,8 @@ if (process.env.NODE_ENV !== 'test') {
   await app.listen({ port: PORT, host: HOST });
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);
   console.log(`  media archive: ${MEDIA_ROOT ? 'mounted' : 'not mounted (degraded, documented)'}`);
-  console.log(`  intelligence plane: ${process.env.HERMES_URL ? 'configured' : 'not connected (degraded)'}`);
+  console.log(`  intelligence plane: ${process.env.HERMES_BASE_URL ? 'configured' : 'not connected (degraded)'}`);
+  console.log(`  access header: ${accessHeaderRequired ? 'required' : 'local development mode'}`);
 }
 
 export { app };

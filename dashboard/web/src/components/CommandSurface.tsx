@@ -25,6 +25,14 @@ interface Hit {
   snippet: string;
 }
 
+function routeForHit(hit: Pick<Hit, 'kind' | 'canonical_id'>) {
+  if (hit.kind === 'source') return `/source/${hit.canonical_id}`;
+  if (hit.kind === 'draft') return `/studio/${hit.canonical_id}`;
+  if (hit.kind === 'conversation') return `/archive/${hit.canonical_id}`;
+  if (hit.kind === 'theme') return `/theme/${hit.canonical_id}`;
+  return `/event/${hit.canonical_id}`;
+}
+
 /**
  * One input, three result classes: navigation, lexical search, and a question.
  * Asking is a mode, not a destination, so this opens over whatever is on screen.
@@ -118,7 +126,7 @@ export function CommandSurface({ onClose }: { onClose: () => void }) {
 
         <div className="command-body">
           {asking ? (
-            <AnswerPanel answer={answer} busy={busy} onOpen={(id) => go(`/event/${id}`)} />
+            <AnswerPanel answer={answer} busy={busy} onOpen={(hit) => go(routeForHit(hit))} />
           ) : (
             <>
               {routes.length > 0 && (
@@ -148,17 +156,7 @@ export function CommandSurface({ onClose }: { onClose: () => void }) {
                       key={`${h.kind}-${h.canonical_id}-${h.field}`}
                       type="button"
                       className="command-row command-row-hit"
-                      onClick={() =>
-                        go(
-                          h.kind === 'source'
-                            ? `/source/${h.canonical_id}`
-                            : h.kind === 'draft'
-                              ? `/studio/${h.canonical_id}`
-                              : h.kind === 'conversation'
-                                ? `/archive/${h.canonical_id}`
-                                : `/event/${h.canonical_id}`,
-                        )
-                      }
+                      onClick={() => go(routeForHit(h))}
                     >
                       <span className="command-hit-main">
                         <span className="command-hit-title">{truncate(h.title || h.canonical_id, 84)}</span>
@@ -198,7 +196,7 @@ function AnswerPanel({
 }: {
   answer: any;
   busy: boolean;
-  onOpen: (id: string) => void;
+  onOpen: (hit: Hit) => void;
 }) {
   if (busy && !answer) return <p className="command-empty muted">Working</p>;
   if (!answer) return null;
@@ -207,17 +205,19 @@ function AnswerPanel({
     <div className="answer">
       <div className="answer-state">
         <StatusChip tone={answer.mode === 'hermes' ? 'good' : 'warning'}>
-          {answer.mode === 'hermes' ? 'Hermes answered' : 'Intelligence plane not connected'}
+          {answer.mode === 'hermes' ? 'Hermes answered' : 'Hermes unavailable'}
         </StatusChip>
       </div>
-      <p className="answer-message">{answer.message}</p>
+      <p className="answer-message">{answer.answer ?? answer.message}</p>
       {answer.results?.length > 0 && (
         <>
-          <p className="label answer-label">Exact matches, not an answer</p>
+          <p className="label answer-label">
+            {answer.mode === 'hermes' ? 'Evidence reviewed' : 'Exact corpus matches'}
+          </p>
           <ul className="answer-list">
             {answer.results.map((r: Hit) => (
               <li key={`${r.kind}-${r.canonical_id}-${r.field}`}>
-                <button type="button" className="answer-hit" onClick={() => onOpen(r.canonical_id)}>
+                <button type="button" className="answer-hit" onClick={() => onOpen(r)}>
                   <span className="mono answer-hit-id">{r.canonical_id}</span>
                   <span dangerouslySetInnerHTML={{ __html: escapeSnippet(r.snippet) }} />
                 </button>

@@ -1,0 +1,307 @@
+.timeline-body {
+  padding: var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-7);
+}
+
+.timeline-legend {
+  display: flex;
+  gap: var(--sp-5);
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.legend-mark {
+  background: var(--ink-muted);
+  border-radius: 1px;
+  height: 8px;
+}
+.legend-day { width: 4px; border-radius: var(--radius-pill); }
+.legend-month { width: 14px; opacity: 0.75; }
+.legend-quarter { width: 26px; opacity: 0.58; }
+.legend-year { width: 40px; opacity: 0.42; }
+
+/* ---- context band ------------------------------------------------ */
+.context-band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.context-label,
+.focus-label,
+.capture-label {
+  color: var(--ink-faint);
+}
+.context-years {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 56px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+.context-year {
+  position: relative;
+  flex: 1;
+  min-width: 6px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 2px 2px 0 0;
+}
+.context-year:hover .context-bar {
+  background: var(--accent-strong);
+}
+.context-year.is-active {
+  background: var(--accent-wash);
+}
+.context-year.is-active .context-bar {
+  background: var(--accent);
+}
+.context-bar {
+  width: 100%;
+  max-width: 14px;
+  background: var(--ink-faint);
+  border-radius: 2px 2px 0 0;
+  transition: background var(--dur-1) var(--ease);
+}
+.context-tick {
+  position: absolute;
+  bottom: -15px;
+  font-size: 0.625rem;
+  color: var(--ink-faint);
+}
+
+/* ---- focus lanes -------------------------------------------------- */
+.focus-band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.lanes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.lane {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-5);
+}
+.lane-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: 0.8125rem;
+  color: var(--ink-secondary);
+  min-width: 0;
+}
+.lane-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  flex: none;
+}
+.lane-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lane-count {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-size: 0.6875rem;
+}
+.lane-track {
+  position: relative;
+  height: 34px;
+  border-radius: var(--radius-flat);
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+}
+
+.mark {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  opacity: 0.85;
+  transition: opacity var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.mark:hover,
+.mark:focus-visible {
+  opacity: 1;
+  transform: translateY(-50%) scaleY(1.35);
+  z-index: 2;
+}
+.mark-day {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  margin-left: -3px;
+}
+.mark-month {
+  height: 12px;
+  min-width: 4px;
+  opacity: 0.6;
+}
+.mark-quarter {
+  height: 15px;
+  min-width: 6px;
+  opacity: 0.45;
+}
+.mark-year {
+  height: 18px;
+  min-width: 8px;
+  opacity: 0.3;
+}
+
+.lane-axis {
+  display: flex;
+  justify-content: space-between;
+  padding-left: calc(200px + var(--sp-5));
+  font-size: 0.6875rem;
+  color: var(--ink-faint);
+}
+
+.timeline-readout {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-flat);
+  background: var(--surface-sunken);
+  font-size: 0.8125rem;
+  min-height: 38px;
+}
+.timeline-readout-label {
+  color: var(--ink-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- capture rail ------------------------------------------------- */
+.capture-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--hairline);
+}
+.capture-track {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  height: 62px;
+}
+.capture-month {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 56px;
+  height: 100%;
+}
+.capture-bar {
+  width: 100%;
+  background: color-mix(in oklab, var(--accent) 40%, transparent);
+  border-radius: 2px 2px 0 0;
+  min-height: 3px;
+}
+.capture-tick,
+.capture-value {
+  font-size: 0.625rem;
+  color: var(--ink-faint);
+}
+.capture-value {
+  position: absolute;
+  top: -2px;
+  color: var(--ink-muted);
+}
+
+/* ---- pin list ----------------------------------------------------- */
+.pin-list {
+  list-style: none;
+}
+.pin-list li + li {
+  border-top: 1px solid var(--hairline);
+}
+.pin-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: var(--sp-5);
+  padding: var(--sp-4) var(--sp-6);
+  color: inherit;
+  transition: background var(--dur-1) var(--ease);
+}
+.pin-row:hover {
+  background: rgba(237, 245, 251, 0.03);
+  text-decoration: none;
+}
+.pin-row-date {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pin-row-precision {
+  color: var(--ink-faint);
+  font-size: 0.625rem;
+}
+.pin-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.pin-row-label {
+  font-size: 0.875rem;
+  color: var(--ink-primary);
+  line-height: 1.45;
+}
+.pin-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-4);
+  }
+  .timeline-legend {
+    gap: var(--sp-4);
+  }
+  .lane {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3);
+  }
+  .lane-axis {
+    padding-left: 0;
+  }
+  .pin-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3);
+  }
+  .pin-row-date {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--sp-3);
+  }
+}

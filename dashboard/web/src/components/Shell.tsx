@@ -67,13 +67,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </a>
 
       <nav className="rail" aria-label="Primary">
-        <div className="rail-brand">
-          <span className="rail-brand-mark" aria-hidden="true" />
+        <a className="rail-brand" href="https://forkedbrain.fyi/" aria-label="Return to ForkedBrain">
+          <span className="rail-brand-mark" aria-hidden="true">
+            <span className="rail-brand-lobe rail-brand-lobe-left" />
+            <span className="rail-brand-lobe rail-brand-lobe-right" />
+            <span className="rail-brand-branch" />
+          </span>
           <span className="rail-brand-text">
             <span className="rail-brand-name">Crypto Intelligence</span>
             <span className="rail-brand-scope label">Mark Gerhart</span>
           </span>
-        </div>
+        </a>
 
         <div className="rail-groups">
           {GROUPS.map((group) => (
@@ -98,9 +102,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
         <div className="rail-foot">
           <p className="label">Workspace</p>
-          <div className="rail-workspace" title="Other branches are not part of this workspace">
-            <span className="rail-workspace-active">Crypto</span>
-            <span className="faint">AI Tooling and Real Estate not active</span>
+          <div className="rail-workspace" title="This is the active intelligence branch">
+            <span className="rail-workspace-active">Crypto Intelligence</span>
+            <span className="faint">Future branches remain reserved</span>
           </div>
         </div>
       </nav>

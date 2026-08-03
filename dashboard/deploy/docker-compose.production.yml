@@ -1,0 +1,28 @@
+services:
+  crypto-dashboard:
+    image: mark-crypto-dashboard:20260803T155532Z
+    container_name: crypto-dashboard
+    restart: unless-stopped
+    env_file:
+      - /srv/mark-v2/secrets/crypto-dashboard.env
+    ports:
+      - "127.0.0.1:9330:5183"
+    volumes:
+      - /srv/mark-v2/crypto-dashboard/data:/data
+      - /srv/mark-v2/crypto-legacy-media/v1:/media:ro
+      - /srv/mark-v2/secrets/forkedbrain-hermes-password:/run/secrets/hermes-dashboard-password:ro
+    networks:
+      - personal-ai
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+
+networks:
+  personal-ai:
+    external: true
+    name: 27am3wgv7vkohkenprml4s3p

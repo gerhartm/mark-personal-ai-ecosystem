@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+data
+screenshots
+server/test
+server/src/screenshots.mjs
+docs
+*.log
+.DS_Store

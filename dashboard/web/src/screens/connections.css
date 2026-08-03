@@ -1,0 +1,131 @@
+.connections-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  flex-wrap: wrap;
+}
+
+.graph-stage {
+  position: relative;
+  height: clamp(340px, 52vh, 560px);
+  background: radial-gradient(80% 70% at 50% 45%, rgba(52, 186, 210, 0.06), transparent 70%), var(--surface-sunken);
+  border-bottom: 1px solid var(--hairline);
+}
+.three-mount {
+  position: absolute;
+  inset: 0;
+}
+.three-mount-interactive {
+  cursor: grab;
+}
+.three-mount-interactive:active {
+  cursor: grabbing;
+}
+
+.flat-graph {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.flat-edge {
+  stroke: var(--ink-faint);
+  stroke-width: 0.08;
+  opacity: 0.2;
+}
+.flat-edge-explicit {
+  stroke: var(--accent);
+  opacity: 0.34;
+  stroke-width: 0.12;
+}
+.flat-edge-membership {
+  stroke: var(--family-narrative);
+  opacity: 0.13;
+}
+.flat-edge.is-active {
+  stroke: var(--accent-strong);
+  opacity: 0.85;
+  stroke-width: 0.18;
+}
+.flat-node {
+  cursor: pointer;
+  transition: r var(--dur-2) var(--ease);
+}
+.flat-node:hover {
+  stroke: var(--ink-primary);
+  stroke-width: 0.25;
+}
+.flat-node.is-focus {
+  stroke: var(--accent-strong);
+  stroke-width: 0.45;
+}
+.flat-node:focus-visible {
+  outline: none;
+  stroke: var(--accent-strong);
+  stroke-width: 0.5;
+}
+
+.graph-note {
+  padding: var(--sp-4) var(--sp-6);
+}
+.focus-readout {
+  font-size: 0.8125rem;
+  color: var(--ink-secondary);
+}
+.focus-readout .label {
+  margin-right: var(--sp-3);
+}
+
+.connections-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.entity-rank {
+  list-style: none;
+  max-height: 460px;
+  overflow-y: auto;
+}
+.entity-rank li + li {
+  border-top: 1px solid var(--hairline);
+}
+.entity-rank-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 36px;
+  align-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-5);
+  border: 0;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease);
+}
+.entity-rank-row:hover,
+.entity-rank-row.is-focus {
+  background: var(--accent-wash);
+  color: var(--ink-primary);
+}
+.entity-rank-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entity-rank-type {
+  color: var(--ink-faint);
+}
+.entity-rank-count {
+  text-align: right;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 1080px) {
+  .connections-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

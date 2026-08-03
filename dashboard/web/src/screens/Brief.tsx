@@ -35,12 +35,14 @@ export function Brief() {
     <div className="page">
       <header className="hero">
         <div className="hero-field" aria-hidden="true">
-          {depth ? (
-            <Suspense fallback={<StaticField />}>
+          {/* The static field is always the ground layer, so the header is
+              never empty while depth is loading, paused, or unavailable.
+              Depth adds to it rather than replacing it. */}
+          <StaticField />
+          {depth && (
+            <Suspense fallback={null}>
               <AmbientField density={counts.events} intensity={gaps.withoutNotes / Math.max(counts.events, 1)} />
             </Suspense>
-          ) : (
-            <StaticField />
           )}
         </div>
 

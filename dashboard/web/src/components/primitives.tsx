@@ -62,14 +62,30 @@ export function StatusChip({
   tone: 'good' | 'warning' | 'serious' | 'critical' | 'neutral';
   children: ReactNode;
 }) {
-  const glyph = { good: '✓', warning: '!', serious: '!!', critical: '×', neutral: '·' }[tone];
   return (
     <span className={`status status-${tone}`}>
       <span className="status-glyph" aria-hidden="true">
-        {glyph}
+        <StatusGlyph tone={tone} />
       </span>
       {children}
     </span>
+  );
+}
+
+/** Status always ships an icon beside its word, so hue never carries meaning alone. */
+function StatusGlyph({ tone }: { tone: string }) {
+  const p = {
+    good: 'M3.5 7.2 6 9.6l4.6-5',
+    warning: 'M7 3.4v4.2M7 10.2v.6',
+    serious: 'M4.6 3.4v4.2M9.4 3.4v4.2M4.6 10.2v.6M9.4 10.2v.6',
+    critical: 'M4 4l6 6M10 4l-6 6',
+    neutral: 'M4.4 7h5.2',
+  }[tone] ?? 'M4.4 7h5.2';
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={p} />
+    </svg>
   );
 }
 

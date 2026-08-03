@@ -30,6 +30,7 @@ let frames = 0;
 let slowSince = 0;
 let capped = false;
 let lastFrameAt = 0;
+let slowFrames = 0;
 let lastW = 0;
 let lastH = 0;
 
@@ -76,13 +77,16 @@ function loop() {
   lastFrameAt = now;
   frames += 1;
 
-  if (frames > 1 && frames <= 4 && frameTime > 24) {
-    degradeAll(`the first frames took ${Math.round(frameTime)} ms`);
-    return;
-  }
-  if (frames > 8 && frameTime > 20) {
-    degradeAll(`frame time reached ${Math.round(frameTime)} ms`);
-    return;
+  // Degrade on sustained slowness, never on a single slow frame: the first
+  // paint often coincides with font loading and would trip a naive threshold.
+  if (frameTime > 24) {
+    slowFrames += 1;
+    if (slowFrames >= 3) {
+      degradeAll(`three consecutive frames over ${Math.round(frameTime)} ms`);
+      return;
+    }
+  } else {
+    slowFrames = 0;
   }
   if (frameTime > 12) {
     if (!slowSince) slowSince = now;
@@ -97,24 +101,39 @@ function loop() {
     return;
   }
 
+  draw(entry, r);
+  raf = requestAnimationFrame(loop);
+}
+
+function draw(entry: SceneEntry, r: THREE.WebGLRenderer) {
   const w = entry.mount.clientWidth;
   const h = entry.mount.clientHeight;
-  if (w && h) {
-    if (w !== lastW || h !== lastH) {
-      r.setSize(w, h, false);
-      if (entry.camera instanceof THREE.PerspectiveCamera) {
-        entry.camera.aspect = w / h;
-        entry.camera.updateProjectionMatrix();
-      }
-      entry.resize?.(w, h);
-      lastW = w;
-      lastH = h;
+  if (!w || !h) return;
+  if (w !== lastW || h !== lastH) {
+    r.setSize(w, h, false);
+    if (entry.camera instanceof THREE.PerspectiveCamera) {
+      entry.camera.aspect = w / h;
+      entry.camera.updateProjectionMatrix();
     }
-    entry.update?.(clock.getElapsedTime(), clock.getDelta());
-    r.render(entry.scene, entry.camera);
+    entry.resize?.(w, h);
+    lastW = w;
+    lastH = h;
   }
+  entry.update?.(clock.getElapsedTime(), clock.getDelta());
+  r.render(entry.scene, entry.camera);
+}
 
-  raf = requestAnimationFrame(loop);
+/**
+ * Draws exactly one frame of the active scene. Used by verification tooling
+ * and by environments where requestAnimationFrame is suspended, such as a
+ * background tab being screenshotted. It never starts the loop.
+ */
+export function renderOnce(): boolean {
+  const entry = activeId ? scenes.get(activeId) : null;
+  const r = entry ? ensureRenderer() : null;
+  if (!entry || !r) return false;
+  draw(entry, r);
+  return true;
 }
 
 function kick() {
@@ -137,6 +156,7 @@ export function register(entry: SceneEntry) {
   entry.mount.appendChild(r.domElement);
   frames = 0;
   slowSince = 0;
+  slowFrames = 0;
   capped = false;
   lastW = 0;
   lastH = 0;
@@ -183,6 +203,7 @@ export function disposeScene(scene: THREE.Scene) {
   scene.clear();
 }
 
+/** Inspectable runtime state, also surfaced on the Settings screen. */
 export const sceneStats = () => ({
   scenes: scenes.size,
   active: activeId,
@@ -190,3 +211,8 @@ export const sceneStats = () => ({
   halfRate: capped,
   rendererAlive: Boolean(renderer),
 });
+
+if (typeof window !== 'undefined') {
+  (window as any).__sceneStats = sceneStats;
+  (window as any).__renderOnce = renderOnce;
+}

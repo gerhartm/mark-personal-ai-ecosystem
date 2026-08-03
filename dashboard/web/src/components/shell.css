@@ -36,14 +36,61 @@
   align-items: center;
   gap: var(--sp-4);
   padding: 0 var(--sp-3);
+  color: var(--ink-primary);
+  text-decoration: none;
 }
+.rail-brand:hover { text-decoration: none; }
 .rail-brand-mark {
+  position: relative;
+  display: block;
   width: 26px;
   height: 26px;
   flex: none;
   border-radius: 7px;
-  background: linear-gradient(150deg, var(--accent-strong), var(--accent-deep) 55%, var(--family-narrative));
-  box-shadow: 0 0 0 1px var(--hairline-strong), 0 4px 14px rgba(52, 186, 210, 0.25);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface-panel);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+  transition: border-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.rail-brand:hover .rail-brand-mark {
+  border-color: var(--accent-deep);
+  transform: translateY(-1px);
+}
+.rail-brand-lobe {
+  position: absolute;
+  top: 5px;
+  width: 7px;
+  height: 15px;
+  border: 1px solid var(--ink-primary);
+  background: var(--surface-panel);
+}
+.rail-brand-lobe-left {
+  left: 5px;
+  border-radius: 6px 2px 4px 7px;
+}
+.rail-brand-lobe-right {
+  right: 5px;
+  border-radius: 2px 6px 7px 4px;
+}
+.rail-brand-branch {
+  position: absolute;
+  top: 9px;
+  right: -3px;
+  width: 7px;
+  height: 1px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+.rail-brand-branch::after {
+  position: absolute;
+  top: 50%;
+  right: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: '';
+  transform: translateY(-50%);
 }
 .rail-brand-text {
   display: flex;

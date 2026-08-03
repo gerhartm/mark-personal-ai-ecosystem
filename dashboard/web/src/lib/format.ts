@@ -77,3 +77,15 @@ export const paragraphs = (text?: string | null): string[] =>
     .filter(Boolean);
 
 export const yearOf = (iso: string) => Number(iso.slice(0, 4));
+
+/**
+ * Event summaries are paragraphs, not titles. This takes the leading claim so
+ * the page has a headline, while the full summary is still shown as prose.
+ */
+export function headline(summary?: string | null, max = 104): string {
+  const s = (summary ?? '').trim();
+  if (!s) return 'Untitled event';
+  const stop = s.search(/[.:;]\s|\s[-\u2014]\s/);
+  const first = stop > 24 ? s.slice(0, stop) : s;
+  return first.length <= max ? first : truncate(first, max);
+}

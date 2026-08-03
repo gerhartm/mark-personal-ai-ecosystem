@@ -51,6 +51,7 @@ npm audit --omit=dev
 ## Production
 
 Current release: `20260803T1408Z`
+Private URL: `https://forkedbrain.fyi/`
 
 Server paths:
 
@@ -61,6 +62,8 @@ Server paths:
 - Hermes password file: `/srv/mark-v2/secrets/forkedbrain-hermes-password`
 
 The container image is `mark-forkedbrain:<release>`. Operational commands, rollback, database refresh, and acceptance checks are documented in `docs/infrastructure/RUNBOOK.md`.
+
+The root hostname is routed through the isolated V2 Cloudflare tunnel and protected by the existing exact-email Cloudflare Access policy for Mark and Darshan. The origin remains bound only to VPS loopback.
 
 ## Known provider state
 

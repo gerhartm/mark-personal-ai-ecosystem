@@ -1,6 +1,6 @@
 # Redacted Credential Register
 
-**Last audited:** 2026-08-03 13:44 UTC
+**Last audited:** 2026-08-03 14:47 UTC
 **Rule:** this file records credential existence, owner, location, status, and required action—never the credential value.
 
 ## Current credential inventory
@@ -29,6 +29,7 @@
 | Cloudflare local account certificate | Darshan | `~/.cloudflared/cert.pem`; reference and fingerprint only in the private V2 master | Issued through Darshan's invited member login; mode `0600`; account-wide tunnel-management capability; raw value intentionally not copied into the project or VPS | Keep workstation-only; revoke from Cloudflare API Tokens and delete locally when management access ends or upon compromise |
 | V2 Cloudflare tunnel credential | Mark's V2 infrastructure | Local ignored owner-only path `.secrets/credentials/new-vps/cloudflare/mark-personal-ai-v2.json` and new VPS `/etc/cloudflared/faa04374-384f-4eea-a3e6-0c56ef2c309d.json` | Tunnel-specific credential; both copies mode `0600`; hashes match; service and four edge connections verified | Preserve both copies; never copy the account-wide `cert.pem` to the VPS; deleting the tunnel revokes this credential |
 | Cloudflare Access setup API token | Mark's Cloudflare account | No retained raw copy; temporary Keychain item and empty local placeholder deleted | Used once to create and read back the Access application/policy; exposed token `restless-morning-62df` was revoked by Darshan in Cloudflare and confirmed on 2026-07-31 | Closed; never recreate or reuse this credential—issue a new narrowly scoped, short-lived token for any separately approved future mutation |
+| Cloudflare ForkedBrain root-cutover API token | Mark's Cloudflare account | No retained raw copy; used only through an ephemeral local process | Used to add the protected root Access destination and root DNS record; never stored in project files, documentation, runtime configuration, image, or server | Revoke immediately after the 2026-08-03 cutover; runtime does not depend on this token |
 | Cloudflare Access identity | Mark and Darshan | Cloudflare Zero Trust configuration; identifiers only in the redacted state snapshot and private master | One-time-PIN provider; allow policy contains only `gerhartmark@gmail.com` and `darshan@growthforgeai.com`; 12-hour session; both hostnames redirect to the same Access organization | Test one interactive login for each owner; reduce or remove a user explicitly when their operational access ends |
 | Other AI provider/API credentials | Mark | Old-VPS credential bundle only | Anthropic and Venice credentials are not migrated to the new server | Leave absent unless a measured Hermes requirement justifies an additional provider |
 | Old-VPS application secrets | Mark | `.secrets/credentials/old-vps/` and the immutable old-VPS export | Preserved locally; not transferred | Review individually; never bulk-copy stale internal secrets or browser sessions |

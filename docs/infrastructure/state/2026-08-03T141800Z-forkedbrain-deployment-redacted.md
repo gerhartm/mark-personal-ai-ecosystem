@@ -28,6 +28,8 @@
 - Release `20260803T1357Z` is retained as the stopped rollback container and image.
 - Existing Hermes, OpenViking, Coolify, tunnel, and legacy Crypto services were not modified by the release promotion.
 
-## Remaining external gate
+## Protected root cutover
 
-The production origin is complete. `forkedbrain.fyi` still requires addition to the existing exact-email Cloudflare Access application, one root ingress entry on the existing V2 tunnel, and the corresponding root DNS route. The change must preserve the current policy for Mark and Darshan and must not alter `brain`, `manage`, `manage-realtime`, `intel`, or the legacy `crypto-intel` tunnel. The configured Hermes model provider also requires credits before selected-memory chat can return model-generated answers.
+`forkedbrain.fyi` is an approved public destination in the existing Cloudflare Access application. The exclusive policy still allows only Mark and Darshan, uses the existing one-time-PIN identity provider, and expires sessions after 12 hours. The existing V2 tunnel now routes only the root hostname to loopback port `9320`, and one proxied root CNAME targets that tunnel. An unauthenticated root request redirects to the expected Access organization. Existing `brain`, `manage`, and `manage-realtime` hostnames retained their Access redirects, while legacy `intel` retained HTTP `200` through its separate tunnel.
+
+The only remaining product gate is model funding. The configured Hermes provider requires credits before selected-memory chat can return model-generated answers. Graph, detail, provenance, filtering, search, source links, and conversation-memory inspection remain operational without model spend.

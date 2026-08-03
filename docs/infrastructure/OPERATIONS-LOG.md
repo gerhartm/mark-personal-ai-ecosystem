@@ -1,0 +1,569 @@
+# Infrastructure Operations Ledger
+
+This is an append-only operational record. Newest entries go at the bottom. Never rewrite a completed historical entry; add a corrective entry instead.
+
+## Entry template
+
+```markdown
+## YYYY-MM-DD HH:MM UTC — Short action name
+
+- Operator:
+- Status: pending | completed | rolled back | failed
+- Purpose:
+- Scope:
+- Before state:
+- Actions and commands:
+- Files/services/ports/data affected:
+- Verification:
+- Rollback:
+- Follow-up:
+- Secrets handling: no secret values recorded
+```
+
+## 2026-07-31 09:14–09:19 UTC — Ubuntu provisioning and secure SSH bootstrap
+
+- Operator: Darshan with Codex-assisted verification
+- Status: completed
+- Purpose: replace the empty provider image and establish recoverable key-based administration.
+- Scope: netcup RS 2000 G12 operating system and SSH access.
+- Before state: new server with default Debian installation.
+- Actions and commands: installed Ubuntu 24.04.4 UEFI AMD64 Minimal from netcup SCP; retained provider hostname; generated a dedicated Ed25519 key; appended the public key to root's authorized keys; verified a second key-based connection.
+- Files/services/ports/data affected: primary disk reimaged; `/root/.ssh/authorized_keys`; local `~/.ssh/mark_netcup_v2`, `.pub`, and `~/.ssh/config`; SSH port 22.
+- Verification: Ubuntu login succeeded; dedicated key connection succeeded.
+- Rollback: provider console or reimage; key can be removed from `authorized_keys` only after another working recovery key exists.
+- Follow-up: none for bootstrap.
+- Secrets handling: root password and private key values were not recorded.
+
+## 2026-07-31 09:19–09:22 UTC — Base hardening
+
+- Operator: Codex under Darshan's authorization
+- Status: completed
+- Purpose: establish a secure, repeatable host baseline before installing applications.
+- Scope: OS updates, UTC, swap, SSH, automatic security updates, trim timer, and UFW.
+- Before state: no swap; password SSH enabled; X11 and agent forwarding enabled; UFW inactive.
+- Actions and commands: updated apt metadata; confirmed no pending upgrades; created 8 GiB swap; set UTC; added sysctl settings; disabled SSH password, keyboard-interactive, X11, and agent forwarding; limited authentication attempts; enabled unattended upgrades, fstrim, and UFW rules.
+- Files/services/ports/data affected: `/swapfile`, `/etc/fstab`, `/etc/sysctl.d/99-mark-v2.conf`, `/etc/ssh/sshd_config.d/99-mark-v2-hardening.conf`, `/etc/apt/apt.conf.d/20auto-upgrades`, SSH service, UFW.
+- Verification: fresh key login succeeded after SSH reload; timezone UTC; swap active; UFW active; no failed systemd units.
+- Rollback: documented in `BUILD-LOG.md` and `RUNBOOK.md`.
+- Follow-up: add netcup provider firewall before production.
+- Secrets handling: no secret values recorded.
+
+## 2026-07-31 09:22–09:23 UTC — Coolify installation
+
+- Operator: Codex under Darshan's authorization
+- Status: completed, then intentionally paused
+- Purpose: establish the self-hosted deployment control plane.
+- Scope: Docker Engine, Docker Compose, Coolify 4.1.2 and supporting containers.
+- Before state: fresh secured Ubuntu host with no Docker.
+- Actions and commands: downloaded the official Coolify installer; recorded its SHA-256; ran the installer; validated container health and the HTTP setup redirect.
+- Files/services/ports/data affected: Docker packages and daemon; `/data/coolify/`; `/root/coolify-install.sh`; installer logs; TCP 80, 443, 8000, 6001, and 6002 while running.
+- Verification: all Coolify containers healthy; HTTP redirected to root-user setup; no failed systemd units.
+- Rollback: pause commands in `RUNBOOK.md`; uninstall was not performed.
+- Follow-up: create initial root administrator only after ownership and credential storage are confirmed.
+- Secrets handling: generated Coolify `.env` values were not displayed or exported.
+
+## 2026-07-31 09:27–09:30 UTC — Secure pause before administrator creation
+
+- Operator: Codex following Darshan's instruction
+- Status: completed
+- Purpose: prevent public exposure of an unclaimed Coolify registration page while documentation is prepared.
+- Scope: Coolify source stack, proxy stack, and sentinel container.
+- Before state: Coolify registration page publicly reachable on TCP 8000; no root administrator existed.
+- Actions and commands: stopped both Docker Compose stacks and the standalone sentinel container without deleting containers, volumes, configuration, databases, or environment files.
+- Files/services/ports/data affected: runtime state only; no persistent data removed.
+- Verification: zero running Docker containers; public TCP 8000 unreachable; only SSH and local DNS listeners remain.
+- Rollback: resume commands in `RUNBOOK.md`.
+- Follow-up: obtain explicit approval before creating the initial administrator.
+- Secrets handling: no administrator password was generated or stored.
+
+## 2026-07-31 09:30–09:37 UTC — Infrastructure documentation and recovery mirror
+
+- Operator: Codex following Darshan's documentation requirement
+- Status: completed
+- Purpose: ensure every completed change, verification, rollback, limitation, and pending action is recoverable without relying on chat history.
+- Scope: local infrastructure documentation and a non-secret server-side mirror.
+- Before state: server configuration and logs existed, but there was no unified build log or recovery runbook.
+- Actions and commands: created the infrastructure README, build log, operations runbook, append-only operations ledger, and redacted state snapshot; scanned the files for secret-like patterns; validated stopped Compose definitions; copied the documentation to `/root/mark-v2-docs/`; compared SHA-256 hashes between local and remote copies.
+- Files/services/ports/data affected: local `docs/infrastructure/` and remote `/root/mark-v2-docs/`; no runtime services or client data changed.
+- Verification: all documentation files are non-empty; secret-pattern scan returned no findings; all five local/remote Markdown hashes matched.
+- Rollback: the mirror can be regenerated from the authoritative local copy; historical ledger entries should not be deleted.
+- Follow-up: append an entry for every future infrastructure change and refresh the verified mirror.
+- Secrets handling: only non-secret operational metadata was documented.
+
+## 2026-07-31 09:43 UTC — Credential audit and Coolify environment permission hardening
+
+- Operator: Codex following Darshan's credential-accounting request
+- Status: completed
+- Purpose: identify every credential class created during provisioning without exposing values, and reduce read access to Coolify's generated secret environment.
+- Scope: netcup ownership credentials, Ubuntu root password status, operator and Coolify SSH keys, Coolify internal environment variables, and credentials not yet created or migrated.
+- Before state: credential classes were described across the build log, but no unified register existed; `/data/coolify/source/.env` had mode `0644`.
+- Actions and commands: created `CREDENTIAL-REGISTER.md`; audited only credential names, fingerprints, ownership, permissions, and set/empty state; changed only `/data/coolify/source/.env` to mode `0600`; validated the stopped Compose definition; refreshed the server-side documentation mirror.
+- Files/services/ports/data affected: local and mirrored documentation plus file permissions on `/data/coolify/source/.env`; no secret values, running services, ports, or client data will change.
+- Verification: environment mode is `0600 root:root`; Compose configuration validates; both expected authorized-key fingerprints match; Coolify administrator fields remain empty; zero containers are running; documentation secret-pattern scan is clean; local and mirrored documentation hashes match.
+- Rollback: restore mode `0644` only if a verified runtime requirement demands it; no such requirement is expected for root-managed Compose.
+- Follow-up: Mark should rotate the netcup panel password, enable 2FA, store or rotate the root recovery password, and approve a secure off-server Coolify-secret backup before production.
+- Secrets handling: no credential values will be read into output or documentation.
+
+## 2026-07-31 10:00–10:13 UTC — Client-folder consolidation and credential custody
+
+- Operator: Codex following Darshan's explicit restructure approval
+- Status: completed
+- Purpose: make the Mark Gerhart client folder the single local source of truth and preserve both old- and new-VPS credentials in owner-only storage.
+- Scope: local project files, external Mark audit/source files, Codex attachments, SSH keypairs, Coolify secret backup, documentation paths, and reversible quarantine.
+- Before state: project artifacts were divided between `GERHART`, `PDF's`, `_source`, LVLUP working directories, Codex attachments, and `~/.ssh`; only the old VPS had a raw master credential record.
+- Actions and commands: captured pre-move hashes; reverified all 1,396 legacy-export checksums; created the canonical numbered folder structure; relocated authoritative source, deliverable, evidence, tools, and credential material; copied app-managed conversation/transcript attachments; moved duplicate/generated content into dated quarantine; relocated both Mark SSH keypairs; updated the netcup SSH alias; securely copied Coolify's internal environment into the new-VPS credential directory; created the V2 master credential record; updated tool and documentation paths.
+- Files/services/ports/data affected: local Mark client folder, local `~/.ssh/config`, Mark-specific SSH key files, and a read-only copy operation from `/data/coolify/source/.env`; no server application, port, container, database, or client dataset was changed.
+- Verification: netcup key-only SSH succeeded from the relocated key; zero containers remain running; both credential masters are mode `0600`; the final deliverables retain their pre-move hashes; the legacy export checksum manifest passes from its new parent location.
+- Rollback: authoritative relocations are documented in `docs/migration/RESTRUCTURE-EXECUTION-LOG.md`; generated and duplicate material remains under `_quarantine/2026-07-31/`; pre-move hashes are retained in private migration storage.
+- Follow-up: create the Coolify administrator under Mark's ownership, complete missing provider/recovery entries, and delete quarantine only after explicit approval.
+- Secrets handling: raw values exist only under the client folder's ignored `.secrets/` tree; no raw value was printed or added to normal documentation.
+
+## 2026-07-31 10:34 UTC — Coolify administrator bootstrap
+
+- Operator: Codex under Darshan's explicit authorization
+- Status: in progress
+- Purpose: resume the verified Coolify installation and establish the first client-owned administrator.
+- Scope: existing Coolify containers, initial administrator record, V2 master credential record, and login verification.
+- Before state: Coolify is installed with persistent state intact but all containers are stopped; no administrator exists; public setup page is offline.
+- Authorized owner identity: Mark-controlled account using `gerhartmark@gmail.com`.
+- Planned actions: resume the existing Coolify source, proxy, and sentinel containers; generate a unique temporary administrator password; create the administrator; verify login in a fresh session; store the credential only in the ignored owner-only master credential file; notify Darshan for later rotation.
+- Files/services/ports/data affected: Docker runtime state, Coolify database administrator record, `.secrets/credentials/new-vps/ALL-CREDENTIALS.txt`, and the non-secret infrastructure documentation mirror.
+- Rollback: if bootstrap fails before account creation, stop the containers using the documented pause procedure; if an unexpected administrator exists, stop without attempting a reset.
+- Secrets handling: the generated password must remain in the private credential record and the authorized project conversation; it must not enter Git, ordinary documentation, shell history, or server logs.
+
+## 2026-07-31 10:42 UTC — Coolify administrator bootstrap completed
+
+- Operator: Codex under Darshan's explicit authorization
+- Status: completed
+- Purpose: close the initial Coolify ownership and registration-security checkpoint.
+- Scope: existing Coolify runtime, root administrator, root-team ownership, registration state, private credential record, and redacted documentation.
+- Before state: all Coolify containers stopped; no administrator; registration bootstrap route unclaimed.
+- Actions and commands: resumed the existing Compose source and proxy stacks and sentinel container; observed the configured image refresh; generated a unique temporary credential; stored it in the ignored mode-`0600` V2 credential master; invoked Coolify's validated `RootUserSeeder`; verified application/database state and HTTP redirects without disclosing the credential.
+- Files/services/ports/data affected: Coolify image advanced from `4.1.2` to `4.2.0`; six Coolify containers running; one root user and root-team membership created in Coolify PostgreSQL; instance registration disabled; private credential master updated.
+- Verification: approved email present; password hash matches; team ID `0` role is `owner`; registration disabled; `/register` redirects to `/login`; all six containers healthy; zero failed systemd units.
+- Rollback/recovery: runtime can be safely paused with the documented Compose stop procedure; do not delete the root user as a routine rollback. Use Coolify's official root password/email commands for credential recovery.
+- Follow-up: configure a Mark-controlled domain and HTTPS, verify interactive login over TLS, rotate the temporary administrator password, add the netcup provider firewall, and close temporary direct ports.
+- Secrets handling: plaintext password exists only in the private credential master and the authorized project conversation; it was not persisted in Coolify's `.env`, ordinary documentation, Git, or logs.
+
+## 2026-07-31 10:44 UTC — Post-bootstrap documentation mirror verified
+
+- Operator: Codex under Darshan's documentation requirement
+- Status: completed
+- Purpose: preserve the administrator-bootstrap record independently on the server without copying secrets.
+- Scope: seven non-secret Markdown files under the local infrastructure directory and `/root/mark-v2-docs/`.
+- Actions and commands: scanned the active non-secret tree for the generated password and common private-key/API-key patterns; copied the updated infrastructure documents and new redacted state snapshot to the server mirror; calculated SHA-256 hashes locally and remotely.
+- Verification: secret scan passed; the owner-only credential master remains mode `0600`; all seven local and mirrored Markdown hashes match exactly.
+- Rollback/recovery: the remote mirror may be regenerated from the authoritative local project copy at any time.
+- Follow-up: refresh and reverify the mirror after the domain, HTTPS, firewall, or application-deployment checkpoints.
+- Secrets handling: no raw password, private key, API key, token, cookie, or `.env` content exists in the mirrored documentation.
+
+## 2026-07-31 11:00 UTC — Domain hardening parked; Milestone 2 opened
+
+- Operator: Codex under Darshan's explicit direction
+- Status: completed decision checkpoint
+- Purpose: continue useful implementation while Mark selects the Personal AI Ecosystem domain.
+- Parked work: Coolify domain, HTTPS, interactive login over TLS, temporary-password rotation, netcup provider firewall, and closure of public TCP `8000`, `6001`, and `6002`.
+- Interim access rule: use the SSH tunnel for Coolify; do not submit credentials to the raw public HTTP endpoint; do not expose a new public application endpoint.
+- Active scope: internally stage and validate one Hermes central brain, then connect the official self-hosted OpenViking memory provider with no duplicated Hermes capability.
+- Verification boundary: the parked controls remain required before production/public acceptance even if internal application staging succeeds.
+- Secrets handling: no credential value changed or moved during this decision checkpoint.
+
+## 2026-07-31 11:08 UTC — Hermes v0.19.1 internal deployment preparation
+
+- Operator: Codex under Darshan's instruction to continue to Milestone 2
+- Status: pending
+- Purpose: freeze and stage the first Hermes central-brain deployment without exposing a new public endpoint.
+- Scope: official Hermes Docker image, one Coolify user-defined service, one persistent data volume, loopback-only dashboard access, runtime dashboard credentials, resource limits, and rollback documentation.
+- Before state: Coolify 4.2.0 and its six platform containers are healthy; approximately 14 GiB RAM and 468 GiB disk are available; no Hermes or OpenViking container, data, credential, or public endpoint exists on the new VPS.
+- Planned actions: pin Hermes release `v0.19.1` using official image tag `v2026.7.30` and its Linux AMD64 digest; create the Coolify project/service; generate unique dashboard credentials into approved secret stores; deploy internally; enable unattended loop-guard hard stops; verify image identity, runtime health, authentication, loopback-only listeners, restart persistence, and logs.
+- Files/services/ports/data affected: local `02-Project-Workspace/deploy/hermes/`; Coolify project and service metadata; one Hermes container; one persistent `/opt/data` volume; server-loopback TCP `9119`; private V2 credential master. TCP `8642` and all public application routes remain closed.
+- Rollback: stop the Hermes service without deleting its volume; remove the service only after preserving or intentionally discarding `/opt/data`; never start two gateways against the same volume.
+- Follow-up: connect an approved model provider, then deploy and connect OpenViking separately only after the Hermes-native baseline passes.
+- Secrets handling: dashboard password and session secret will be generated directly into approved private storage and will not enter normal documentation, Git, command output, or Obsidian memory.
+
+## 2026-07-31 11:16 UTC — Temporary Coolify API bootstrap authorization
+
+- Operator: Codex under Darshan's continuing Milestone 2 authorization
+- Status: pending
+- Purpose: use Coolify's official API to create and deploy the Hermes service while the HTTPS dashboard login remains parked.
+- Scope: one seven-day, team-scoped Coolify access token with `read`, `write`, and `deploy` permissions; temporary API enablement; project, environment, service, and runtime-environment creation.
+- Before state: Coolify API access is disabled; no API token, project, environment, or Hermes service exists.
+- Planned actions: create the least-privilege token inside Coolify without printing it; store it temporarily on the server with mode `0600`; enable the API; make loopback API calls only; deploy and verify Hermes; revoke the token, delete the temporary token file, and disable the API again.
+- Files/services/ports/data affected: Coolify token and project metadata; Coolify API state; no additional public listener because API calls target `127.0.0.1:8000`.
+- Rollback: revoke the temporary token and disable API access; delete an empty or failed project/service only after confirming no persistent data is attached.
+- Secrets handling: the temporary token remains server-local and is destroyed after use; it is not copied into the project credential master because it is intentionally non-recoverable and short-lived.
+
+## 2026-07-31 11:18–11:35 UTC — Hermes service created and deployed
+
+- Operator: Codex under Darshan's continuing Milestone 2 authorization
+- Status: completed
+- Purpose: establish the first private Hermes central-brain baseline on the new VPS.
+- Scope: Coolify project/environment/service metadata, official Hermes image, dashboard authentication, persistent volume, resource envelope, and loopback exposure.
+- Before state: no Hermes project, service, container, volume, credential, or application listener existed.
+- Actions and commands: created Coolify project `Mark Personal AI Ecosystem` and production environment; generated owner credentials into the private V2 master; created the user-defined `Hermes Central Brain` service; set encrypted environment variables; deployed the frozen Compose definition.
+- API recovery detail: the first service-description request was rejected because Coolify disallowed a semicolon and created no object; a later upload pipe stalled before object creation and was interrupted only after database verification; the successful retry used a mode-`0600` staged request file.
+- Files/services/ports/data affected: project UUID `wldhdj3wjm2zacaf3317u0w4`; environment UUID `9sd4ykxw1k8bsmzfzbr8lgoj`; service UUID `27am3wgv7vkohkenprml4s3p`; container `hermes-27am3wgv7vkohkenprml4s3p`; volume `27am3wgv7vkohkenprml4s3p_hermes-data`; server-loopback TCP `9119`; private credential master.
+- Verification: Hermes reported version `0.19.1`; running Linux AMD64 image matched `sha256:5316c2c2534c49f5e1b1691e1a2115f1230d900033c3b35d1c8fc2e47352b26d`; limits were 2 vCPU and 4 GiB; unauthenticated dashboard redirected to login; valid credential login and `/api/auth/me` succeeded; the public address could not reach `9119`; TCP `8642` was not listening.
+- Rollback/recovery: stop the service in Coolify without deleting the named volume; preserve `/opt/data` before any service deletion or image rollback; never run two gateways against the same volume.
+- Follow-up: connect an approved model provider, then deploy OpenViking separately.
+- Secrets handling: raw dashboard password and signing secret exist only in approved private stores and were never added to normal documentation or source.
+
+## 2026-07-31 11:35–11:42 UTC — Hermes migration and restart acceptance
+
+- Operator: Codex under Darshan's documentation and verification requirement
+- Status: completed
+- Purpose: make the provider-free Hermes baseline safe for unattended operation and prove persistence.
+- Before state: Hermes running with the official default configuration at raw schema version `0`.
+- Actions and commands: created `/opt/data/config.yaml.pre-migrate-20260731T1138Z`; enabled exact-failure and idempotent-no-progress hard stops at five repetitions; ran `hermes config migrate`; restricted config files to `0600`; wrote a non-secret persistence probe; restarted the container; repeated gateway, config, listener, authentication, volume, and resource checks; removed the probe.
+- Recovery detail: the first probe command referenced unavailable `su-exec`, so no restart occurred; the probe was recreated with root ownership adjustment and the acceptance sequence was repeated successfully.
+- Files/services/ports/data affected: `/opt/data/config.yaml`, its pre-migration backup, the transient removed probe, Hermes container process, and the existing authenticated dashboard session.
+- Verification: schema version `33` passed `hermes config check`; gateway returned under supervision; config, permissions, hard-stop values, volume data, and authenticated session survived; only loopback `9119` listened; resource limits remained active.
+- Known diagnostic: the direct Docker restart left a recent-history warning that the recorded pre-restart process was gone; the current gateway and dashboard were independently verified healthy.
+- Rollback/recovery: restore the pre-migration config only if the current release rejects version `33`; preserve a copy first and use Coolify to restart once, then rerun all acceptance checks.
+- Secrets handling: no secret value was added to command output or documentation.
+
+## 2026-07-31 11:42 UTC — Coolify API bootstrap cleanup
+
+- Operator: Codex under Darshan's security requirement
+- Status: completed
+- Purpose: remove the temporary automation path immediately after successful deployment.
+- Scope: Coolify API enablement, temporary bootstrap token, staged payloads/responses/cookies, and acceptance probe.
+- Actions and commands: revoked the `codex-hermes-bootstrap` token; disabled the Coolify API; removed explicit temporary server/container files; removed the persistence probe after verification.
+- Verification: Coolify reported API disabled and zero matching bootstrap tokens; the Hermes service continued running; no targeted bootstrap artifact remained.
+- Rollback/recovery: create a newly scoped, short-lived token only for a separately documented future automation task; never restore the revoked token.
+- Follow-up: refresh the non-secret server documentation mirror and retain normal UI/tunnel administration.
+- Secrets handling: no temporary token or cookie was retained in any credential file.
+
+## 2026-07-31 11:46 UTC — Hermes documentation and recovery mirror finalized
+
+- Operator: Codex under Darshan's documentation requirement
+- Status: completed
+- Purpose: make the completed Hermes baseline reproducible without copying any credential value.
+- Scope: local infrastructure documents, frozen Hermes Compose/README, redacted state snapshot, and `/root/mark-v2-docs/` on the new VPS.
+- Actions and commands: updated the runbook, credential register, build log, operations ledger, deployment record, and redacted snapshot; validated Compose using dummy values; scanned the non-secret tree for exact generated secrets and common credential patterns; streamed files over key-authenticated SSH using `tar` because the server has no `rsync`; compared local and remote SHA-256 manifests.
+- Files/services/ports/data affected: non-secret Markdown/YAML files only; no application container, credential, listener, or client data changed.
+- Verification: exact password/signing-secret scan returned no match; generic secret scan returned no match; all local and mirrored file hashes matched; master credential and operator key remained mode `0600`.
+- Rollback/recovery: the server mirror is non-authoritative and may be regenerated from the local client folder; application recovery follows `RUNBOOK.md` and the persistent `/opt/data` volume.
+- Follow-up: select the approved model-provider authentication method, then prepare the separate OpenViking service.
+- Secrets handling: the mirror contains no raw password, token, API key, signing secret, private key, cookie, or environment file.
+
+## 2026-07-31 12:16 UTC — Mark-owned OpenAI Codex OAuth connection
+
+- Operator: Codex under Darshan's instruction to continue with the next smaller build step
+- Status: pending user authorization
+- Purpose: connect the provider-free Hermes baseline to Mark's eligible ChatGPT/Codex subscription without adding Codex CLI, an API key, or a redundant model proxy.
+- Scope: Hermes-native `openai-codex` provider, one Mark-owned OAuth credential in the persistent Hermes credential pool, model selection, and a minimal non-destructive inference smoke test.
+- Before state: `hermes auth status openai-codex` reports logged out; no model-provider credential is stored; Hermes gateway and dashboard are healthy.
+- Planned actions: start Hermes' native OpenAI device-code flow; have Mark authorize through OpenAI's browser page; confirm the credential is stored under `/opt/data`; select an eligible Codex model; run one short response test; restart and confirm credential/provider persistence without printing tokens.
+- Files/services/ports/data affected: the existing Hermes persistent volume and provider configuration only; no new container, public listener, API key, Telegram integration, or legacy data.
+- Rollback/recovery: `hermes auth remove openai-codex 1` or `hermes auth logout openai-codex`, followed by provider-status verification; do not delete the Hermes volume.
+- Secrets handling: OAuth access and refresh tokens must remain only inside Hermes' persistent credential store and must never enter documentation, chat, logs, or the client credential text file.
+
+## 2026-07-31 12:20 UTC — Provider path changed from OAuth to OpenAI API key
+
+- Operator: Codex under Darshan's explicit correction that Mark has no ChatGPT account and the preserved API key should be used
+- Status: in progress
+- Purpose: use the already-approved Mark-owned OpenAI Platform credential instead of an unavailable ChatGPT subscription login.
+- Before state: the OpenAI device-code flow was waiting for authorization; no OAuth credential had been stored.
+- Actions and checks: cancelled the device-code process with Ctrl+C; verified `openai-codex` remains logged out; selected the normalized old-VPS `OPENAI_API_KEY` source rather than transcript/archive copies; confirmed the canonical environment copies match; validated the key with `GET /v1/models`, which returned HTTP 200; confirmed the account lists GPT-5.6 Sol, Terra, and Luna.
+- Planned continuation: add one `openai-api` credential to Hermes' native credential pool using secret stdin; set the initial model by role; run a minimal paid inference smoke test; verify persistence after restart without exposing the key.
+- Files/services/ports/data affected: Hermes persistent credential/config storage only; no new service, public listener, OAuth token, or copied raw credential file.
+- Cost boundary: the model-list validation was non-generative; the following smoke test will make one minimal API request and may incur a small normal OpenAI API charge.
+- Rollback/recovery: remove the new `openai-api` pool entry and restore the provider-free config; the preserved old-VPS credential source remains unchanged.
+- Secrets handling: the API key will be read from the owner-only normalized credential file and passed over stdin; it must not appear in arguments, process lists, output, documentation, or Obsidian.
+
+## 2026-07-31 12:30 UTC — OpenAI API provider connection completed
+
+- Operator: Codex under Darshan's explicit API-key authorization
+- Status: completed
+- Purpose: give Hermes a verified primary reasoning model using its native provider path and the approved existing credential.
+- Actions and commands: added one `openai-api` pool entry through secret stdin; backed up the previous config; selected `openai-api`, `gpt-5.6-sol`, and the official OpenAI base URL; ran config validation; performed one exact-response inference; removed temporary usage/output files; restarted the container; repeated provider, model, permission, gateway, dashboard, listener, and host checks.
+- Files/services/ports/data affected: `/opt/data/auth.json` mode `0600`; `/opt/data/config.yaml`; `/opt/data/config.yaml.pre-openai-api-20260731T1225Z`; existing Hermes container process. No new container, public listener, Compose secret, Coolify environment value, Telegram credential, or legacy dataset.
+- Verification: OpenAI model listing returned HTTP 200; GPT-5.6 Sol/Terra/Luna were listed; Hermes returned exactly `HERMES_OPENAI_SMOKE_OK` through `gpt-5.6-sol`; one API credential is active; restart preserved credential/config; dashboard returned its login redirect on `127.0.0.1:9119`; TCP `8642` remained closed; zero systemd units failed.
+- Cost/efficiency observation: the smoke request used 14,414 input and 12 output tokens because the full Hermes baseline context was loaded; do not use Sol indiscriminately for high-volume ingestion without role-based measurement and routing.
+- Rollback/recovery: remove the `mark-openai-api` credential, restore `/opt/data/config.yaml.pre-openai-api-20260731T1225Z`, restart once, and verify the provider-free baseline. Rotate the migrated key before production cutover.
+- Secrets handling: raw key remains confined to approved owner-only credential sources and Hermes' `0600` auth store; it is absent from output, docs, Compose, environment, and mirror files.
+
+## 2026-07-31 12:33 UTC — OpenAI provider documentation mirror verified
+
+- Operator: Codex under Darshan's documentation requirement
+- Status: completed
+- Purpose: preserve the redacted provider configuration, validation, rollback, and rotation record on the VPS.
+- Actions and checks: scanned the updated non-secret tree for the exact OpenAI key, dashboard password, signing secret, and common key patterns; confirmed the key is absent from the container definition and recent logs; validated Compose with dummy values; streamed the updated docs/deployment files to `/root/mark-v2-docs/`; compared SHA-256 manifests.
+- Verification: all secret scans passed; the new-VPS master remained mode `0600`; all local and remote non-secret file hashes matched.
+- Rollback/recovery: regenerate the non-authoritative server mirror from the local client folder; provider rollback remains documented separately.
+- Secrets handling: no raw credential was copied to the documentation mirror.
+
+## 2026-07-31 13:28 UTC — Darshan Cloudflare member access bootstrap
+
+- Operator: Codex under Darshan's instruction to connect his invited Cloudflare member account.
+- Status: pending browser authorization
+- Purpose: replace operational dependence on the preserved legacy-VPS account certificate with an auditable login belonging to Darshan's invited Cloudflare member identity.
+- Scope: Darshan's local workstation only; Cloudflare account membership, `forkedbrain.fyi`, DNS records, tunnels, and the new VPS remain unchanged.
+- Before state: Darshan reports that Mark granted him complete Cloudflare account access; no local `cloudflared` account certificate or Wrangler OAuth configuration existed.
+- Actions and commands: attempted a read-only dashboard verification, which the Codex in-app browser blocked because its admin-enforced security policy could not be verified; installed official Homebrew `cloudflared` version `2026.7.3`; started `cloudflared tunnel login` and opened Cloudflare's one-time authorization page.
+- Files/services/ports/data affected: Homebrew installation under `/opt/homebrew/Cellar/cloudflared/2026.7.3`; no Cloudflare object, DNS record, tunnel route, local project file, server service, or public listener changed.
+- Verification: `cloudflared` installation completed; authorization remains incomplete until Darshan selects `forkedbrain.fyi` and approves the browser prompt, after which the issued account certificate must be validated without displaying its contents.
+- Rollback/recovery: cancel the pending login process; after authorization, revoke the related Cloudflare Tunnel API token from Darshan's Cloudflare profile and securely delete the local certificate if workstation management is no longer required.
+- Follow-up: complete browser authorization, verify account/zone/tunnel visibility read-only, register only the credential class and fingerprint/permissions, then plan the V2 hostname and tunnel without altering the legacy route.
+- Secrets handling: the one-time authorization URL and any eventual certificate value are excluded from project documentation and chat output.
+
+## 2026-07-31 14:35 UTC — Darshan Cloudflare member access verified
+
+- Operator: Codex under Darshan's authorization.
+- Status: completed
+- Purpose: confirm that Darshan's own invited identity can manage Mark's Cloudflare tunnels without reusing the legacy VPS certificate.
+- Actions and commands: completed Cloudflare's one-time browser authorization for `forkedbrain.fyi`; restricted the local account certificate to mode `0600`; queried the tunnel inventory read-only; recorded only the certificate file fingerprint and location in approved credential records.
+- Files/services/ports/data affected: `~/.cloudflared/cert.pem`, the private V2 credential master, and redacted infrastructure documentation. No Cloudflare DNS record, tunnel route, zone setting, old-VPS connector, new-VPS service, or public listener changed.
+- Verification: `cloudflared` `2026.7.3` authenticated successfully; the account returned active tunnel `crypto-intel` with UUID `68e4f425-54d3-475b-8773-cdea15f98f9c`; the certificate file is owned by Darshan and mode `0600`.
+- Rollback/recovery: revoke the Cloudflare Tunnel API token issued to Darshan from his Cloudflare profile, then securely delete `~/.cloudflared/cert.pem`; this does not delete the tunnel or its routes.
+- Follow-up: choose the V2 public hostname, create a separate V2 tunnel/route, verify TLS and authentication, then retire the legacy route only after acceptance.
+- Secrets handling: the raw certificate and authorization URL were not copied into documentation, chat, the client folder, or the VPS.
+
+## 2026-07-31 14:40 UTC — Legacy hostname protection and V2 domain plan
+
+- Operator: Codex following Darshan's explicit domain-change gate.
+- Status: plan only; no Cloudflare mutation authorized
+- Purpose: continue V2 infrastructure work without affecting the live Crypto Intelligence system on the old VPS.
+- Protected production state: `intel.forkedbrain.fyi`, the existing `crypto-intel` tunnel, its DNS/public-hostname route, and its old-VPS connector.
+- Proposed isolated V2 state: a separate new-VPS tunnel; `brain.forkedbrain.fyi` for the authenticated Hermes interface; `manage.forkedbrain.fyi` for Coolify behind Cloudflare Access; OpenViking reachable only on the internal service network with no public hostname.
+- Verification boundary: inspect conflicts before creation; verify each new hostname and Access boundary externally; confirm `intel.forkedbrain.fyi` remains healthy before and after every V2 change.
+- Rollback: remove only the newly created V2 hostname records and V2 tunnel; the protected legacy record and tunnel must remain untouched.
+- Follow-up: present the exact execution plan to Darshan and wait for explicit approval before making any Cloudflare change.
+- Secrets handling: no credential or authorization material changed.
+
+## 2026-07-31 14:52–14:58 UTC — Isolated V2 Cloudflare tunnel and approved hostnames
+
+- Operator: Codex following Darshan's explicit approval of the presented hostname plan.
+- Status: completed
+- Purpose: publish the new Hermes and Coolify interfaces without affecting the live Crypto Intelligence hostname.
+- Before state: `intel.forkedbrain.fyi` returned HTTP 200 through `crypto-intel`; `brain.forkedbrain.fyi` and `manage.forkedbrain.fyi` returned NXDOMAIN; no Cloudflare service or tunnel credential existed on the new VPS.
+- Actions and commands: created locally managed tunnel `mark-personal-ai-v2`; generated a tunnel-specific credential directly into owner-only storage; installed signed `cloudflared` `2026.7.3` on Ubuntu Noble; transferred only the tunnel-specific credential; validated ordered ingress rules; installed and started the systemd service; created CNAME tunnel routes for only `brain` and `manage`.
+- Files/services/ports/data affected: local ignored tunnel credential; `/etc/cloudflared/config.yml`; `/etc/cloudflared/<V2-tunnel-UUID>.json`; signed apt repository metadata; `cloudflared.service`; two new Cloudflare DNS routes.
+- Verification: service enabled and active; four QUIC connections registered; public HTTPS for `brain` and `manage` returned their respective authentication redirects; `intel` remained HTTP 200; both old and V2 tunnels remained connected.
+- Rollback/recovery: stop the V2 service first; remove only the two V2 DNS routes and V2 tunnel if explicitly authorized; never edit the legacy hostname or tunnel during rollback.
+- Follow-up: configure Cloudflare Access for `manage`; obtain separate approval before adding the Coolify realtime support hostname.
+- Secrets handling: the account certificate stayed workstation-only; the tunnel credential is mode `0600` locally and on the VPS and was never printed or copied into ordinary documentation.
+
+## 2026-07-31 14:58–15:05 UTC — Coolify direct-port isolation and merge recovery
+
+- Operator: Codex under the approved tunnel hardening scope.
+- Status: completed after one recovered validation failure
+- Purpose: prevent Docker's published ports from bypassing UFW now that Cloudflare Tunnel provides the administrative path.
+- Before state: UFW allow rules for `8000`, `6001`, and `6002` were removed, but external connection tests still succeeded because Docker's forwarding rules bypassed the host firewall.
+- Actions and commands: created Coolify's persistent official `docker-compose.custom.yml`; the first ordinary Compose merge appended loopback mappings and Docker rejected the duplicate bind before either replacement container started; updated the override to use Compose `!override`; validated the exact merged port objects; recreated only Coolify and realtime containers; rechecked health, listeners, direct access, and tunnel URLs.
+- Files/services/ports/data affected: `/data/coolify/source/docker-compose.custom.yml`; Coolify and realtime container runtime instances; no database, volume, user, Hermes container, Cloudflare route, or client data changed.
+- Verification: Coolify and realtime returned healthy; mappings are exclusively `127.0.0.1:8000`, `127.0.0.1:6001`, and `127.0.0.1:6002`; Hermes remains on `127.0.0.1:9119`; direct public-IP port `8000` timed out; `brain` and `manage` continued returning HTTPS authentication redirects; `intel` remained HTTP 200.
+- Rollback/recovery: keep the custom file because Coolify upgrades preserve it; to roll back, restore the prior public mappings only after another protected path is verified and explicitly authorized.
+- Follow-up: do not consider `manage` production-hardened until Cloudflare Access is configured; do not add the realtime hostname without approval.
+- Secrets handling: no credential value changed or entered logs or documentation.
+
+## 2026-07-31 15:10 UTC — Cloudflare V2 documentation mirror verified
+
+- Operator: Codex under Darshan's documentation requirement.
+- Status: completed
+- Purpose: preserve the tunnel, DNS, port-isolation, recovery, and pending-boundary record independently on the new VPS.
+- Actions and checks: updated the private credential master by reference only; created frozen Cloudflare and Coolify deployment files; updated the redacted register, runbook, current-state README, operations ledger, and acceptance snapshot; scanned the ordinary documentation tree for common raw-secret patterns; copied only non-secret documentation/configuration to `/root/mark-v2-docs/`; compared normalized local/server SHA-256 manifests.
+- Verification: ten selected authoritative files matched exactly; the tunnel credential copies separately matched exactly and remained mode `0600`; no raw account certificate, tunnel credential, API key, password, token, or environment file entered the documentation mirror.
+- Rollback/recovery: regenerate the non-authoritative server mirror from the local client folder; infrastructure rollback follows the V2 tunnel and custom-Compose procedures above.
+- Secrets handling: only credential paths, scopes, UUIDs, modes, and SHA-256 file fingerprints were documented.
+
+## 2026-07-31 15:20–15:28 UTC — Coolify realtime hostname and tunnel wiring
+
+- Operator: Codex following Darshan's explicit approval to implement the realtime hostname and Cloudflare Access together.
+- Status: realtime completed; Access pending one scoped API permission.
+- Purpose: complete Coolify's supported realtime path before protecting both management hostnames with one Cloudflare Access application.
+- Before state: `manage-realtime.forkedbrain.fyi` had no DNS answer; Coolify realtime was healthy only on loopback port `6001`; the V2 tunnel had no ingress for that hostname; no stored Cloudflare credential exposed Access Apps and Policies write permission.
+- Actions and commands: confirmed the hostname was unused; added the ordered V2 tunnel ingress to loopback port `6001`; added non-secret `PUSHER_HOST` and `PUSHER_PORT` values to the persistent custom Compose override; created timestamped server-side configuration backups; validated Cloudflare ingress and the three-file Compose merge; restarted `cloudflared`; recreated only the Coolify application container; created the V2 tunnel DNS route; removed the temporary local copy of Coolify's secret environment after it was no longer needed.
+- Files/services/ports/data affected: local and server V2 tunnel configuration; local and server `docker-compose.custom.yml`; `cloudflared.service`; Coolify application container; one new Cloudflare DNS route. No database, volume, Pusher secret, Hermes service, legacy tunnel, legacy DNS record, or client content changed.
+- Verification: `cloudflared` active; Coolify and realtime containers healthy; Coolify container exposes the approved realtime host and port values; loopback realtime `/ready` and public `https://manage-realtime.forkedbrain.fyi/ready` returned HTTP 200; `manage` and `brain` retained their login redirects; `intel` remained HTTP 200.
+- Rollback/recovery: delete only the `manage-realtime` DNS route if explicitly approved, restore `/etc/cloudflared/config.yml.pre-realtime-20260731` and `/data/coolify/source/docker-compose.custom.yml.pre-realtime-20260731`, validate both configurations, restart the tunnel, and reapply the Coolify three-file Compose stack. Never modify `intel.forkedbrain.fyi` or tunnel `crypto-intel` during rollback.
+- Follow-up: create one self-hosted Cloudflare Access application covering `manage.forkedbrain.fyi` and `manage-realtime.forkedbrain.fyi`, then add an allow policy restricted to Mark and Darshan. This requires a short-lived scoped token with Access Apps and Policies write permission; the existing tunnel certificate and tunnel credential do not provide that API scope.
+- Secrets handling: the temporary `.env` copy was mode `0600`, was never printed, and was deleted; no secret value entered Compose overrides, documentation, chat, or command output.
+
+## 2026-07-31 15:29 UTC — Realtime documentation mirror verified
+
+- Operator: Codex under the standing infrastructure documentation requirement.
+- Status: completed.
+- Actions and checks: updated the local source-of-truth documents and redacted acceptance snapshot; scanned ordinary documentation/deployment files for common secret patterns; refreshed the non-secret VPS mirror; compared SHA-256 hashes for the changed runbook, status, operations log, snapshot, Cloudflare files, and Coolify override.
+- Verification: all seven selected local and server mirror hashes matched; the private credential master remained mode `0600`; the first burst of separate SCP sessions caused one transient SSH refusal, but TCP 22 and subsequent SSH connections recovered without intervention and all public services stayed healthy.
+- Rollback/recovery: the local client folder remains authoritative; regenerate the server mirror from it if any mirror file is damaged. The transient SSH refusal required no configuration change.
+- Secrets handling: no secret file entered the mirror; the private credential master update recorded only the additional public hostname and a reference to an owner-only mode-`0600` short-lived Access-token placeholder. The placeholder contains no credential and must be deleted after the eventual token is revoked.
+
+## 2026-07-31 15:47–16:00 UTC — Shared Cloudflare Access application completed
+
+- Operator: Codex following Darshan's explicit approval to use the supplied short-lived account API token and his instruction to revoke it immediately after use.
+- Status: application and policy completed; client-side token revocation confirmation pending.
+- Purpose: add an identity gate in front of both Coolify management hostnames without affecting Hermes or the protected legacy Crypto service.
+- Before state: both hostnames were served through the isolated V2 tunnel, but only Coolify's application login protected the management UI and the realtime readiness endpoint was publicly reachable.
+- Preflight: verified the token was active; read back exactly two accepted Cloudflare account members; confirmed there were no existing Access applications; found one configured email one-time-PIN identity provider and the existing Access organization. The first token shown in a screenshot was not used because OCR/transcription failed API validation; Darshan then supplied the exact token explicitly.
+- Actions and API objects: created self-hosted application `Mark V2 Infrastructure Management` (`529f193c-2aad-4acf-af00-05ad556b58d0`) with public destinations `manage.forkedbrain.fyi` and `manage-realtime.forkedbrain.fyi`, the existing one-time-PIN provider, automatic identity redirect, hidden App Launcher entry, and 12-hour application sessions; created exclusive allow policy `Allow Mark and Darshan` (`a5166e47-b9a3-4c51-82c2-977e0eacb171`) at precedence 1 with only the two accepted member emails and a 12-hour policy session.
+- Verification: API readback matched the exact application type, two destinations, one identity provider, session duration, policy decision, precedence, and emails; unauthenticated requests to both management hostnames returned HTTP 302 to the same Cloudflare Access organization; `brain` retained its Hermes login redirect; `intel` remained HTTP 200.
+- Files/services/data affected: Cloudflare Access application and policy only; no DNS, tunnel ingress, VPS service, container, port, database, volume, legacy record, or client content changed.
+- Credential handling: the setup token was exposed in the authorized client chat, was therefore treated as compromised, was never written into project documentation or the VPS, and its temporary macOS Keychain copy was deleted after final API readback. The owner-only placeholder file still contains no token. Darshan was instructed to revoke account token `restless-morning-62df` immediately.
+- Rollback/recovery: delete only policy `a5166e47-b9a3-4c51-82c2-977e0eacb171` and application `529f193c-2aad-4acf-af00-05ad556b58d0` after explicit approval; tunnel routes and DNS must remain unchanged. Never modify `intel.forkedbrain.fyi` or tunnel `crypto-intel` as part of Access rollback.
+- Follow-up: receive Darshan's token-revocation confirmation; run one interactive one-time-PIN login for each approved email and confirm Coolify plus realtime behavior in the same browser session.
+
+## 2026-07-31 16:01 UTC — Access documentation mirror verified
+
+- Operator: Codex under the standing infrastructure documentation requirement.
+- Status: completed.
+- Actions and checks: updated the redacted current state, runbook, credential register, deployment note, operations ledger, and Access acceptance snapshot; scanned ordinary files for common secret patterns and the Cloudflare token prefix; refreshed the non-secret VPS mirror; compared six selected SHA-256 hashes.
+- Verification: all six local/server hashes matched; no Access API token was found in the project tree or mirror; private credential files remained mode `0600`; Cloudflare redirects and VPS service health remained correct.
+- Follow-up: token revocation confirmation and interactive OTP acceptance are the only remaining Access closeout checks.
+
+## 2026-07-31 16:23 UTC — Cloudflare Access setup token revocation confirmed
+
+- Operator: Darshan in the client-owned Cloudflare account; recorded by Codex.
+- Status: completed.
+- Purpose: close the temporary credential lifecycle after the approved Access deployment.
+- Action: Darshan confirmed deletion of account token `restless-morning-62df` in Cloudflare. The already-deleted temporary Keychain item was not restored, and the empty owner-only placeholder was removed.
+- Verification boundary: revocation is recorded from the account owner's explicit confirmation; the revoked credential was deliberately not reused for an API probe.
+- Secrets handling: no raw token is retained in the project, credential master, Keychain, documentation, or VPS.
+- Follow-up: complete one interactive email one-time-PIN login for each approved owner; then begin the separately documented internal OpenViking deployment.
+
+## 2026-07-31 16:48 UTC — OpenViking private deployment plan frozen
+
+- Operator: Codex following Darshan's instruction to continue after successful interactive Cloudflare Access acceptance.
+- Status: plan and local deployment definition completed; no runtime mutation yet.
+- Purpose: add OpenViking as Hermes's official external memory provider without creating a second agent, public interface, custom RAG layer, or redundant infrastructure.
+- Approved design: add one separately persistent `openviking` container to the existing Hermes Coolify Compose stack; use only the isolated stack network at `http://openviking:1933`; publish no port, hostname, Traefik route, or Cloudflare route; disable OpenViking's optional bot; use native local storage, native API-key tenancy, native at-rest encryption, and Hermes's built-in OpenViking provider.
+- Frozen release: OpenViking `v0.4.11`, Linux AMD64 manifest digest `sha256:6bca0c71301a918b6cb6a614677d0a15556ce2d62ba3e491e3be78c490008bbe`.
+- Files affected: local frozen Compose and the Hermes/OpenViking deployment documentation only. No server service, container, volume, port, credential, Cloudflare object, DNS record, or client data changed in this planning step.
+- Verification boundary: validate the rendered Compose, save the current Coolify and Hermes state, deploy the waiting container, initialize secrets directly in its persistent volume, and import no client data until the full acceptance gate passes.
+- Rollback/recovery: restore the pre-change Compose through Coolify and retain both named volumes; if OpenViking alone fails, disable Hermes's external provider and remove only the OpenViking service without altering Hermes or any Cloudflare object.
+- Secrets handling: future generated root, user, model, and encryption values must be written only to mode-`0600` owner storage and runtime secret files; none may enter Compose, API payload logs, ordinary documentation, or chat output.
+
+## 2026-07-31 16:58 UTC — OpenViking waiting container deployed; variable scope corrected
+
+- Operator: Codex under the frozen OpenViking deployment scope.
+- Status: first container deployment completed; secret initialization intentionally paused for a recovered preflight finding.
+- Actions: created an owner-only rollback directory; archived Hermes's current volume and config; saved Coolify's pre-change service response; validated the proposed Compose on both Mac and server; created a short-lived local Coolify API window; updated the service; and started OpenViking in its supported waiting-for-configuration state.
+- Runtime result: Hermes restarted successfully; official OpenViking `v0.4.11` started on the isolated stack network; `openviking_data` was created; Docker publishes no host port for `1933`; no client data or OpenViking secret was written.
+- Recovered issue: Coolify injected the service's Hermes dashboard variables into both Compose containers. The values never left the server or became publicly reachable, but their presence in the OpenViking environment violated least privilege.
+- Correction: the frozen OpenViking service now explicitly blanks the three Hermes dashboard credential variables. Redeploy and inspect the resulting container before creating OpenViking model, root, user, or encryption secrets.
+- Credential incident: the first short-lived Coolify token was accidentally displayed during an internal format check, then immediately deleted from Coolify and securely removed from disk before it was used. A replacement token was created and remains owner-only for the unfinished deployment window.
+- Rollback/recovery: restore the pre-change Coolify service JSON/Compose and `hermes-data.tar.gz` from the timestamped mode-`0700` rollback directory; retain the new empty OpenViking volume until the cause is understood.
+
+## 2026-07-31 17:03 UTC — Hermes secret-scope migration recovery
+
+- Operator: Codex during the OpenViking pre-initialization hardening.
+- Status: recovery in progress at entry time.
+- Purpose: remove Hermes dashboard secrets from Coolify's Compose-wide environment so OpenViking cannot inherit them.
+- Actions: copied the six required dashboard values from the running Hermes process directly into `/opt/data/runtime/hermes-dashboard.env`; restricted the directory to `0700` and file to `0600`, owned by the Hermes runtime user; deleted only the three dashboard secret records from Coolify's service environment; changed Hermes startup to source the private runtime file.
+- Recovered failure: the first wrapper invoked `hermes` by name through a shell whose runtime path did not expose that executable, causing Hermes to enter a restart loop with exit `127`. OpenViking continued only in its empty waiting state; no client data or OpenViking credential existed.
+- Correction: invoke the frozen image's Hermes executable by its absolute path `/opt/hermes/.venv/bin/hermes` through a non-login shell, then redeploy and re-run dashboard, model, persistence, and environment-isolation checks.
+- Rollback/recovery: restore the prior Compose and the three Coolify environment records from the owner-only credential master if the corrected wrapper fails; the pre-change Hermes volume archive remains available.
+- Secrets handling: no dashboard value was printed, copied into Compose, or added to ordinary documentation.
+
+## 2026-07-31 17:13 UTC — Native Hermes dashboard-auth configuration selected
+
+- Operator: Codex during recovery of the Compose-wide environment issue.
+- Status: corrective design frozen; runtime validation pending.
+- Finding: Hermes's s6-supervised dashboard starts independently of the gateway command, so a child-shell runtime file cannot configure the dashboard even though it can configure the gateway. This caused a temporary HTTP `502` after the secret-scope change; the gateway itself stayed healthy after the absolute-path wrapper correction.
+- Native correction: move the username, a derived scrypt password hash, and the stable session-signing secret into Hermes's supported `dashboard.basic_auth` section in mode-`0600` `/opt/data/config.yaml`; restore the stock `gateway run` command; retain only the non-secret dashboard enable/host/port values in Compose; securely delete the temporary plaintext runtime file after acceptance.
+- Security result expected: the raw password remains only in the owner credential master; Coolify stores no dashboard secret variable; OpenViking receives no Hermes dashboard credential; Hermes source, prompts, tools, and agent logic remain unchanged.
+- Rollback/recovery: restore `config.yaml` from the pre-migration owner-only backup and re-add the three Coolify secret records only if the native supported config fails; then restore the original Compose.
+
+## 2026-07-31 17:28 UTC — Hermes recovered; private OpenViking initialized
+
+- Operator: Codex under Darshan's approved private OpenViking deployment scope.
+- Hermes result: restored the stock `gateway run` command; migrated dashboard authentication to Hermes's supported `dashboard.basic_auth` configuration using a scrypt password hash; removed the temporary plaintext wrapper file; confirmed zero dashboard-secret variables in both containers and zero Coolify service environment records; restart count remained zero; internal status returned HTTP `200` and the public dashboard returned the expected authenticated redirect.
+- OpenViking result: official pinned `v0.4.11` is running on the isolated Compose network with no published host port; native local AGFS/vector storage, OpenAI embedding/VLM configuration, API-key authentication, AES encryption, and Argon2id API-key hashing were validated and written to owner-only runtime storage; the native master key was created mode `0600`.
+- Verification: `/health` returns HTTP `200`; VectorDB, API-key manager, and embedding probes report `ok`. `/ready` returns HTTP `503` only because the new AGFS namespace has not yet been bootstrapped (`viking://` root absent). No client data has been imported and Hermes still reports its external memory provider as unset.
+- Remaining work: create the Mark/Hermes OpenViking account and user namespace, initialize the AGFS root, connect Hermes through its built-in OpenViking provider, run write/search/read and restart-persistence acceptance tests, perform backup/restore validation, escrow the generated OpenViking credentials and master key in the owner-only local credential store, then securely remove staging secrets and close the temporary Coolify API window.
+- Cloudflare boundary: no DNS, tunnel, route, hostname, or Access-policy change was made; OpenViking remains private and has no public URL.
+
+## 2026-07-31 17:28–17:53 UTC — OpenViking tenancy, Hermes integration, restore acceptance, and closeout
+
+- Operator: Codex under Darshan's approved private-memory deployment scope.
+- Status: completed.
+- Purpose: finish the official OpenViking integration, prove recoverability and persistence, escrow all generated credentials, and close every temporary deployment path before any client-data import.
+- Actions: created account `mark-gerhart` and dedicated user/agent `hermes`; initialized the tenant namespace; created owner and tenant CLI profiles inside the private volume; wrote only the supported `OPENVIKING_*` provider settings to Hermes's mode-`0600` profile environment; set `memory.provider=openviking` through Hermes's native config command; ran remember/search/read through the actual Hermes provider; independently restarted OpenViking and Hermes; created a consistent volume archive; restored it under the same pinned image into a disposable volume/container with no port; then deleted the acceptance marker and all disposable test objects.
+- Runtime verification: Hermes remains on stock command `gateway run`, internal dashboard HTTP `200`, public dashboard authentication redirect `302`, restart count `0`, native memory provider installed/available; OpenViking is running/healthy, `/health` HTTP `200`, restart count `0`, no host-published port, connected tenant, zero queue errors, healthy VectorDB/models/lock/retrieval/filesystem; restored semantic search and exact read returned the original acceptance marker; backup checksum passed; the production acceptance marker is no longer readable.
+- Readiness clarification: after tenant bootstrap, OpenViking 0.4.11's unauthenticated `/ready` still reports `503` because its native root probe calls the `viking://` root without tenant context. Authenticated tenant status and operations are healthy. No upstream source or readiness behavior was patched.
+- Credential handling: root API key, dedicated Hermes key, encryption master key, and private config were transferred without displaying values to the mode-`0700` local secret tree; the V2 master record and secret files are mode `0600`; exact-value scanning found zero OpenViking-secret matches in ordinary project/source/deliverable files. Server staging copies and the in-container test script were securely removed.
+- Temporary access closeout: the short-lived Coolify token was revoked, the token file removed, and Coolify API access disabled. Neither container has a sensitive Compose/container environment variable. The accepted backup remains mode `0600` at `/root/mark-v2-backups/20260731T175000Z-openviking-acceptance/openviking-data.tar.gz` with its checksum manifest.
+- Files/services/data affected: Hermes config/profile environment in `hermes_data`; OpenViking config, tenant metadata, and encrypted native data in `openviking_data`; owner-only local credential escrow; retained acceptance backup; redacted documentation. No Cloudflare, DNS, tunnel, Access policy, legacy VPS, Telegram credential, or client content changed.
+- Rollback/recovery: return Hermes to built-in memory using its supported configuration path, verify provider status, stop/remove only the OpenViking service while retaining its volume, or restore the frozen pre-change Compose. Recover OpenViking only with the matching backup, private config, and encryption master key. Never start a second writer on the production volume.
+- Next step: define and build the thin Crypto ingestion/provenance layer, then migrate selected legacy content only after its own acceptance plan is approved.
+
+## 2026-07-31 17:54 UTC — Clean documentation mirror replaced and verified
+
+- Operator: Codex under the standing requirement to document and mirror every infrastructure change.
+- Status: completed.
+- Purpose: replace the earlier mixed-layout server mirror, which contained obsolete root-level duplicates and macOS metadata, with one clean recovery copy of the authoritative infrastructure and Hermes/OpenViking deployment records.
+- Actions: removed the local infrastructure `.DS_Store`; generated a new secret-excluded mirror in a unique temporary server directory; excluded `.DS_Store`, AppleDouble files, bytecode, and `__pycache__`; compared sorted SHA-256 manifests; atomically swapped the verified directory into `/root/mark-v2-docs`; removed only the replaced generated mirror after the swap succeeded.
+- Verification: all selected local/server file hashes matched before activation; active mirror mode is `0700`; it contains 21 regular files and zero detected metadata/bytecode artifacts. No `.secrets` path, runtime configuration, API key, master key, password, token, or client content was copied.
+- Recovery: regenerate `/root/mark-v2-docs` from the local client folder using the same exclusions and hash comparison. The local client folder remains authoritative.
+
+## 2026-07-31 18:16–18:38 UTC — Crypto provenance live acceptance and cleanup
+
+- Operator: Codex under the Hermes-first application build scope.
+- Status: completed.
+- Purpose: verify the smallest Crypto-specific gap—deterministic provenance, identity, receipts, and replay safety—through Hermes's native OpenViking provider before any client-data migration.
+- Before state: OpenViking was healthy and empty for the Hermes tenant; the legacy audit and 113-resource dry run were write-free; no V2 Crypto namespace existed.
+- Actions: created four non-sensitive Markdown fixtures; exercised native public-URL, local-document, transcript, and linked-event ingestion; searched and read each result through Hermes; added the deterministic pre-storage identity guard; tested failed-receipt semantics; and ran thirteen local unit tests.
+- Recovered findings: synchronous native resource calls can time out while healthy semantic work continues; use asynchronous submission plus exact search/read verification. OpenViking strips Markdown front matter; moved provenance into a visible body block. Native target replay can reprocess an existing target; the Crypto guard must skip before calling it.
+- Verification: every accepted packet read back with its schema, exact source/event ID, date, source URL where applicable, and marker; the native URL resource read successfully; the final tree held one canonical raw copy per packet; all unit tests passed; OpenViking reported zero queue errors.
+- Cleanup: removed only `viking://user/hermes/resources/crypto-fixtures-20260731T181655Z`, the acceptance-only resource-reason session, exact server/container staging, and disposable local fixture files. No client content was imported.
+- Files affected: Crypto provenance helper and tests; migration design; this operations record and redacted acceptance snapshot. No Hermes/OpenViking source, prompts, tools, service definition, credential, Cloudflare object, or legacy endpoint changed.
+- Rollback/recovery: code changes are local and isolated; restore the prior helper revision if needed. Runtime rollback is unnecessary because all synthetic resources were deleted and production memory remained empty.
+- Follow-up: build the production executor around the verified planner, run another write-free reconciliation, and obtain Darshan's review before importing the 47 source and 66 event resources.
+- Secrets handling: fixtures were synthetic; no secret or client content entered test output or ordinary documentation.
+
+## 2026-07-31 18:39 UTC — Crypto acceptance documentation mirror verified
+
+- Operator: Codex under the standing documentation requirement.
+- Status: completed.
+- Actions: scanned ordinary documentation/deployment paths for common raw-secret patterns; copied the changed infrastructure records, new redacted acceptance snapshot, and Crypto ingestion design to the private VPS recovery mirror; compared SHA-256 manifests.
+- Verification: all six selected local/server hashes matched; OpenViking's Hermes tenant resource and session roots were empty; the queue was idle with zero errors.
+- Secrets handling: no credential, private key, API token, client content, or synthetic fixture entered the mirror.
+
+## 2026-07-31 18:49–19:00 UTC — Production Crypto migration bundle prepared write-free
+
+- Operator: Codex under the approved next-stage build scope; client-data import remains separately gated.
+- Status: local bundle and executor ready; no OpenViking write performed.
+- Purpose: convert the already audited canonical dataset into deterministic review packets and make the eventual import replay-safe and observable.
+- Actions: built a local source/event packet builder, independent manifest verifier, and native-provider executor; generated 47 source and 66 event packets; extracted text from all 18 resolved JSON/DOCX/PDF/TXT transcript references; normalized dead VPS paths to stable archive references; simulated create and replay behavior; ran the executor in plan-only mode.
+- Verification: database integrity `ok`; 113 unique packet targets; exact match to all 66 canonical database event IDs; every event source link resolved; all bytes and checksums matched; 17 tests passed; common secret-pattern and active legacy-path scans returned zero findings; plan-only executor reported 113 records and zero V2 writes.
+- Data boundary: the client-content bundle exists only at the ignored local `.work` path recorded in the migration review. It was not copied to the VPS, server documentation mirror, OpenViking, Cloudflare, or another service.
+- Files affected: local Crypto source helper, migration builder/verifier/executor, synthetic tests, migration review/design, infrastructure records, and redacted readiness snapshot.
+- Rollback/recovery: delete and regenerate only the local ignored packet bundle from the unchanged preserved export. Runtime rollback is unnecessary because V2 remained empty.
+- Follow-up: Darshan must review the 47-source/66-event gate. After explicit approval, create a pre-import backup and follow the controlled receipt-backed import sequence.
+- Secrets handling: no credential was read into packet content or ordinary documentation; a strong common-secret-pattern scan found no candidate material.
+
+## 2026-07-31 19:01 UTC — Migration recovery mirror verified
+
+- Operator: Codex under the standing documentation and recoverability requirement.
+- Status: completed.
+- Actions: copied only the non-secret Crypto provenance source, migration tools, synthetic tests, design/review records, infrastructure updates, and redacted readiness snapshot into `/root/mark-v2-docs/`; excluded the client-content packet bundle, preserved export, credentials, bytecode, and caches.
+- Verification: all 17 selected local/server SHA-256 hashes matched. The packet bundle remains workstation-only and V2 memory remains empty.
+- Recovery: the local Mark project remains authoritative; the server copy is a non-secret recovery mirror and cannot perform an import without the separately reviewed packet bundle and explicit apply confirmation.
+
+## 2026-08-03 04:54 UTC — Complete Crypto migration and dashboard handoff
+
+- Operator: Codex following Darshan's explicit instruction to import all legacy Crypto Intelligence data and prepare the system through the Claude Code dashboard-design handoff.
+- Status: dashboard/data handoff completed; semantic import paused cleanly pending funded model access.
+- Purpose: preserve all meaningful legacy knowledge in Mark's unified Hermes/OpenViking memory, create a clean normalized dashboard data contract, stage the original transcript/media archive privately, and stop before dashboard UI implementation.
+- Approved boundary: Hermes and OpenViking remain native and unmodified; no dashboard UI is being designed; `intel.forkedbrain.fyi`, Cloudflare, DNS, tunnels, credentials, and the old VPS are unchanged.
+- Local preparation: audited the canonical SQLite database, current event files, conversations, transcripts, and media archive; generated 131 source/artifact packets plus 66 linked event packets; created a normalized SQLite dashboard handoff and checksum media manifest; excluded credentials, cookies, tool calls/results, logs, caches, duplicate backups, and binary media from semantic memory.
+- Validation: 18 local tests pass; all 197 packets have unique targets and verified checksums; all 66 canonical event IDs and 32 transcript files reconcile; dashboard SQLite integrity is `ok` with no foreign-key violations; secret and dead-path scans are clean.
+- Recovery point: created and checksum-verified `/root/mark-v2-backups/20260803T050000Z-pre-complete-crypto-import/openviking-data.tar.gz` before the first client-content write.
+- Staging recovery: rejected the first streamed packet directory after detecting 208 macOS AppleDouble metadata files; created a clean 199-file packet stage with zero sidecars and exactly three importer code files.
+- Importer recovery: the first resource proved that OpenViking owns the final stored filename and may append a generated suffix. The initial sequential verifier was interrupted after one source, before bulk import. The importer now resolves canonical URIs by deterministic schema and provenance identity through Hermes's native search/read tools, retains the provider's canonical URI, and performs bounded transient-search retries; its generated-filename replay test passes.
+- Live attempt: the corrected run confirmed one skip and 18 creates. The twentieth submission stopped after native OpenViking search/embedding returned `credit_balance_exhausted`; inspection confirmed that Mark's configured OpenAI Platform balance was zero. No additional packets were submitted.
+- Dashboard/media result: `/srv/mark-v2/crypto-dashboard-handoff/v1/` contains the immutable database and manifests; `/srv/mark-v2/crypto-legacy-media/v1/` contains exactly 89 approved files totaling 1,758,729,074 bytes. Both are owner-only. The independent verifier passed every database count, integrity/foreign-key check, byte count, and SHA-256 locally and on the VPS.
+- Rollback performed: preserved the attempt receipts, rechecked the pre-import archive checksum, stopped OpenViking, restored the production volume under the frozen image, and restarted it. Final status is healthy with zero pending/running/error jobs and an empty Hermes resource root. The partial attempt is therefore not present in production memory.
+- Cleanup: removed the dirty 208-sidecar server/container stage; moved two failed local generated bundles to recoverable macOS Trash; retained only the clean resume-ready stage, validated final local bundles, and attempt receipts.
+- Recovery/resume: the pre-import archive remains the recovery point. After credits are added or another provider is approved, verify a fixture, rerun all 197 identities with a new receipt, require a 197-skip replay, test Hermes retrieval/citations, and create a post-import backup. Do not touch the legacy hostname or old VPS.
+
+## 2026-08-03 05:36 UTC — Documentation mirror refresh recovered
+
+- Operator: Codex under the standing non-secret recovery-mirror requirement.
+- Status: recovered and completed.
+- Purpose: replace `/root/mark-v2-docs/` with the current non-secret infrastructure, migration, deployment, source, test, and tool records.
+- Recovered issue: the first refresh used one zsh scalar containing multiple source paths. Zsh did not split it, so `tar` received one nonexistent combined pathname and the subsequent empty-manifest comparison allowed an empty temporary mirror to replace the prior server mirror. The authoritative local project, private handoff, credentials, containers, volumes, and client data were never affected.
+- Recovery: immediately rebuilt a unique temporary mirror using explicit source arguments and pipeline failure checking; required a non-empty local manifest; compared sorted SHA-256 manifests before activation; atomically replaced the empty mirror; and deleted only the empty generated predecessor.
+- Verification: active `/root/mark-v2-docs/` is mode `0700`, contains 49 regular files including the root project/Claude entry documents, contains no AppleDouble, `.DS_Store`, bytecode, or cache files, and every selected local/server SHA-256 matches.
+- Prevention: future full-mirror refreshes must use an array or explicit tar arguments, `pipefail`, and a non-empty manifest assertion before any atomic swap.

@@ -1,0 +1,46 @@
+# Credentials and private material
+.secrets/
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*credentials*.txt
+**/*secrets*.txt
+
+# Generated and local working data
+.work/
+dashboard/data/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.sqlite
+**/*.sqlite3
+**/*.sqlite-shm
+**/*.sqlite-wal
+
+# Dependencies and build output
+**/node_modules/
+**/dist/
+**/build/
+**/coverage/
+**/.cache/
+**/.vite/
+
+# Python local state
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.venv/
+**/venv/
+
+# Local captures, logs, and editor state
+**/screenshots/
+**/*.log
+.DS_Store
+.idea/
+.vscode/
+

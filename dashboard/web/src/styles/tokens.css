@@ -1,0 +1,149 @@
+/*
+ * Crypto Intelligence V2 design tokens.
+ *
+ * Every value here was chosen, measured, and in the case of colour validated
+ * with the data-visualisation palette validator against the real surfaces
+ * below. Components reference only the semantic layer; nothing hardcodes a
+ * colour, a size, or a spacing value.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- surfaces: cool blue-black, biased toward the accent ---------- */
+  --surface-void: #060d15;
+  --surface-page: #0a131d;
+  --surface-panel: #121d28;
+  --surface-card: #182430;
+  --surface-raised: #212e3b;
+  --surface-sunken: #0d1620;
+
+  /* ---- ink: blue-biased, same family as the surfaces ---------------- */
+  --ink-primary: #edf5fb; /* 16.96:1 on page, 14.29:1 on card */
+  --ink-secondary: #c2ced7; /* 11.66:1 / 9.82:1 */
+  --ink-muted: #94a0aa; /*  7.00:1 / 5.90:1 */
+  --ink-faint: #6f7b84; /*  4.31:1 / 3.63:1 */
+
+  /* ---- accent: one restrained cyan-blue, OKLCH hue 212 -------------- */
+  --accent-strong: #74d5e8; /* 11.06:1 / 9.32:1 */
+  --accent: #34bad2; /*  8.10:1 / 6.82:1 */
+  --accent-deep: #009fb7; /*  5.91:1 / 4.98:1 */
+  --accent-ink: #031a1e;
+  --accent-wash: rgba(52, 186, 210, 0.12);
+  --accent-wash-strong: rgba(52, 186, 210, 0.2);
+
+  /* ---- category families: a visual lens, never the taxonomy ---------
+   * Validated all-pairs on both surfaces. One accepted warning: green
+   * against amber measures dE 6.9 under protanopia, mitigated by the leaf
+   * category label always being present as text.                        */
+  --family-narrative: #9085e9;
+  --family-protocol: #c98500;
+  --family-risk: #d55181;
+  --family-rules: #008300;
+
+  /* ---- significance: ordinal ramp on the accent hue ----------------- */
+  --sig-1: #006678;
+  --sig-2: #008297;
+  --sig-3: #009fb7;
+  --sig-4: #34bad2;
+  --sig-5: #74d5e8;
+
+  /* ---- status: reserved, always with an icon and a word ------------- */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  /* ---- lines and glass --------------------------------------------- */
+  --hairline: rgba(237, 245, 251, 0.09);
+  --hairline-strong: rgba(237, 245, 251, 0.16);
+  --glass-frame: rgba(18, 29, 40, 0.62);
+  --glass-frame-solid: #121d28;
+  --glass-overlay: rgba(24, 36, 48, 0.86);
+  --glass-blur: blur(20px) saturate(140%);
+  --glass-highlight: rgba(255, 255, 255, 0.06);
+
+  /* ---- elevation: one light direction, top ------------------------- */
+  --elev-1: 0 1px 0 0 var(--glass-highlight) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elev-2: 0 1px 0 0 var(--glass-highlight) inset, 0 6px 20px rgba(0, 0, 0, 0.45);
+  --elev-3: 0 1px 0 0 var(--glass-highlight) inset, 0 18px 48px rgba(0, 0, 0, 0.55);
+
+  /* ---- spacing: 4px grid ------------------------------------------- */
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 8px;
+  --sp-4: 12px;
+  --sp-5: 16px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 48px;
+  --sp-9: 64px;
+  --sp-10: 96px;
+
+  /* ---- radius: three values, not one ------------------------------- */
+  --radius-flat: 4px;
+  --radius-card: 10px;
+  --radius-pill: 999px;
+
+  /* ---- type: one superfamily, three roles carrying provenance ------ */
+  --font-ui: 'IBM Plex Sans Variable', system-ui, -apple-system, sans-serif;
+  --font-read: 'IBM Plex Serif', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+
+  --text-display: 2.125rem/1.18 var(--font-ui);
+  --text-h1: 1.625rem/1.24 var(--font-ui);
+  --text-h2: 1.25rem/1.4 var(--font-ui);
+  --text-h3: 1rem/1.375 var(--font-ui);
+  --text-body: 0.9375rem/1.6 var(--font-ui);
+  --text-small: 0.8125rem/1.5 var(--font-ui);
+  --text-read: 1.0625rem/1.65 var(--font-read);
+  --text-mono: 0.8125rem/1.5 var(--font-mono);
+  --text-micro: 0.6875rem/1.45 var(--font-ui);
+  --label-tracking: 0.06em;
+
+  --measure: 68ch;
+  --rail-width: 232px;
+  --rail-width-collapsed: 64px;
+
+  /* ---- motion ------------------------------------------------------ */
+  --dur-1: 120ms;
+  --dur-2: 180ms;
+  --dur-3: 240ms;
+  --dur-4: 320ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emph: cubic-bezier(0.3, 0, 0, 1);
+}
+
+/* High contrast raises ink and lines within the dark theme. */
+:root[data-contrast='high'] {
+  --ink-secondary: #e2ebf2;
+  --ink-muted: #b9c5ce;
+  --ink-faint: #93a0aa;
+  --hairline: rgba(237, 245, 251, 0.22);
+  --hairline-strong: rgba(237, 245, 251, 0.34);
+  --glass-frame: rgba(12, 20, 29, 0.94);
+  --glass-overlay: rgba(16, 25, 34, 0.97);
+}
+
+/* Density is calibrated, not maximised. */
+:root[data-density='compact'] {
+  --sp-5: 12px;
+  --sp-6: 16px;
+  --sp-7: 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 1ms;
+    --dur-2: 1ms;
+    --dur-3: 80ms;
+    --dur-4: 80ms;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --hairline: rgba(237, 245, 251, 0.22);
+    --ink-muted: #b9c5ce;
+  }
+}

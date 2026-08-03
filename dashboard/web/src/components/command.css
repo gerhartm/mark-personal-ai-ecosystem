@@ -1,0 +1,208 @@
+.command-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(6, 13, 21, 0.62);
+  backdrop-filter: blur(3px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: max(10vh, var(--sp-8)) var(--sp-5) var(--sp-6);
+  animation: scrim-in var(--dur-2) var(--ease);
+}
+@keyframes scrim-in {
+  from { opacity: 0; }
+}
+
+.command {
+  width: min(720px, 100%);
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-overlay);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elev-3);
+  overflow: hidden;
+  animation: command-in var(--dur-3) var(--ease-emph);
+}
+@keyframes command-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.99);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .command-scrim,
+  .command {
+    animation: none;
+  }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .command { background: var(--surface-raised); }
+}
+
+.command-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--hairline);
+}
+.command-icon {
+  color: var(--ink-muted);
+  display: grid;
+  place-items: center;
+}
+.command-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 1rem;
+  color: var(--ink-primary);
+  outline: none;
+}
+.command-input::placeholder {
+  color: var(--ink-faint);
+}
+.command-close {
+  min-height: 28px;
+  padding: var(--sp-2);
+}
+
+.command-body {
+  overflow-y: auto;
+  padding: var(--sp-3) 0 var(--sp-4);
+}
+.command-group + .command-group {
+  border-top: 1px solid var(--hairline);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+}
+.command-group-label {
+  padding: var(--sp-3) var(--sp-5);
+  display: flex;
+  gap: var(--sp-4);
+}
+
+.command-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-5);
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-secondary);
+  font: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.command-row:hover,
+.command-row:focus-visible {
+  background: var(--accent-wash);
+  color: var(--ink-primary);
+}
+.command-row svg {
+  color: var(--ink-faint);
+  flex: none;
+}
+
+.command-row-hit {
+  align-items: flex-start;
+  padding-top: var(--sp-4);
+  padding-bottom: var(--sp-4);
+}
+.command-hit-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.command-hit-title {
+  font-size: 0.875rem;
+  color: var(--ink-primary);
+}
+.command-hit-snippet {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.command-hit-snippet mark {
+  background: var(--accent-wash-strong);
+  color: var(--accent-strong);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+.command-hit-kind {
+  color: var(--ink-faint);
+  flex: none;
+}
+
+.command-ask strong {
+  color: var(--accent-strong);
+  font-weight: 500;
+}
+.command-ask kbd {
+  color: var(--ink-faint);
+  font-size: 0.6875rem;
+}
+
+.command-empty {
+  padding: var(--sp-4) var(--sp-5);
+  font-size: 0.875rem;
+}
+
+/* ---- answer panel ------------------------------------------------ */
+.answer {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.answer-message {
+  font-size: 0.875rem;
+  color: var(--ink-secondary);
+  max-width: 62ch;
+}
+.answer-label {
+  color: var(--ink-faint);
+}
+.answer-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.answer-hit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-flat);
+  background: var(--surface-sunken);
+  color: var(--ink-secondary);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease);
+}
+.answer-hit:hover {
+  border-color: var(--accent-deep);
+}
+.answer-hit-id {
+  color: var(--ink-faint);
+  font-size: 0.6875rem;
+}
+.answer-hit mark {
+  background: var(--accent-wash-strong);
+  color: var(--accent-strong);
+  border-radius: 2px;
+}

@@ -62,6 +62,26 @@ try {
     await shot(page, s.name, s.full);
   }
 
+  // Studio composer, connected-state shell. The screenshot run does not
+  // submit the form or call Hermes.
+  await page.goto(`${BASE}/studio`, { waitUntil: 'networkidle' });
+  const createDraft = page.getByRole('button', { name: 'Create draft' });
+  if (await createDraft.isEnabled()) {
+    await createDraft.click();
+    await page.waitForTimeout(300);
+    await shot(page, '20-studio-composer', false);
+  }
+  const studioPayload = await page.evaluate(async () => (await fetch('/api/drafts')).json());
+  const firstDraft = studioPayload?.drafts?.[0]?.id;
+  if (firstDraft) {
+    await page.goto(`${BASE}/studio/${firstDraft}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(300);
+    await shot(page, '21-studio-draft', false);
+    await page.getByRole('button', { name: 'Edit draft' }).click();
+    await page.waitForTimeout(200);
+    await shot(page, '22-studio-edit', false);
+  }
+
   // The command surface, opened over the Brief.
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
   await page.keyboard.press('Meta+k');
@@ -93,6 +113,13 @@ try {
     await mp.goto(`${BASE}${s.path}`, { waitUntil: 'networkidle' });
     await mp.waitForTimeout(s.settle ?? 900);
     await shot(mp, `m-${s.name}`, s.full);
+  }
+  await mp.goto(`${BASE}/studio`, { waitUntil: 'networkidle' });
+  const mobileCreateDraft = mp.getByRole('button', { name: 'Create draft' });
+  if (await mobileCreateDraft.isEnabled()) {
+    await mobileCreateDraft.click();
+    await mp.waitForTimeout(300);
+    await shot(mp, 'm-20-studio-composer', false);
   }
   await mob.close();
 

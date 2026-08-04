@@ -55,8 +55,13 @@ ask="$(curl -fsS \
   http://127.0.0.1:9330/api/ask)"
 jq -e '.mode == "hermes" and .state == "connected" and (.answer | length > 40) and .evidence_count > 0' <<<"$ask" >/dev/null
 
+studio_status="$(curl -fsS \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  http://127.0.0.1:9330/api/studio/status)"
+jq -e '.connected == true and (.templates | length == 5)' <<<"$studio_status" >/dev/null
+
 docker rm -f "$canary" >/dev/null
 rm -rf "/srv/mark-v2/crypto-dashboard/canary/${release}"
 
-printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nmemory=connected\nmedia_range=206\nask=connected\nrollback=%s\nbackup=%s\n' \
+printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nmemory=connected\nmedia_range=206\nask=connected\nstudio=connected\nrollback=%s\nbackup=%s\n' \
   "$release" "$rollback" "${backup_dir}/crypto-intelligence.db"

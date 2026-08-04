@@ -14,6 +14,13 @@ import {
   recentIngestionReceipts,
 } from './ingestion.js';
 import { accessHeaderRequired, requestActor, requestIdentity } from './request-auth.js';
+import {
+  StudioInputError,
+  appendStudioRevision,
+  createStudioDraft,
+  draftCitations,
+  studioStatus,
+} from './studio.js';
 import * as t from './tools.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -126,9 +133,12 @@ app.get('/api/search', async (req) => {
 
 app.get('/api/drafts', async () => ({ drafts: t.listDrafts() }));
 app.get('/api/drafts/:id', async (req, reply) => {
-  const draft = t.getDraft((req.params as { id: string }).id);
-  return draft ?? reply.code(404).send({ error: 'not_found' });
+  const id = (req.params as { id: string }).id;
+  const draft = t.getDraft(id);
+  return draft ? { ...draft, citations: draftCitations(id) } : reply.code(404).send({ error: 'not_found' });
 });
+
+app.get('/api/studio/status', async () => studioStatus());
 
 app.get('/api/quiz/sessions', async () => ({ sessions: t.listQuizSessions() }));
 app.get('/api/quiz/sessions/:id', async (req, reply) => {
@@ -215,6 +225,7 @@ app.delete('/api/views/:id', async (req) => {
  */
 const askAttempts = new Map<string, number[]>();
 const captureAttempts = new Map<string, number[]>();
+const studioAttempts = new Map<string, number[]>();
 
 function isAskRateLimited(key: string) {
   const now = Date.now();
@@ -233,6 +244,47 @@ function isCaptureRateLimited(key: string) {
   captureAttempts.set(key, recent);
   return false;
 }
+
+function isStudioRateLimited(key: string) {
+  const now = Date.now();
+  const recent = (studioAttempts.get(key) ?? []).filter((time) => time > now - 60_000);
+  if (recent.length >= 4) return true;
+  recent.push(now);
+  studioAttempts.set(key, recent);
+  return false;
+}
+
+app.post('/api/studio/drafts', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isStudioRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before generating another draft.' });
+  }
+  try {
+    return await createStudioDraft(req.body as any, actor);
+  } catch (error) {
+    if (error instanceof StudioInputError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(503).send({
+      error: 'hermes_unavailable',
+      message: cleanHermesError(error instanceof Error ? error.message : error),
+    });
+  }
+});
+
+app.put('/api/drafts/:id', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  const body = req.body as { body?: string };
+  try {
+    return appendStudioRevision(id, body?.body, requestActor(req));
+  } catch (error) {
+    if (error instanceof StudioInputError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(500).send({ error: 'revision_failed', message: 'The draft revision could not be saved.' });
+  }
+});
 
 app.get('/api/ingestion', async () => ({
   ...(await ingestionStatus()),

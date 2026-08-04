@@ -508,12 +508,12 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260804T071121Z`
+Current accepted release: `20260804T081020Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260804T071121Z`
+- image: `mark-crypto-dashboard:20260804T081020Z`
 - loopback origin: `http://127.0.0.1:9330`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`
@@ -542,6 +542,8 @@ The static interface must be protected by Cloudflare Access. Every data endpoint
 - Ask returns `mode=hermes`, `state=connected`, a non-empty answer, and at least one canonical evidence record
 - `GET /api/ingestion` reports `configured=true` and `connected=true`
 - Capture accepts URL and pasted-text requests only after OpenViking accepts them, skips exact duplicates, and records no local source on provider failure
+- `GET /api/studio/status` reports `connected=true` and exactly the five supported draft formats
+- Studio generation is exercised only in the disposable release canary: require a non-empty Hermes draft, at least one resolvable canonical citation, revision `0`, an appended revision `1`, and an unchanged production draft count
 - database `PRAGMA integrity_check` is `ok` and `PRAGMA foreign_key_check` returns no rows
 
 Capture uses OpenViking's native URL/text acquisition path. Do not add a custom
@@ -554,6 +556,18 @@ provider failure materialises a remote target, the application removes that
 exact remote-only resource or returns `memory_processing`; it must never promote
 the source to the local database while memory is incomplete.
 
+Studio uses the existing Hermes `llm.oneshot` transport and the existing Crypto
+database. The application may select and serialize bounded corpus evidence, but
+must not add a second agent, model provider, vector store, or reasoning engine.
+Generated content is accepted only after canonical event/source citations
+resolve locally. Invalid or missing citations must fail without creating a
+draft. Revision `0` is the Hermes generation and browser edits append revisions;
+they never replace the original. Edits to newly generated drafts must retain at
+least one resolvable canonical citation and must reject invented citations
+without creating a partial revision. Migrated legacy drafts retain their
+existing edit contract. Run live generation acceptance only against a disposable
+canary database because a successful request intentionally creates a draft.
+
 ### Restart and rollback
 
 Before restart, record the database SHA-256 and brief counts. Restart only `crypto-dashboard`, wait for healthy, and require the same checksum and counts.
@@ -564,7 +578,7 @@ The pre-route Cloudflare tunnel configuration is retained at:
 /srv/mark-v2/operator-backups/20260803T154358Z-cloudflared-crypto-route/config.yml
 ```
 
-To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, restore `/srv/mark-v2/crypto-dashboard/backups/pre-20260804T071121Z/crypto-intelligence.db`, stop and rename only `crypto-dashboard`, then recreate image `mark-crypto-dashboard:20260804T065421Z` with its prior environment, mounts, loopback port, network, and hardening settings. Do not alter Hermes, OpenViking, ForkedBrain, or the legacy `intel.forkedbrain.fyi` service.
+To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, restore `/srv/mark-v2/crypto-dashboard/backups/pre-20260804T081020Z/crypto-intelligence.db`, stop and remove only the current `crypto-dashboard`, rename `crypto-dashboard-rollback-20260804T075332Z` back to `crypto-dashboard`, restore its restart policy, and start it. The retained predecessor image is `mark-crypto-dashboard:20260804T075332Z`. Do not alter Hermes, OpenViking, ForkedBrain, Cloudflare, or the legacy `intel.forkedbrain.fyi` service.
 
 # Cloudflare domain change gate
 

@@ -138,6 +138,21 @@ describe('the intelligence plane boundary', () => {
     expect(Array.isArray(body.results)).toBe(true);
     expect(body).not.toHaveProperty('answer');
   });
+
+  it('keeps Studio read-only when Hermes is not connected and saves no placeholder draft', async () => {
+    const status: any = await json('/api/studio/status');
+    expect(status.connected).toBe(false);
+    expect(status.templates).toContain('speaking_prep');
+    const before = (await json('/api/drafts')).drafts.length;
+    const res = await fetch(`${BASE}/api/studio/drafts`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ template_type: 'speaking_prep', focus: 'Aave protocol risk' }),
+    });
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as any).error).toBe('intelligence_plane_not_connected');
+    expect((await json('/api/drafts')).drafts.length).toBe(before);
+  });
 });
 
 describe('media authorisation', () => {

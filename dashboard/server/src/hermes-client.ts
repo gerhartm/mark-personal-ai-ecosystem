@@ -7,6 +7,14 @@ type RpcMessage = {
   error?: { code?: number; message?: string };
 };
 
+export interface HermesGenerationOptions {
+  instructions?: string[];
+  task?: string;
+  maxTokens?: number;
+  temperature?: number;
+  timeoutMs?: number;
+}
+
 let cachedCookie = '';
 let cookieExpiresAt = 0;
 
@@ -88,7 +96,7 @@ export function cleanHermesError(message: unknown) {
   return 'Hermes could not answer this request right now.';
 }
 
-export async function askHermes(input: string) {
+export async function generateWithHermes(input: string, options: HermesGenerationOptions = {}) {
   const authTicket = await ticket();
   const url = websocketUrl(baseUrl());
   url.searchParams.set('ticket', authTicket);
@@ -99,7 +107,7 @@ export async function askHermes(input: string) {
     const timeout = setTimeout(() => {
       socket.terminate();
       reject(new Error('Hermes request timeout'));
-    }, 90_000);
+    }, options.timeoutMs ?? 90_000);
 
     const settle = (callback: () => void) => {
       clearTimeout(timeout);
@@ -113,18 +121,18 @@ export async function askHermes(input: string) {
         id: requestId,
         method: 'llm.oneshot',
         params: {
-          instructions: [
+          instructions: (options.instructions ?? [
             "You are Hermes inside Mark Gerhart's private Crypto Intelligence system.",
             'Answer only from the supplied corpus evidence.',
             'Separate stored evidence from interpretation and never invent facts.',
-            'Cite supporting records with their bracketed IDs, such as [evt_123].',
+            'Cite supporting records with their exact bracketed IDs.',
             'If the evidence is insufficient, say exactly what is missing.',
             'Be concise, decision-useful, and direct.',
-          ].join(' '),
+          ]).join(' '),
           input,
-          task: 'title_generation',
-          max_tokens: 1200,
-          temperature: 0.2,
+          task: options.task ?? 'title_generation',
+          max_tokens: options.maxTokens ?? 1200,
+          temperature: options.temperature ?? 0.2,
         },
       }));
     });
@@ -146,4 +154,8 @@ export async function askHermes(input: string) {
     });
     socket.once('error', () => settle(() => reject(new Error('Hermes websocket failed'))));
   });
+}
+
+export async function askHermes(input: string) {
+  return generateWithHermes(input);
 }

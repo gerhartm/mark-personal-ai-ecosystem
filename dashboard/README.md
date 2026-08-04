@@ -40,7 +40,7 @@ Environment, all optional, all by name only:
 
 ## Production deployment
 
-The accepted V2 release is `20260804T071121Z`. Its reproducible runtime contract
+The accepted V2 release is `20260804T081020Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
@@ -96,13 +96,14 @@ npm start &               # the API tests exercise the running server
 npx vitest run
 ```
 
-65 tests: reconciliation against the handoff manifest, canonical identity
+72 tests: reconciliation against the handoff manifest, canonical identity
 preservation, facet derivation, precision spans, taxonomy verbatim, append-only
 notes, the identity register, unified search determinism, media authorisation
 and traversal, the Access identity boundary, bounded Hermes evidence assembly,
 safe provider errors, the degraded intelligence plane, URL and text capture,
 exact duplicate skipping, partial-native-write cleanup, locked-resource safety,
-and the build's refusal of a tampered handoff.
+Studio evidence packaging, citation enforcement, atomic generation, append-only
+draft editing, and the build's refusal of a tampered handoff.
 
 ## Screenshots
 
@@ -137,6 +138,14 @@ corpus matches without presenting them as an answer.
 Writes reach the database only from the authenticated browser session. Notes are
 append only: revision 0 is the value preserved in the frozen handoff, and saving
 adds a revision rather than editing it.
+
+Studio reuses the same Hermes transport as Ask. The backend selects a small,
+bounded set of existing corpus records and gives Hermes the chosen format,
+focus, date window, and citation contract. A generated draft is saved only when
+every returned canonical event/source citation resolves in the existing
+database. The generated body is revision 0; each browser edit appends a new
+revision and leaves the original body untouched. This adds no second agent,
+model provider, memory service, or reasoning layer.
 
 The Capture screen submits only a URL or pasted text to the authenticated
 backend. The backend computes a stable source identity, prevents exact replay,

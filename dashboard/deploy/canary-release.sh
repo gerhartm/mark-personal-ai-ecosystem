@@ -60,4 +60,29 @@ ask="$(curl -fsS \
   http://127.0.0.1:9331/api/ask)"
 jq -e '.mode == "hermes" and .state == "connected" and (.answer | length > 40) and .evidence_count > 0' <<<"$ask" >/dev/null
 
-printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nmemory=connected\nask=connected\n'
+studio_status="$(curl -fsS \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  http://127.0.0.1:9331/api/studio/status)"
+jq -e '.connected == true and (.templates | index("speaking_prep")) != null' <<<"$studio_status" >/dev/null
+
+studio_draft="$(curl -fsS \
+  -H 'Content-Type: application/json' \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  -d '{"template_type":"speaking_prep","focus":"Aave protocol risk and market implications","date_from":"2026-04-01","date_to":"2026-07-04"}' \
+  http://127.0.0.1:9331/api/studio/drafts)"
+jq -e '(.id | startswith("draft_")) and (.body | length > 40) and (.citations | length > 0) and .revision == 0' <<<"$studio_draft" >/dev/null
+studio_id="$(jq -r '.id' <<<"$studio_draft")"
+studio_citation="$(jq -r '.citations[0].id' <<<"$studio_draft")"
+studio_revision_body="$(jq -cn --arg citation "$studio_citation" '{body: ("Canary revision preserving verified evidence [" + $citation + "].")}')"
+studio_revision="$(curl -fsS -X PUT \
+  -H 'Content-Type: application/json' \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  -d "$studio_revision_body" \
+  "http://127.0.0.1:9331/api/drafts/${studio_id}")"
+jq -e '.revision == 1 and (.citations | length > 0)' <<<"$studio_revision" >/dev/null
+studio_saved="$(curl -fsS \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  "http://127.0.0.1:9331/api/drafts/${studio_id}")"
+jq -e '(.raw_output != .edited_output) and (.revisions | length == 2) and (.citations | length > 0)' <<<"$studio_saved" >/dev/null
+
+printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nmemory=connected\nask=connected\nstudio=generated-cited-revised\n'

@@ -631,3 +631,12 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Release checks: server and web type checks and production builds passed; all 56 server tests passed; saved desktop, mobile, relationship-map, reduced-motion, and high-contrast production captures remain visually accepted.
 - Recovery: tunnel rollback is `/srv/mark-v2/operator-backups/20260804T042710Z-cloudflared-pre-crypto-live/config.yml`; owner-only Access API rollback material is `.secrets/cloudflare-backups/20260804T042650Z-crypto-cutover/`; application and database rollback points remain unchanged.
 - Follow-up: Darshan must revoke the short-lived Cloudflare token immediately and confirm one interactive OTP login. Runtime operation does not depend on the token.
+
+## 2026-08-04 05:46 UTC - Crypto cutover credential and owner-login closeout
+
+- Operator: Codex following Darshan's confirmation.
+- Status: completed.
+- Human acceptance: Darshan confirmed that the Cloudflare one-time-PIN login succeeds and the Crypto Intelligence dashboard loads at `crypto.forkedbrain.fyi`.
+- Credential verification: the account token verification endpoint now reports the short-lived cutover token revoked or invalid. No local token file, temporary header file, runtime credential, repository value, or server copy exists.
+- Final regression: the public Crypto hostname still redirects unauthenticated users to Cloudflare Access, the dashboard container and tunnel service remain healthy, and legacy `intel.forkedbrain.fyi` remains HTTP `200`.
+- Recovery and future changes: retain the recorded Access and tunnel rollback material. Any future Cloudflare mutation requires a new narrowly scoped short-lived token and the standing domain-change approval gate.

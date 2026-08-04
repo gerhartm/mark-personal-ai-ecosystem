@@ -1,6 +1,6 @@
 # Redacted Credential Register
 
-**Last audited:** 2026-08-04 04:33 UTC
+**Last audited:** 2026-08-04 05:46 UTC
 **Rule:** this file records credential existence, owner, location, status, and required action—never the credential value.
 
 ## Current credential inventory
@@ -31,7 +31,7 @@
 | V2 Cloudflare tunnel credential | Mark's V2 infrastructure | Local ignored owner-only path `.secrets/credentials/new-vps/cloudflare/mark-personal-ai-v2.json` and new VPS `/etc/cloudflared/faa04374-384f-4eea-a3e6-0c56ef2c309d.json` | Tunnel-specific credential; both copies mode `0600`; hashes match; service and four edge connections verified | Preserve both copies; never copy the account-wide `cert.pem` to the VPS; deleting the tunnel revokes this credential |
 | Cloudflare Access setup API token | Mark's Cloudflare account | No retained raw copy; temporary Keychain item and empty local placeholder deleted | Used once to create and read back the Access application/policy; exposed token `restless-morning-62df` was revoked by Darshan in Cloudflare and confirmed on 2026-07-31 | Closed; never recreate or reuse this credential—issue a new narrowly scoped, short-lived token for any separately approved future mutation |
 | Cloudflare ForkedBrain root-cutover API token | Mark's Cloudflare account | No retained raw copy; used only through an ephemeral local process | Used to add the protected root Access destination and root DNS record; revoked by Darshan after acceptance | Closed; never reuse this credential; runtime does not depend on it |
-| Cloudflare Crypto cutover API token | Mark's Cloudflare account | No retained raw copy; supplied only to the hidden cutover prompt and removed from process memory on exit | Used once to add the Crypto Access destination and activate its isolated V2 tunnel route; not present in files, source, runtime configuration, images, or ordinary logs | Revoke immediately; runtime does not depend on this token |
+| Cloudflare Crypto cutover API token | Mark's Cloudflare account | No retained raw copy; supplied only to the hidden cutover prompt and removed from process memory on exit | Used once to add the Crypto Access destination and activate its isolated V2 tunnel route; Darshan confirmed revocation and the verification endpoint reports it revoked or invalid | Closed; never reuse this credential; runtime does not depend on it |
 | Cloudflare Access identity | Mark and Darshan | Cloudflare Zero Trust configuration; identifiers only in the redacted state snapshot and private master | One-time-PIN provider; allow policy contains only `gerhartmark@gmail.com` and `darshan@growthforgeai.com`; 12-hour session; all four application destinations redirect to the same Access organization | Test one interactive login for each owner; reduce or remove a user explicitly when their operational access ends |
 | Other AI provider/API credentials | Mark | Old-VPS credential bundle only | Venice remains absent from the new server; Anthropic is recorded separately as the active provider | Leave Venice absent unless a measured Hermes requirement justifies an additional provider |
 | Old-VPS application secrets | Mark | `.secrets/credentials/old-vps/` and the immutable old-VPS export | Preserved locally; not transferred | Review individually; never bulk-copy stale internal secrets or browser sessions |

@@ -53,4 +53,4 @@ Restore only the Crypto Access destination and V2 tunnel route when rolling back
 
 ## Credential closeout
 
-The short-lived Cloudflare token was used only through the guarded hidden-input path and is not required at runtime. Darshan must revoke it in Cloudflare immediately. Interactive OTP acceptance by an approved owner remains the final human check.
+The short-lived Cloudflare token was used only through the guarded hidden-input path and is not required at runtime. At 05:46 UTC, Darshan confirmed revocation and successful interactive OTP login; an independent verification request reports the token revoked or invalid. The edge still redirects unauthenticated requests through Access, the dashboard runtime remains healthy, and legacy `intel.forkedbrain.fyi` remains HTTP `200`.

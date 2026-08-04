@@ -508,18 +508,19 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260803T155532Z`
+Current accepted release: `20260804T071121Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260803T155532Z`
+- image: `mark-crypto-dashboard:20260804T071121Z`
 - loopback origin: `http://127.0.0.1:9330`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`
 - private media archive: `/srv/mark-v2/crypto-legacy-media/v1`
 - runtime environment: `/srv/mark-v2/secrets/crypto-dashboard.env`
 - mounted Hermes password file: `/srv/mark-v2/secrets/forkedbrain-hermes-password`
+- mounted OpenViking tenant key: `/srv/mark-v2/secrets/crypto-dashboard-openviking-key`
 - versioned deployment definition: `dashboard/deploy/docker-compose.production.yml`
 
 ### Routine status
@@ -530,7 +531,7 @@ curl -fsS http://127.0.0.1:9330/api/health
 docker inspect crypto-dashboard --format '{{.HostConfig.ReadonlyRootfs}} {{.Config.User}} {{json .HostConfig.SecurityOpt}}'
 ```
 
-Expected state is healthy, `127.0.0.1:9330->5183/tcp`, read-only root filesystem, user `dashboard`, and `no-new-privileges:true`. The database directory is the only writable application mount. Media and the Hermes password file are read only.
+Expected state is healthy, `127.0.0.1:9330->5183/tcp`, read-only root filesystem, user `dashboard`, and `no-new-privileges:true`. The database directory is the only writable application mount. Media, the Hermes password file, and the tenant-scoped OpenViking key are read only. No model-provider key is mounted.
 
 ### Authenticated acceptance
 
@@ -539,7 +540,19 @@ The static interface must be protected by Cloudflare Access. Every data endpoint
 - brief reports 66 events, 47 sources, and 89 media files
 - media streaming supports byte ranges and returns HTTP `206`
 - Ask returns `mode=hermes`, `state=connected`, a non-empty answer, and at least one canonical evidence record
+- `GET /api/ingestion` reports `configured=true` and `connected=true`
+- Capture accepts URL and pasted-text requests only after OpenViking accepts them, skips exact duplicates, and records no local source on provider failure
 - database `PRAGMA integrity_check` is `ok` and `PRAGMA foreign_key_check` returns no rows
+
+Capture uses OpenViking's native URL/text acquisition path. Do not add a custom
+scraper, queue, vector database, or memory service around it. The current OpenAI
+embedding project reports exhausted credits, so a live Capture request is
+expected to fail safely until credits are added or a different supported
+provider is explicitly approved. Before client ingestion, use a disposable
+fixture and require native acceptance, search/read recall, and cleanup. If a
+provider failure materialises a remote target, the application removes that
+exact remote-only resource or returns `memory_processing`; it must never promote
+the source to the local database while memory is incomplete.
 
 ### Restart and rollback
 
@@ -551,7 +564,7 @@ The pre-route Cloudflare tunnel configuration is retained at:
 /srv/mark-v2/operator-backups/20260803T154358Z-cloudflared-crypto-route/config.yml
 ```
 
-To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, stop and rename only `crypto-dashboard`, then recreate the prior accepted image with the same environment, mounts, loopback port, network, and hardening settings. Do not alter Hermes, OpenViking, ForkedBrain, or the legacy `intel.forkedbrain.fyi` service.
+To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, restore `/srv/mark-v2/crypto-dashboard/backups/pre-20260804T071121Z/crypto-intelligence.db`, stop and rename only `crypto-dashboard`, then recreate image `mark-crypto-dashboard:20260804T065421Z` with its prior environment, mounts, loopback port, network, and hardening settings. Do not alter Hermes, OpenViking, ForkedBrain, or the legacy `intel.forkedbrain.fyi` service.
 
 # Cloudflare domain change gate
 

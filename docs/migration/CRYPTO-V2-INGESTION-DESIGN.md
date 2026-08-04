@@ -1,7 +1,7 @@
 # Crypto Intelligence V2 — Thin Ingestion and Provenance Design
 
 **Frozen:** 2026-07-31  
-**Status:** design and read-only legacy audit; no client data imported  
+**Status:** authenticated dashboard Capture deployed; legacy semantic import pending funded embeddings
 **Architecture rule:** Hermes first; build only verified gaps
 
 ## Outcome
@@ -30,6 +30,29 @@ Telegram / dashboard / direct chat
 ```
 
 No custom scraper, Telegram service, vector database, queue, RAG framework, agent gateway, or parallel memory service is justified.
+
+## Live dashboard Capture
+
+Release `20260804T071121Z` implements the smallest authenticated entry point over
+this design. The browser submits a URL or pasted text to the existing Crypto
+backend; the backend computes the deterministic source identity, checks for an
+exact local duplicate, and calls OpenViking's native resource API. Only native
+acceptance permits the source, identity, sighting, search row, and receipt to be
+registered in the existing `crypto-intelligence.db`.
+
+This is coordination, not a replacement capability. OpenViking still owns URL
+acquisition, parsing, indexing, and semantic memory. Hermes still owns reasoning
+and retrieval. The application adds only the Crypto-specific identity, replay
+guard, user-visible receipt, and authenticated database boundary.
+
+Live canary testing proved that OpenViking may create its target before an
+embedding-provider failure completes. The dashboard therefore treats every
+remote-only target as incomplete: it removes that exact target before retry,
+attempts cleanup after native failure, and returns `memory_processing` if a
+provider lock prevents safe cleanup. It never records the source as ready. The
+configured OpenAI embedding project currently has no credits, so production
+ingestion remains gated on a disposable fixture that completes native
+acceptance, search, and exact read.
 
 ## Native capability map
 

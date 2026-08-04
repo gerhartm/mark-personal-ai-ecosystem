@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   IconArchive,
   IconBrief,
+  IconCapture,
   IconConnections,
   IconLibrary,
   IconRecall,
@@ -21,6 +22,7 @@ const GROUPS = [
       { to: '/', label: 'Brief', icon: IconBrief, end: true },
       { to: '/timeline', label: 'Timeline', icon: IconTimeline },
       { to: '/library', label: 'Library', icon: IconLibrary },
+      { to: '/capture', label: 'Capture', icon: IconCapture },
       { to: '/connections', label: 'Connections', icon: IconConnections },
     ],
   },

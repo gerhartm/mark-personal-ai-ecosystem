@@ -77,6 +77,14 @@ The corrected run confirmed one replay skip and 18 creates before Mark's OpenAI 
 
 The partial OpenViking volume was then replaced with the verified pre-import snapshot. Final post-rollback state is healthy with zero pending/running/error tasks and an empty Hermes resource root. This avoids half-indexed memory and futile API retries. The structured dashboard handoff and private media archive remain complete and unaffected.
 
+Phase 3's disposable Capture canary reconfirmed the same OpenAI embedding-credit
+gate on 2026-08-04. It also proved that a native target may appear before the
+failed embedding task releases its lock. Both synthetic targets were removed
+after the task settled and neither was registered in the production dashboard
+database. The live Capture endpoint now refuses to promote remote-only targets;
+this strengthens the safety boundary but does not remove the funded-provider
+requirement below.
+
 ## Exact resume sequence
 
 After OpenAI credits are added—or another funded provider is explicitly approved and configured:

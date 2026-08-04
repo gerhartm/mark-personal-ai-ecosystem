@@ -42,6 +42,9 @@ brief="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com
 jq -e '.counts.events == 66 and .counts.sources == 47 and .counts.media == 89' <<<"$brief" >/dev/null
 test "$before" = "$(sha256sum /srv/mark-v2/crypto-dashboard/data/crypto-intelligence.db | awk '{print $1}')"
 
+ingestion="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/api/ingestion)"
+jq -e '.configured == true and .connected == true and (.receipts | type == "array")' <<<"$ingestion" >/dev/null
+
 media_ref="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/api/media | jq -r '.assets[0].archive_ref | @uri')"
 test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-31' -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' "http://127.0.0.1:9330/api/media/${media_ref}")" = 206
 
@@ -55,5 +58,5 @@ jq -e '.mode == "hermes" and .state == "connected" and (.answer | length > 40) a
 docker rm -f "$canary" >/dev/null
 rm -rf "/srv/mark-v2/crypto-dashboard/canary/${release}"
 
-printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nmedia_range=206\nask=connected\nrollback=%s\nbackup=%s\n' \
+printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nmemory=connected\nmedia_range=206\nask=connected\nrollback=%s\nbackup=%s\n' \
   "$release" "$rollback" "${backup_dir}/crypto-intelligence.db"

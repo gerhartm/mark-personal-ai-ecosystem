@@ -6,6 +6,13 @@ import { fileURLToPath } from 'node:url';
 import { MEDIA_ROOT, audit, all, one, run } from './db.js';
 import { buildAskContext } from './ask-context.js';
 import { askHermes, cleanHermesError } from './hermes-client.js';
+import {
+  CaptureInputError,
+  captureSource,
+  ingestionConfigured,
+  ingestionStatus,
+  recentIngestionReceipts,
+} from './ingestion.js';
 import { accessHeaderRequired, requestActor, requestIdentity } from './request-auth.js';
 import * as t from './tools.js';
 
@@ -207,6 +214,7 @@ app.delete('/api/views/:id', async (req) => {
  * instead, clearly labelled as search rather than an answer.
  */
 const askAttempts = new Map<string, number[]>();
+const captureAttempts = new Map<string, number[]>();
 
 function isAskRateLimited(key: string) {
   const now = Date.now();
@@ -216,6 +224,40 @@ function isAskRateLimited(key: string) {
   askAttempts.set(key, recent);
   return false;
 }
+
+function isCaptureRateLimited(key: string) {
+  const now = Date.now();
+  const recent = (captureAttempts.get(key) ?? []).filter((time) => time > now - 60_000);
+  if (recent.length >= 6) return true;
+  recent.push(now);
+  captureAttempts.set(key, recent);
+  return false;
+}
+
+app.get('/api/ingestion', async () => ({
+  ...(await ingestionStatus()),
+  receipts: recentIngestionReceipts(),
+}));
+
+app.post('/api/ingestion', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isCaptureRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before adding another source.' });
+  }
+  try {
+    return await captureSource(req.body as any, actor);
+  } catch (error) {
+    if (error instanceof CaptureInputError) {
+      const status = error.code.startsWith('invalid_') || error.code === 'text_too_long' ? 400 : 503;
+      return reply.code(status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(503).send({
+      error: 'memory_unavailable',
+      message: 'The source could not be added to private memory. Nothing was recorded as ready.',
+    });
+  }
+});
 
 app.post('/api/ask', async (req, reply) => {
   const body = req.body as { question?: string };
@@ -351,6 +393,7 @@ if (process.env.NODE_ENV !== 'test') {
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);
   console.log(`  media archive: ${MEDIA_ROOT ? 'mounted' : 'not mounted (degraded, documented)'}`);
   console.log(`  intelligence plane: ${process.env.HERMES_BASE_URL ? 'configured' : 'not connected (degraded)'}`);
+  console.log(`  ingestion plane: ${ingestionConfigured() ? 'configured' : 'not connected (degraded)'}`);
   console.log(`  access header: ${accessHeaderRequired ? 'required' : 'local development mode'}`);
 }
 

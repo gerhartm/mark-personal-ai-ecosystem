@@ -1,16 +1,22 @@
 services:
   crypto-dashboard:
-    image: mark-crypto-dashboard:20260803T155532Z
+    image: mark-crypto-dashboard:20260804T071121Z
     container_name: crypto-dashboard
     restart: unless-stopped
     env_file:
       - /srv/mark-v2/secrets/crypto-dashboard.env
+    environment:
+      OPENVIKING_BASE_URL: http://openviking:1933
+      OPENVIKING_API_KEY_FILE: /run/secrets/openviking-dashboard-key
+      OPENVIKING_ACCOUNT: mark-gerhart
+      OPENVIKING_USER: hermes
     ports:
       - "127.0.0.1:9330:5183"
     volumes:
       - /srv/mark-v2/crypto-dashboard/data:/data
       - /srv/mark-v2/crypto-legacy-media/v1:/media:ro
       - /srv/mark-v2/secrets/forkedbrain-hermes-password:/run/secrets/hermes-dashboard-password:ro
+      - /srv/mark-v2/secrets/crypto-dashboard-openviking-key:/run/secrets/openviking-dashboard-key:ro
     networks:
       - personal-ai
     read_only: true

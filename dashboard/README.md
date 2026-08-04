@@ -31,17 +31,22 @@ Environment, all optional, all by name only:
 | `HERMES_BASE_URL` | Hermes dashboard origin. Unset means Ask runs in its explicit degraded state |
 | `HERMES_DASHBOARD_USERNAME` | Hermes dashboard service account name |
 | `HERMES_DASHBOARD_PASSWORD_FILE` | mounted file containing the Hermes dashboard password |
+| `OPENVIKING_BASE_URL` | private OpenViking service origin. Unset leaves Capture explicitly unavailable |
+| `OPENVIKING_API_KEY_FILE` | read-only mounted file containing the tenant-scoped OpenViking key |
+| `OPENVIKING_ACCOUNT_ID`, `OPENVIKING_USER_ID`, `OPENVIKING_AGENT_ID` | non-secret tenant identity used by the native resource API |
 | `REQUIRE_ACCESS_HEADER` | require the verified Cloudflare Access email header outside production as well |
 | `ACCESS_ALLOWED_EMAILS` | comma-separated exact allowlist for authenticated users |
 | `CRYPTO_ACTOR` | note author for the local single-user build |
 
 ## Production deployment
 
-The accepted V2 release is `20260803T155532Z`. Its reproducible runtime contract
+The accepted V2 release is `20260804T071121Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
-read-only root filesystem, and receives no model-provider credential.
+read-only root filesystem, and receives no model-provider credential. Capture
+receives only a tenant-scoped OpenViking key through a read-only file mount; the
+credential is absent from the image, environment, logs, and repository.
 
 The public hostname is live at `https://crypto.forkedbrain.fyi/` through the
 existing exact-email Cloudflare Access application and the isolated V2 tunnel.
@@ -91,12 +96,13 @@ npm start &               # the API tests exercise the running server
 npx vitest run
 ```
 
-56 tests: reconciliation against the handoff manifest, canonical identity
+65 tests: reconciliation against the handoff manifest, canonical identity
 preservation, facet derivation, precision spans, taxonomy verbatim, append-only
 notes, the identity register, unified search determinism, media authorisation
 and traversal, the Access identity boundary, bounded Hermes evidence assembly,
-safe provider errors, the degraded intelligence plane, and the build's refusal
-of a tampered handoff.
+safe provider errors, the degraded intelligence plane, URL and text capture,
+exact duplicate skipping, partial-native-write cleanup, locked-resource safety,
+and the build's refusal of a tampered handoff.
 
 ## Screenshots
 
@@ -118,6 +124,8 @@ Fastify backend  ->  crypto-intelligence.db   (one database, one FTS index)
    |             ->  private media archive     (authorised per request, range streaming)
    |
    +-> Hermes central brain -> configured model provider
+   |
+   +-> OpenViking native resource API -> unified semantic memory
 ```
 
 The backend does no reasoning and adds no second memory system. `POST /api/ask`
@@ -130,11 +138,21 @@ Writes reach the database only from the authenticated browser session. Notes are
 append only: revision 0 is the value preserved in the frozen handoff, and saving
 adds a revision rather than editing it.
 
+The Capture screen submits only a URL or pasted text to the authenticated
+backend. The backend computes a stable source identity, prevents exact replay,
+and calls OpenViking's native acquisition path. It registers the source and a
+receipt in the existing database only after native acceptance. If OpenViking
+materialises a target before its embedding provider fails, the backend removes
+that exact remote-only target or reports it as still processing; it never marks
+the source ready. There is no custom scraper, queue, vector store, memory engine,
+or second agent.
+
 ## Deliberate boundaries
 
 - No second database, vector service, or memory provider.
 - No patch to Hermes or OpenViking native behavior.
-- No model-provider key in this container or repository.
+- No model-provider key in this container or repository. The only new runtime
+  credential is a tenant-scoped OpenViking key supplied by read-only file mount.
 - No direct public origin listener. Production binds to VPS loopback and is
   published only through the existing Cloudflare tunnel and Access policy.
 - No change to `intel.forkedbrain.fyi`; it remains the isolated legacy service.

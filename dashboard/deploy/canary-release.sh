@@ -20,11 +20,16 @@ chmod 0640 "${canary_dir}/crypto-intelligence.db"
 docker run -d \
   --name "$name" \
   --env-file /srv/mark-v2/secrets/crypto-dashboard.env \
+  --env OPENVIKING_BASE_URL=http://openviking:1933 \
+  --env OPENVIKING_API_KEY_FILE=/run/secrets/openviking-dashboard-key \
+  --env OPENVIKING_ACCOUNT=mark-gerhart \
+  --env OPENVIKING_USER=hermes \
   --network 27am3wgv7vkohkenprml4s3p \
   -p 127.0.0.1:9331:5183 \
   --mount "type=bind,src=${canary_dir},dst=/data" \
   --mount type=bind,src=/srv/mark-v2/crypto-legacy-media/v1,dst=/media,readonly \
   --mount type=bind,src=/srv/mark-v2/secrets/forkedbrain-hermes-password,dst=/run/secrets/hermes-dashboard-password,readonly \
+  --mount type=bind,src=/srv/mark-v2/secrets/crypto-dashboard-openviking-key,dst=/run/secrets/openviking-dashboard-key,readonly \
   --read-only \
   --cap-drop ALL \
   --security-opt no-new-privileges:true \
@@ -45,6 +50,9 @@ test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'cf-access-authenticated-user
 brief="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9331/api/brief)"
 jq -e '.counts.events == 66 and .counts.sources == 47 and .counts.media == 89' <<<"$brief" >/dev/null
 
+ingestion="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9331/api/ingestion)"
+jq -e '.configured == true and .connected == true and (.receipts | type == "array")' <<<"$ingestion" >/dev/null
+
 ask="$(curl -fsS \
   -H 'Content-Type: application/json' \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
@@ -52,4 +60,4 @@ ask="$(curl -fsS \
   http://127.0.0.1:9331/api/ask)"
 jq -e '.mode == "hermes" and .state == "connected" and (.answer | length > 40) and .evidence_count > 0' <<<"$ask" >/dev/null
 
-printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nask=connected\n'
+printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nmemory=connected\nask=connected\n'

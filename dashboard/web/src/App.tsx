@@ -13,6 +13,7 @@ import { Studio } from './screens/Studio';
 import { Recall } from './screens/Recall';
 import { Archive } from './screens/Archive';
 import { Settings } from './screens/Settings';
+import { Capture } from './screens/Capture';
 
 export default function App() {
   // Appearance preferences are applied before first paint of any screen.
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/" element={<Brief />} />
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/library" element={<Library />} />
+          <Route path="/capture" element={<Capture />} />
           <Route path="/event/:id" element={<EventDetail />} />
           <Route path="/source/:id" element={<SourceDetail />} />
           <Route path="/theme/:id" element={<ThemeDetail />} />

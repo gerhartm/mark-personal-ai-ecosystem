@@ -39,6 +39,7 @@ const SHOTS = [
   { name: '10-archive', path: '/archive', full: false },
   { name: '11-settings', path: '/settings', full: false },
   { name: '12-theme', path: '/theme/d9dd821b4b0d64da', full: false },
+  { name: '19-capture', path: '/capture', full: false },
 ];
 
 const shot = async (page, file, full) => {
@@ -88,7 +89,7 @@ try {
     colorScheme: 'dark',
   });
   const mp = await mob.newPage();
-  for (const s of [SHOTS[0], SHOTS[1], SHOTS[2], SHOTS[5]]) {
+  for (const s of [SHOTS[0], SHOTS[1], SHOTS[2], SHOTS[5], SHOTS[12]]) {
     await mp.goto(`${BASE}${s.path}`, { waitUntil: 'networkidle' });
     await mp.waitForTimeout(s.settle ?? 900);
     await shot(mp, `m-${s.name}`, s.full);

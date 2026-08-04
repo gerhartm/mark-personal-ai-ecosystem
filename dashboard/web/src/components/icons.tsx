@@ -33,6 +33,13 @@ export const IconLibrary = () => (
   </svg>
 );
 
+export const IconCapture = () => (
+  <svg {...base}>
+    <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
+    <path d="M4 18.5h16" />
+  </svg>
+);
+
 export const IconConnections = () => (
   <svg {...base}>
     <circle cx="6" cy="7" r="2.2" />

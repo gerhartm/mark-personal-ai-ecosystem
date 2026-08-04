@@ -50,6 +50,21 @@ cutover. Production also requires the Access identity on static application
 requests as defense in depth. Acceptance requires the Cloudflare Access login
 redirect first, then a successful authenticated dashboard and real Ask response.
 
+The guarded cutover script updates only that Access application and the V2
+tunnel route, verifies the exact policy and all existing hostnames, and restores
+both automatically if any check fails. Give it a fresh short-lived token through
+standard input so the token never appears in the command line or repository:
+
+```bash
+dashboard/deploy/activate-crypto-hostname.sh < \
+  ../.secrets/credentials/new-vps/cloudflare/access-cutover-token
+```
+
+The token needs only `Account > Access: Apps and Policies > Edit` for Mark's
+Cloudflare account. Keep the token file mode `0600`, revoke it immediately after
+acceptance, and then delete the local token file. A successful run reports
+`crypto_status=302`, `legacy_intel_status=200`, and the owner-only backup paths.
+
 ## The active database
 
 One SQLite file, `data/crypto-intelligence.db`, built from the immutable

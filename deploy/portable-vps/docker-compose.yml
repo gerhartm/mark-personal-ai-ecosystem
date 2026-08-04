@@ -1,0 +1,132 @@
+name: ${STACK_NAME:-mark-personal-ai}
+
+services:
+  hermes:
+    image: nousresearch/hermes-agent:v2026.7.30@sha256:5316c2c2534c49f5e1b1691e1a2115f1230d900033c3b35d1c8fc2e47352b26d
+    container_name: mark-hermes
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    environment:
+      HERMES_DASHBOARD: "1"
+      HERMES_DASHBOARD_HOST: "0.0.0.0"
+      HERMES_DASHBOARD_PORT: "9119"
+    ports:
+      - "127.0.0.1:9119:9119"
+    volumes:
+      - ${STATE_ROOT:?STATE_ROOT is required}/hermes:/opt/data
+    networks:
+      - personal-ai
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 512
+
+  openviking:
+    image: ghcr.io/volcengine/openviking:v0.4.11@sha256:6bca0c71301a918b6cb6a614677d0a15556ce2d62ba3e491e3be78c490008bbe
+    container_name: mark-openviking
+    restart: unless-stopped
+    environment:
+      OPENVIKING_WITH_BOT: "0"
+    volumes:
+      - ${STATE_ROOT:?STATE_ROOT is required}/openviking:/app/.openviking
+    networks:
+      - personal-ai
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:1933/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 6g
+    cpus: 3
+    pids_limit: 512
+
+  forkedbrain:
+    profiles: ["apps"]
+    build:
+      context: ../../forkedbrain
+      dockerfile: Dockerfile
+    image: ${FORKEDBRAIN_IMAGE:-mark-forkedbrain:portable}
+    container_name: mark-forkedbrain
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      REQUIRE_ACCESS_HEADER: "true"
+      ACCESS_ALLOWED_EMAILS: ${ACCESS_ALLOWED_EMAILS:?ACCESS_ALLOWED_EMAILS is required}
+      CRYPTO_DB_PATH: /data/crypto-intelligence.db
+      HERMES_BASE_URL: http://hermes:9119
+      HERMES_DASHBOARD_USERNAME: ${HERMES_DASHBOARD_USERNAME:?HERMES_DASHBOARD_USERNAME is required}
+      HERMES_DASHBOARD_PASSWORD_FILE: /run/secrets/hermes-dashboard-password
+    ports:
+      - "127.0.0.1:9320:3000"
+    volumes:
+      - ${DATA_ROOT:?DATA_ROOT is required}/forkedbrain/crypto-intelligence.db:/data/crypto-intelligence.db:ro
+      - ${SECRETS_ROOT:?SECRETS_ROOT is required}/hermes-dashboard-password:/run/secrets/hermes-dashboard-password:ro
+    networks:
+      - personal-ai
+    depends_on:
+      - hermes
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 256
+
+  crypto-dashboard:
+    profiles: ["apps"]
+    build:
+      context: ../../dashboard
+      dockerfile: Dockerfile
+    image: ${CRYPTO_DASHBOARD_IMAGE:-mark-crypto-dashboard:portable}
+    container_name: mark-crypto-dashboard
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "5183"
+      REQUIRE_ACCESS_HEADER: "true"
+      ACCESS_ALLOWED_EMAILS: ${ACCESS_ALLOWED_EMAILS:?ACCESS_ALLOWED_EMAILS is required}
+      CRYPTO_DB: /data/crypto-intelligence.db
+      CRYPTO_MEDIA_ROOT: /media
+      HERMES_BASE_URL: http://hermes:9119
+      HERMES_DASHBOARD_USERNAME: ${HERMES_DASHBOARD_USERNAME:?HERMES_DASHBOARD_USERNAME is required}
+      HERMES_DASHBOARD_PASSWORD_FILE: /run/secrets/hermes-dashboard-password
+      OPENVIKING_BASE_URL: http://openviking:1933
+      OPENVIKING_API_KEY_FILE: /run/secrets/openviking-dashboard-key
+      OPENVIKING_ACCOUNT: ${OPENVIKING_ACCOUNT:?OPENVIKING_ACCOUNT is required}
+      OPENVIKING_USER: ${OPENVIKING_USER:-hermes}
+    ports:
+      - "127.0.0.1:9330:5183"
+    volumes:
+      - ${DATA_ROOT:?DATA_ROOT is required}/crypto-dashboard:/data
+      - ${DATA_ROOT:?DATA_ROOT is required}/media:/media:ro
+      - ${SECRETS_ROOT:?SECRETS_ROOT is required}/hermes-dashboard-password:/run/secrets/hermes-dashboard-password:ro
+      - ${SECRETS_ROOT:?SECRETS_ROOT is required}/openviking-dashboard-key:/run/secrets/openviking-dashboard-key:ro
+    networks:
+      - personal-ai
+    depends_on:
+      - hermes
+      - openviking
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+
+networks:
+  personal-ai:
+    name: ${STACK_NETWORK:-mark-personal-ai}
+    driver: bridge

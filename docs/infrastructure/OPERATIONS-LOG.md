@@ -677,6 +677,32 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Rollback: restore the pre-promotion backup, remove only the current dashboard container, rename `crypto-dashboard-rollback-20260804T071121Z` back to `crypto-dashboard`, restore its restart policy, and start it. Retain all other services and hostnames unchanged.
 - Recovery mirror: refreshed the 15 changed non-secret application, test, deployment, and operations files under `/root/mark-v2-docs/`; every local/server SHA-256 matched and the full mirror contains no AppleDouble, `.DS_Store`, or `__MACOSX` artifact.
 
+## 2026-08-04 09:09 UTC - Portable full-VPS recovery capture
+
+- Operator: Codex following Darshan's explicit request for a locally retained, non-encrypted, deployable full-server backup.
+- Status: aborted before capture; superseded by the data-free portable deployment kit below.
+- Purpose: preserve the complete used V2 server state in an owner-only portable recovery bundle without creating a wasteful 512 GB raw image of unused disk space.
+- Planned scope: Ubuntu root, boot and EFI contents; numeric ownership, permissions, ACLs and extended attributes; Docker/Coolify images, containers and volumes; application data and credentials; system/package/firewall/network/container inventories; recovery-friendly logical exports where supported; SHA-256 manifest; and a plain-English restore README installed both in the bundle and at `/root/VPS-RECOVERY-README.md` before capture.
+- Exclusions: virtual runtime filesystems, temporary mount points, `/tmp`, the recreatable swapfile, and the new on-server staging directory. No persistent application or client data is excluded.
+- Consistency plan: record pre-state, create logical exports, briefly stop Docker, capture the filesystem while all containers are stopped, restart Docker immediately, require every production container and endpoint to recover, then transfer and verify the archive locally. SSH, UFW and the host remain available; public applications may be briefly unavailable during the capture.
+- Security boundary: the bundle is intentionally unencrypted but contains credentials and private client data. Store it only under the owner-only Mark `.secrets/backups/new-vps/` tree with directory mode `0700` and file mode `0600`; exclude it from Git, server documentation mirrors, cloud sync, chat and ordinary logs.
+- Rollback: if capture fails, remove only the incomplete staging/bundle, restart Docker if necessary and verify the unchanged live server. The operation does not alter application databases, Hermes/OpenViking configuration, Cloudflare, DNS, tunnels, Access policies or the legacy VPS.
+- Outcome: the requirement was clarified before any service pause or archive creation. The incomplete remote staging directory and draft recovery README were removed; the incomplete local draft was moved to Trash. Docker was never stopped, no full-data archive was produced, and the Crypto and ForkedBrain production containers remained healthy.
+
+## 2026-08-04 09:15 UTC - Portable V2 deployment kit
+
+- Operator: Codex following Darshan's clarified requirement.
+- Status: completed locally; no production mutation.
+- Purpose: package the complete V2 software architecture and reproducible host/deployment instructions so it can be installed on another compatible VPS without copying Mark's private data.
+- Included scope: Ubuntu host requirements and bootstrap, Docker/Coolify management layer, pinned Hermes and OpenViking services, ForkedBrain and Crypto application source/build definitions, environment templates, health verification, component manifest and recovery README.
+- Excluded scope: client databases, memories, media, credentials, API keys, Cloudflare tokens, SSH host/operator keys, provider-specific server identity and generated build/dependency directories. Those remain separate owner-controlled inputs.
+- Safety boundary: no live VPS, Cloudflare, DNS, tunnel, Access, legacy service, Hermes, OpenViking, provider or credential mutation is required to build this package.
+- Implementation: added a provider-independent standard Compose stack, digest-pinned Hermes and OpenViking releases, source builds for ForkedBrain and Crypto Intelligence, fresh-state bind mounts, staged platform/application deployment, host bootstrap, guarded SSH hardening, immediate Coolify loopback binding, runtime-input checks, health/security verification, a value-free tunnel template and a Git-archive bundle builder.
+- Recovery behavior: the platform can be rebuilt without Coolify's internal database, while Coolify remains available as the management layer. The application stage fails closed until separate owner-controlled database and secret files exist. No private input is copied into the source bundle.
+- Verification: every shell script passes Bash syntax; the complete Compose model renders with four services; Hermes and OpenViking digests match the accepted AMD64 images; OpenViking publishes no host port; Hermes, ForkedBrain and Crypto publish only loopback origins; secret and client-identifier scans are clean; `git diff --check` passes; ForkedBrain tests, production build and lint pass; the Crypto web type/build pass; and all 72 Crypto server tests plus type/build pass against an isolated current server and disposable database.
+- Build-environment note: Docker Desktop was not running locally, so a duplicate local image build was not executed. No Dockerfile or application source failed. Both Dockerfiles are the same accepted sources currently running in production, and their language-level production builds passed in this verification.
+- Live-system isolation: Docker was never stopped and no live service, data, credential, Cloudflare object or host configuration changed. A read-only version inventory confirmed the current production services remained healthy before packaging.
+
 ## 2026-08-04 08:10 UTC - Studio transactional hardening follow-up
 
 - Operator: Codex completing the Studio release acceptance review.

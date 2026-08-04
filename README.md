@@ -19,6 +19,6 @@ The private raw credentials and old-VPS payload are one level above under `.secr
 
 ## Current checkpoint
 
-The complete legacy Crypto structured/media handoff is prepared and verified on the V2 VPS. Claude Code owns the dashboard design and implementation; start with [`docs/migration/CLAUDE-CODE-DASHBOARD-HANDOFF.md`](docs/migration/CLAUDE-CODE-DASHBOARD-HANDOFF.md) and the project-level [`CLAUDE.md`](CLAUDE.md).
+Crypto Intelligence release `20260803T155532Z` is live at `https://crypto.forkedbrain.fyi/` behind the same exact-email Cloudflare Access boundary as the private ForkedBrain command center. The hardened loopback-only dashboard uses the verified 66-event, 47-source, and 89-media corpus, streams private media, and sends bounded canonical evidence to the existing Hermes central brain for answers. Hermes natively uses Anthropic `claude-sonnet-5`; no model key or parallel memory/reasoning layer exists in the dashboard.
 
-The separate 197-record semantic-memory import is resume-ready but paused because the configured OpenAI Platform account has no remaining credits. OpenViking was restored to its healthy empty pre-import state, so no partial memory is live. See [`docs/migration/CRYPTO-V2-MIGRATION-REVIEW.md`](docs/migration/CRYPTO-V2-MIGRATION-REVIEW.md) for the exact resume sequence.
+The separate 197-record semantic-memory import remains resume-ready and is not required for the live structured dashboard. OpenViking was restored to its healthy empty pre-import state after the earlier OpenAI embedding-credit failure, so no partial import is live. See [`docs/migration/CRYPTO-V2-MIGRATION-REVIEW.md`](docs/migration/CRYPTO-V2-MIGRATION-REVIEW.md) for that independent resume sequence.

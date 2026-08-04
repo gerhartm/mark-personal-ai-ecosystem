@@ -43,12 +43,13 @@ server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
 read-only root filesystem, and receives no model-provider credential.
 
-The public hostname must be included in the existing exact-email Cloudflare
-Access application before the crypto ingress in `deploy/cloudflared-config.yml`
-is activated. A public HTTP `200` from an unauthenticated request is a failed
-cutover. Production also requires the Access identity on static application
-requests as defense in depth. Acceptance requires the Cloudflare Access login
-redirect first, then a successful authenticated dashboard and real Ask response.
+The public hostname is live at `https://crypto.forkedbrain.fyi/` through the
+existing exact-email Cloudflare Access application and the isolated V2 tunnel.
+An unauthenticated request must redirect to the Cloudflare Access login, and an
+externally forged identity header must not bypass that redirect. Production also
+requires the Access identity on static application requests as defense in depth.
+The accepted origin and public-boundary tests include the complete dashboard,
+private media range streaming, and a real Hermes answer with canonical evidence.
 
 The guarded cutover script updates only that Access application and the V2
 tunnel route, verifies the exact policy and all existing hostnames, and restores

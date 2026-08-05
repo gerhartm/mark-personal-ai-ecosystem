@@ -270,7 +270,7 @@ export function EventDetail() {
               <ul className="quiz-refs">
                 {e.quiz.map((q: any) => (
                   <li key={q.id}>
-                    <Link to={`/recall/${q.session_id}`}>{truncate(q.question_text, 96)}</Link>
+                    <Link to={`/quiz/${q.session_id}`}>{truncate(q.question_text, 96)}</Link>
                   </li>
                 ))}
               </ul>

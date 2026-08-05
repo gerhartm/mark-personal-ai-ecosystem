@@ -677,6 +677,55 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Rollback: restore the pre-promotion backup, remove only the current dashboard container, rename `crypto-dashboard-rollback-20260804T071121Z` back to `crypto-dashboard`, restore its restart policy, and start it. Retain all other services and hostnames unchanged.
 - Recovery mirror: refreshed the 15 changed non-secret application, test, deployment, and operations files under `/root/mark-v2-docs/`; every local/server SHA-256 matched and the full mirror contains no AppleDouble, `.DS_Store`, or `__MACOSX` artifact.
 
+## 2026-08-05 04:41 UTC - Complete Crypto semantic-memory import
+
+- Operator: Codex continuing Darshan's approved Option 1 completion sequence.
+- Status: pending; the funded run stopped safely after 26 records were created when record 27 timed out. Resume only after reconciling that identity.
+- Purpose: resume the clean, staged 197-record Crypto semantic-memory migration now that Mark's configured OpenAI embedding project can spend successfully.
+- Funding verification: one direct `text-embedding-3-small` request returned HTTP `200`, a 1536-dimension vector, and two billed input tokens. No Mark content was submitted in this check.
+- Planned sequence: capture the clean OpenViking baseline; verify the checksum-protected pre-import backup and all staged packets; run and remove one non-sensitive native fixture; import 131 source/artifact packets plus 66 event packets with a new exclusive receipt; require an idle zero-error queue; reconcile all identities; replay and require 197 skips with zero creates; test representative exact reads and Hermes retrieval; then create, checksum, and disposable-restore-test a post-import backup.
+- Safety boundary: do not change Cloudflare, DNS, tunnels, public hostnames, Telegram, dashboard code, Hermes/OpenViking source, provider selection, credentials, or the legacy VPS. Stop on any genuine queue, identity, checksum, or retrieval failure and restore only OpenViking from the verified pre-import backup if rollback is required.
+
+## 2026-08-05 06:29 UTC - Add Mari to the shared Cloudflare Access policy
+
+- Operator: Codex following Darshan's explicit approval and scoped token delivery.
+- Status: completed at 06:37 UTC.
+- Purpose: add `marimarbasong@gmail.com` to the existing exact-email allow policy shared by the private root command center, Crypto Intelligence dashboard, and Coolify management endpoints.
+- Planned guardrails: verify the short-lived token; read and validate the existing application, four approved destinations, policy ID, current exact-email rules, and 12-hour session; capture owner-only before-state rollback material; append only Mari's exact email; read back the policy and application; require every protected hostname to retain its Cloudflare Access redirect; then have Darshan revoke the temporary token.
+- Safety boundary: do not add `Everyone`, an email-domain wildcard, a bypass, another application, hostname, DNS record, tunnel route, identity provider, or session-duration change. `brain.forkedbrain.fyi` retains its separate Hermes authentication and is not converted by this policy update.
+- Change: appended only `marimarbasong@gmail.com` to policy `a5166e47-b9a3-4c51-82c2-977e0eacb171`. The existing exact-email entries, `allow` decision, empty exclude/require rules, non-reusable scope, precedence, four application destinations, and 12-hour session remained unchanged.
+- Verification: the API read-back returned exactly the three approved email identities. Unauthenticated requests to `forkedbrain.fyi`, `crypto.forkedbrain.fyi`, `manage.forkedbrain.fyi`, and `manage-realtime.forkedbrain.fyi` each returned HTTP `302` to Cloudflare Access after the change.
+- Recovery: owner-only before/after API state, rollback payload, update response, and edge results are stored under `.secrets/cloudflare-backups/20260805T063706Z-mari-access/` with mode `0600` inside a mode-`0700` directory.
+- Follow-up: revoke the supplied short-lived Cloudflare token, then have Mari request an OTP using the exact approved email. This policy does not create a Hermes account for `brain.forkedbrain.fyi`.
+
+## 2026-08-05 06:56 UTC - OpenAI credit-burn root-cause audit
+
+- Operator: Codex following Darshan's request for a read-only cost investigation.
+- Status: completed; no provider, model, credential, application, Cloudflare, or server configuration was changed.
+- Root cause: OpenViking's native configuration uses `gpt-5.4` as its VLM/content-processing model. Resource ingestion therefore performed expensive GPT-5.4 parsing and synthesis in addition to the intended `text-embedding-3-small` vector creation.
+- Measured OpenViking lifetime usage: 972,051 GPT-5.4 input tokens, 542,249 GPT-5.4 output tokens, and 339,215 embedding input tokens. At OpenAI's current standard short-context prices, this is approximately $10.57: about $10.56 from GPT-5.4 and less than one cent from embeddings.
+- Measured 2026-08-05 usage: 852,688 GPT-5.4 input tokens, 458,552 GPT-5.4 output tokens, and 284,942 embedding input tokens, approximately $9.02 at the same rates.
+- Interpretation: the small 197-record corpus and its embeddings did not consume the credits. The unusually large GPT-5.4 output volume generated by OpenViking's ingestion pipeline did. The local audit does not support a full $15 of OpenViking spend; the OpenAI Usage dashboard remains authoritative for any remaining account-level or project-level difference.
+- Safety state: the migration remains stopped after 26 created records and the record-27 timeout. Do not resume the import or add credits for it until the native VLM is moved to an approved economical model, a single-record canary has a measured cost ceiling, and project budget alerts/limits are in place.
+
+## 2026-08-05 07:06 UTC - OpenAI model and migration-cost remediation proposal
+
+- Operator: Codex following Darshan's request for current official model research and a costed recovery path.
+- Status: proposal only; no live model, provider, OpenViking, Hermes, credential, data, or server change was made.
+- Standing constraint: do not use GPT-5.4 again for this project.
+- Recommended native split: retain `text-embedding-3-small`; use `gpt-5.6-luna` with minimal reasoning for OpenViking's high-volume ingestion/extraction; use `gpt-5.6-terra` as the balanced OpenAI workhorse if Hermes is later moved to OpenAI; reserve `gpt-5.6-sol` at high/xhigh for explicit difficult agent/research escalations rather than routine ingestion.
+- Rationale: OpenAI positions Luna for efficient high-volume work, Terra for balanced intelligence/cost, and Sol for frontier work. All support OpenViking's required Chat Completions endpoint, text/image input, structured output, and large context. OpenViking natively accepts an OpenAI model string in `vlm.model`, so the ingestion fix is configuration-only and requires no source patch.
+- Cost projection from the measured 26-record run: a clean 197-record re-import with the same token volume would cost approximately $5.50 on Luna standard, $54.66 on Terra standard, or $136.58 on Sol standard, including roughly $0.04 for embeddings. Completing only the remaining 171 records on Luna would project to about $4.78. GPT-5.6 may use fewer tokens, but these estimates deliberately use the observed workload as the planning baseline.
+- Proposed safety gate: remove or roll back only the 26 deterministic migration resources, change only OpenViking's native VLM model, run representative small and large one-record canaries, reconcile memory quality and measured tokens, then import in bounded batches with a hard project spend ceiling. A clean all-197 rerun is preferred because its projected Luna premium over keeping the first 26 is only about $0.73 and avoids mixed-model memory.
+
+## 2026-08-05 07:15 UTC - OpenAI dashboard billing reconciliation
+
+- Operator: Codex reviewing the client-supplied OpenAI Usage screenshots; read-only, with no live change.
+- Dashboard evidence: total spend for the displayed July 21-August 5 range is $14.65; August spend is $13.09 of a $15 limit. The dashboard reports 505,950 `text-embedding-3-small` input tokens over the full range and 284,944 on August 5.
+- Embedding cost: at $0.02 per million input tokens, the full displayed embedding usage cost approximately $0.0101 and the August 5 portion approximately $0.0057. Existing vectors stored in OpenViking's local vector database do not incur a monthly OpenAI storage charge.
+- Reconciliation: effectively all displayed spend came from Responses/Chat Completions rather than embeddings. The dashboard confirms 716 Responses/Chat Completions requests and about 1.403 million input tokens. The gap between the earlier OpenViking-local estimate and the account dashboard represents model activity outside the subset captured by OpenViking's local token audit; the OpenAI dashboard is authoritative for the account total.
+- Recurring-cost implication: there is no fixed monthly embedding requirement. Future charges occur only when new/query text is embedded or a generation model is called. The projected clean 197-record migration contains only about $0.04 of embedding work; the remaining projected migration cost is Luna-powered native processing.
+
 ## 2026-08-04 09:09 UTC - Portable full-VPS recovery capture
 
 - Operator: Codex following Darshan's explicit request for a locally retained, non-encrypted, deployable full-server backup.
@@ -718,3 +767,65 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Runtime isolation: no Cloudflare, DNS, tunnel, Access policy, legacy service, Hermes, OpenViking, provider, credential, or schema change occurred. No canary content entered production.
 - Rollback: restore the new pre-promotion backup, remove only the current dashboard container, rename `crypto-dashboard-rollback-20260804T075332Z` back to `crypto-dashboard`, restore its restart policy, and start it. Retain every other service and hostname unchanged.
 - Recovery mirror: refreshed the 15 changed non-secret application, test, deployment, and operations files under `/root/mark-v2-docs/`; every local/server SHA-256 matched and the full mirror contains no AppleDouble, `.DS_Store`, or `__MACOSX` artifact.
+
+## 2026-08-05 08:08-11:35 UTC - Clean Luna Crypto semantic import accepted
+
+- Operator: Codex continuing Darshan's approved Option 1 completion sequence under the explicit $10 new-credit ceiling.
+- Status: completed and accepted; 197 of 197 deterministic Crypto identities are live in native OpenViking memory.
+- Cost correction: removed only the partial GPT-5.4 migration branch after restoring the verified clean baseline, changed only OpenViking's native VLM configuration to `gpt-5.6-luna`, retained `text-embedding-3-small`, disabled reasoning, limited retries to one, and used native VLM concurrency four. Hermes stayed on its existing provider. No Hermes or OpenViking source was patched.
+- Recovery before mutation: created and verified `/root/mark-v2-backups/20260805T080836Z-pre-luna-cost-control/`; preserved the pre-concurrency configuration at `/app/.openviking/ov.conf.pre-concurrency-4-20260805T104320Z`; synchronized the current restricted config to the owner-only local secret escrow by checksum without printing it.
+- Importer hardening: replaced semantic identity lookup with native deterministic target `stat`. A target is accepted only when it is an unlocked non-empty directory. This made interruption/replay safe and removed model spend from identity checks. Targeted regression tests pass 4 of 4 and `git diff --check` passes.
+- Import result: exact reconciliation found 131 of 131 source/artifact targets and 66 of 66 event targets, with zero missing, locked, or error results. Queue completion ended at zero pending, zero running, and zero errors. One record that completed while the importer was being stopped was detected and skipped on resume rather than duplicated.
+- Replay proof: the independent acceptance receipt contains 197 records, 197 skips, zero creates, zero failures, and 197 unique target URIs.
+- Read and intelligence acceptance: six representative recursive deep reads preserved the exact source/event provenance IDs. A raw unconstrained Hermes memory answer retrieved the correct event but produced an unverified source hash, confirming that model text must not be trusted as authorization or identity. The existing production Crypto Ask boundary then returned through Hermes with eight canonical evidence records and four citations; all four resolved to returned evidence.
+- Model usage: the clean import's combined pre/post-restart OpenViking observers estimate approximately $3.46 at the approved standard Luna and embedding prices. The embedding portion is only cents; the OpenAI billing dashboard remains authoritative.
+- Accepted backup: briefly stopped only OpenViking after its queue was idle, created `/root/mark-v2-backups/20260805T112800Z-post-complete-crypto-import/openviking-data.tar.gz`, set it mode `0600`, and verified `SHA256SUMS`. The archive is 34,801,436 bytes.
+- Restore drill: restored the archive into a uniquely named disposable volume under the same digest-pinned OpenViking image with no host port, required the restored container to become healthy, and verified an exact imported target stat. The first verifier attempt expected unwrapped JSON and failed locally without affecting data; the corrected verifier consumed the CLI's `result` wrapper and passed. Both disposable attempts were cleaned up. Production returned healthy and private with the correct Luna/vector models available.
+- Private evidence retention: copied the final manifest and 21 receipts into `.secrets/migration-manifests/crypto-v2-20260805-complete/`, mode `0700` directory and `0600` files, with a local SHA-256 manifest. No client packet content or credential entered Git or ordinary documentation.
+- Regression boundary: Hermes, OpenViking, ForkedBrain, Crypto Dashboard, and the V2 tunnel are healthy; public Crypto remains behind Cloudflare Access; legacy `intel.forkedbrain.fyi` remains HTTP `200`. No Cloudflare, DNS, tunnel, Access, dashboard code, Telegram, legacy-service, or client-credential change occurred.
+- Rollback/recovery: use the accepted post-import archive for current-state recovery. To remove the entire accepted import only under explicit approval, stop OpenViking and restore the verified pre-Luna baseline. Never run two writers against the production volume and never use semantic search as an identity check.
+
+## 2026-08-05 12:38-12:44 UTC - Crypto Intelligence workflow polish
+
+- Operator: Codex implementing Darshan's approved Crypto dashboard polish.
+- Status: completed and promoted as release `20260805T123859Z`.
+- Product scope: promoted Ask from a command shortcut to a first-class grounded workflow; converted the preserved Recall archive into a live evidence-linked Quiz with bounded generation and single-pass grading; added task-first Studio launchers for X, LinkedIn, review briefs, and Speaking Preparation; added the four primary workflows to the Brief; and tightened the responsive mobile hierarchy.
+- Architecture boundary: Hermes remains the only reasoning and generation layer, OpenViking remains the only semantic-memory provider, and the existing SQLite database remains the only structured product store. No new database, vector store, agent runtime, provider, scraper, Cloudflare object, DNS record, tunnel route, Access policy, or legacy-service change was made.
+- Cost control: a new quiz uses one bounded Hermes call for generation and one bounded call to grade the complete answer set. The real-Hermes acceptance ran only on a disposable database copy; no canary quiz, Studio draft, or answer entered production.
+- Pre-deployment verification: all 74 server tests passed; server and web type checks and production builds passed; `git diff --check` and deployment-script syntax checks passed; desktop and 390-pixel mobile captures were visually inspected.
+- Canary acceptance: identity rejection/acceptance, 66/47/89 corpus counts, native memory status, grounded Ask, cited Studio generation and revision, and a three-question evidence-linked Quiz with complete grading feedback all passed. The canary database was disposable and removed after promotion.
+- Promotion: active image `mark-crypto-dashboard:20260805T123859Z`; stopped predecessor `crypto-dashboard-rollback-20260804T081020Z`; pre-promotion database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260805T123859Z/crypto-intelligence.db`.
+- Production acceptance: container healthy and loopback-only as non-root user `dashboard`, read-only root filesystem, all capabilities dropped, `no-new-privileges`, unchanged 66 events, 47 sources, 89 media records, 41 drafts, and 15 preserved quiz sessions. SQLite integrity is `ok` with zero foreign-key violations. Ask, Studio, Quiz, memory status, and private byte-range media are connected. Public Crypto remains behind Access, plain HTTP redirects to HTTPS, and legacy `intel.forkedbrain.fyi` remains HTTP `200`.
+- Rollback: restore the new pre-promotion database backup, remove only the active dashboard container, rename `crypto-dashboard-rollback-20260804T081020Z` back to `crypto-dashboard`, restore its restart policy, and start it. Do not alter Hermes, OpenViking, ForkedBrain, Cloudflare, or the legacy service.
+
+## 2026-08-05 14:20-14:52 UTC - Hermes daily intelligence command center
+
+- Operator: Codex completing Darshan's approved world-class Crypto Intelligence iteration.
+- Status: completed and promoted as release `20260805T143933Z`.
+- Product scope: rebuilt the Brief as a decision-oriented command center with Today's briefing, Needs Attention, sourced What Changed, suggested actions, watchlists, strongest stored signals, continue-working history, system activity, and direct launchers for Ask, Quiz, X and LinkedIn creation, Speaking Preparation, and Library. Existing workflow screens accept the command center's focused handoff without duplicating state.
+- Architecture boundary: Hermes remains the only reasoning and agent layer, OpenViking remains the only semantic memory, and the existing SQLite file remains the only structured application database. The accepted briefing is stored in the existing `generation_meta` table. No new database, vector store, memory provider, scraper service, queue, agent runtime, model provider, credential, Cloudflare object, DNS record, tunnel route, Access policy, or legacy-service change was made.
+- Native research capability: installed Hermes's official optional DDGS web backend with `hermes tools post-setup ddgs` and selected it with `hermes config set web.backend ddgs`. A direct native web-search canary returned results. The backend is key-free and runs inside the existing Hermes container; the runbook records the one post-setup command required after a container recreation.
+- Cost controls: each review permits at most five focused searches and eight sources, uses low reasoning, runs on a 24-hour cadence, is manually limited to once per ten minutes per authenticated user and IP, and keeps the last accepted brief on any error. Both successful and failed scheduled attempts back off for 24 hours, preventing a retry spend loop. The accepted production review's Hermes session was estimated at about $0.15; the provider dashboard remains authoritative.
+- Canary recovery: the initial disposable canary exposed that Hermes can preface valid fenced JSON with one sentence. Production was untouched. The response boundary now extracts and validates the first complete JSON object, strips unsupported dash characters, requires at least one real HTTP or HTTPS source, bounds every list and field, and preserves the previous brief on rejection. A regression test reproduces the exact wrapped-output shape.
+- Verification: all 77 server tests, 18 Python migration and provenance tests, server type/build, web production build, Bash syntax checks, and `git diff --check` passed. Real Chrome captures covered all dashboard screens at 1440 and 390 pixels plus reduced-motion and high-contrast variants. The final isolated canary passed identity rejection and acceptance, 66/47/89 corpus counts, a real sourced daily briefing, native memory, grounded Ask, cited and revised Studio generation, and evidence-linked Quiz generation and grading. Canary data was disposable and removed during promotion.
+- Production acceptance: generated and persisted the first live briefing, restarted only `crypto-dashboard`, and verified the exact briefing ID and database checksum survived. The database reports `integrity=ok`, zero foreign-key violations, and 66 events. The container is healthy, loopback-only, non-root user `dashboard`, read-only root filesystem, all capabilities dropped, and `no-new-privileges`. Public Crypto remains an Access `302`, plain HTTP redirects with `301`, and legacy `intel.forkedbrain.fyi` remains HTTP `200`.
+- Promotion: active image `mark-crypto-dashboard:20260805T143933Z`; stopped predecessor `crypto-dashboard-rollback-20260805T123859Z`; pre-promotion backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260805T143933Z/crypto-intelligence.db`.
+- Rollback: restore that pre-promotion database backup, remove only the active dashboard container, rename `crypto-dashboard-rollback-20260805T123859Z` back to `crypto-dashboard`, restore its restart policy, and start it. Do not alter Hermes, OpenViking, ForkedBrain, Cloudflare, or the legacy service.
+
+## 2026-08-05 14:53 UTC - Command-center recovery record finalized
+
+- Operator: Codex completing the non-secret handoff for release `20260805T143933Z`.
+- Scope: current infrastructure index, redacted release snapshot, application source, tests, deployment definitions, and supporting non-secret project documentation.
+- Safety check: scanned the selected local source and documentation for common API-token and private-key patterns before transfer; credentials, client databases, media, generated builds, dependency trees, screenshots, and secret directories were excluded.
+- Recovery mirror: refreshed the selected non-secret tree under `/root/mark-v2-docs/` using the existing key-authenticated SSH path. Every selected local/server SHA-256 matched. The local project remains authoritative.
+- Runtime impact: none. No container, database, model, memory, provider, Cloudflare object, hostname, tunnel, Access policy, or legacy service changed during documentation closeout.
+
+## 2026-08-05 15:28-15:47 UTC - Navigation correction deployed
+
+- Operator: Codex implementing Darshan's approved navigation correction.
+- Status: completed and promoted as release `20260805T152846Z` for ForkedBrain and Crypto Intelligence.
+- Product scope: changed ForkedBrain's Crypto branch and primary action from the legacy Intel hostname to `https://crypto.forkedbrain.fyi/`; made both the Memory Graph logo and Back control return to the main brain overview; made the Crypto Intelligence logo return to its dashboard home route.
+- Architecture boundary: navigation only. No database, client content, Hermes, OpenViking, provider, model, memory, Cloudflare object, DNS record, tunnel route, Access policy, credential, or legacy service changed.
+- Verification: ForkedBrain tests, lint, and build passed; Crypto type checking and build passed; real Chromium navigation passed at desktop and mobile widths against local builds, isolated production-image canaries, and the promoted production containers. Both production containers are healthy and retain their non-root, read-only, capability-dropped, loopback-only security boundary.
+- Public regression: ForkedBrain and Crypto Intelligence return the expected Cloudflare Access redirects, Crypto HTTP redirects to HTTPS, and legacy `intel.forkedbrain.fyi` remains HTTP `200` and unchanged.
+- Recovery: ForkedBrain predecessor `forkedbrain-rollback-20260803T1408Z`; Crypto predecessor `crypto-dashboard-rollback-20260805T143933Z`; Crypto pre-promotion backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260805T152846Z/crypto-intelligence.db`.

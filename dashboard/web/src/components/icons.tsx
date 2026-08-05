@@ -85,6 +85,13 @@ export const IconSearch = () => (
   </svg>
 );
 
+export const IconAsk = () => (
+  <svg {...base}>
+    <path d="M5 5.5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7l-4.5 3v-3H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z" />
+    <path d="M8 9.5h8M8 12.5h5" />
+  </svg>
+);
+
 export const IconArrow = () => (
   <svg {...base} width={16} height={16}>
     <path d="M5 12h13M13 7l5 5-5 5" />
@@ -121,5 +128,24 @@ export const IconMedia = () => (
   <svg {...base} width={16} height={16}>
     <rect x="3" y="5" width="18" height="14" rx="2" />
     <path d="m10 9 5 3-5 3z" />
+  </svg>
+);
+
+export const IconRefresh = () => (
+  <svg {...base} width={16} height={16}>
+    <path d="M20 7V3m0 0h-4m4 0-3 3a7.5 7.5 0 1 0 1.4 8.4" />
+  </svg>
+);
+
+export const IconAlert = () => (
+  <svg {...base} width={16} height={16}>
+    <path d="M12 3 2.8 20h18.4L12 3Z" />
+    <path d="M12 9v5M12 17.2h.01" />
+  </svg>
+);
+
+export const IconPulse = () => (
+  <svg {...base} width={16} height={16}>
+    <path d="M3 12h4l2-5 4 10 2-5h6" />
   </svg>
 );

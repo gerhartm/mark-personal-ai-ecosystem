@@ -3,8 +3,19 @@ import WebSocket from 'ws';
 
 type RpcMessage = {
   id?: string;
-  result?: { text?: string };
+  method?: string;
+  result?: { text?: string; session_id?: string; status?: string };
   error?: { code?: number; message?: string };
+  params?: {
+    type?: string;
+    session_id?: string;
+    payload?: {
+      text?: string;
+      status?: string;
+      error?: string;
+      usage?: unknown;
+    };
+  };
 };
 
 export interface HermesGenerationOptions {
@@ -13,6 +24,12 @@ export interface HermesGenerationOptions {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
+}
+
+export interface HermesAgentOptions {
+  title?: string;
+  timeoutMs?: number;
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 let cachedCookie = '';
@@ -158,4 +175,106 @@ export async function generateWithHermes(input: string, options: HermesGeneratio
 
 export async function askHermes(input: string) {
   return generateWithHermes(input);
+}
+
+/**
+ * Run a full Hermes agent turn. Unlike llm.oneshot, this is the native path
+ * that can use Hermes tools, memory, and its normal agent loop. The caller is
+ * still responsible for validating the returned text before accepting it.
+ */
+export async function runHermesAgent(input: string, options: HermesAgentOptions = {}) {
+  const authTicket = await ticket();
+  const url = websocketUrl(baseUrl());
+  url.searchParams.set('ticket', authTicket);
+
+  return new Promise<{ text: string; usage?: unknown }>((resolve, reject) => {
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const createId = `crypto-agent-create-${stamp}`;
+    const submitId = `crypto-agent-submit-${stamp}`;
+    let sessionId = '';
+    let settled = false;
+    const socket = new WebSocket(url, { handshakeTimeout: 12_000 });
+    const timeout = setTimeout(() => {
+      try { socket.terminate(); } catch { /* already closed */ }
+      if (!settled) {
+        settled = true;
+        reject(new Error('Hermes agent timeout'));
+      }
+    }, options.timeoutMs ?? 180_000);
+
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      try { socket.close(); } catch { /* already closed */ }
+      callback();
+    };
+
+    socket.once('open', () => {
+      socket.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: createId,
+        method: 'session.create',
+        params: {
+          source: 'crypto-intelligence-dashboard',
+          title: options.title ?? 'Crypto intelligence refresh',
+          reasoning_effort: options.reasoningEffort ?? 'low',
+          fast: false,
+          close_on_disconnect: true,
+        },
+      }));
+    });
+
+    socket.on('message', (data) => {
+      let message: RpcMessage;
+      try { message = JSON.parse(String(data)) as RpcMessage; } catch { return; }
+
+      if (message.id === createId) {
+        if (message.error) {
+          settle(() => reject(new Error(message.error?.message ?? 'Hermes session creation failed')));
+          return;
+        }
+        sessionId = message.result?.session_id ?? '';
+        if (!sessionId) {
+          settle(() => reject(new Error('Hermes session creation returned no session ID')));
+          return;
+        }
+        socket.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: submitId,
+          method: 'prompt.submit',
+          params: { session_id: sessionId, text: input },
+        }));
+        return;
+      }
+
+      if (message.id === submitId && message.error) {
+        settle(() => reject(new Error(message.error?.message ?? 'Hermes agent request failed')));
+        return;
+      }
+
+      if (
+        message.method === 'event'
+        && message.params?.session_id === sessionId
+        && message.params?.type === 'message.complete'
+      ) {
+        const payload = message.params.payload ?? {};
+        const text = payload.text?.trim() ?? '';
+        if (payload.status === 'error') {
+          settle(() => reject(new Error(payload.error ?? text ?? 'Hermes agent failed')));
+          return;
+        }
+        if (!text) {
+          settle(() => reject(new Error('Hermes agent returned an empty response')));
+          return;
+        }
+        settle(() => resolve({ text, usage: payload.usage }));
+      }
+    });
+
+    socket.once('error', () => settle(() => reject(new Error('Hermes websocket failed'))));
+    socket.once('close', () => {
+      if (!settled) settle(() => reject(new Error('Hermes connection closed before completion')));
+    });
+  });
 }

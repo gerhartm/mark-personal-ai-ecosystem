@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   IconArchive,
+  IconAsk,
   IconBrief,
   IconCapture,
   IconConnections,
@@ -20,6 +21,7 @@ const GROUPS = [
     label: 'Work',
     items: [
       { to: '/', label: 'Brief', icon: IconBrief, end: true },
+      { to: '/ask', label: 'Ask', icon: IconAsk },
       { to: '/timeline', label: 'Timeline', icon: IconTimeline },
       { to: '/library', label: 'Library', icon: IconLibrary },
       { to: '/capture', label: 'Capture', icon: IconCapture },
@@ -30,7 +32,7 @@ const GROUPS = [
     label: 'Produce',
     items: [
       { to: '/studio', label: 'Studio', icon: IconStudio },
-      { to: '/recall', label: 'Recall', icon: IconRecall },
+      { to: '/quiz', label: 'Quiz', icon: IconRecall },
     ],
   },
   {
@@ -69,7 +71,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </a>
 
       <nav className="rail" aria-label="Primary">
-        <a className="rail-brand" href="https://forkedbrain.fyi/" aria-label="Return to ForkedBrain">
+        <Link className="rail-brand" to="/" aria-label="Open Crypto Intelligence home">
           <span className="rail-brand-mark" aria-hidden="true">
             <span className="rail-brand-lobe rail-brand-lobe-left" />
             <span className="rail-brand-lobe rail-brand-lobe-right" />
@@ -79,7 +81,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <span className="rail-brand-name">Crypto Intelligence</span>
             <span className="rail-brand-scope label">Mark Gerhart</span>
           </span>
-        </a>
+        </Link>
 
         <div className="rail-groups">
           {GROUPS.map((group) => (
@@ -115,7 +117,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <header className="topbar">
           <button type="button" className="omni" onClick={() => setCommandOpen(true)}>
             <IconSearch />
-            <span className="omni-text">Search the corpus, or ask a question</span>
+            <span className="omni-text">Search the corpus or jump anywhere</span>
             <kbd className="omni-key mono">⌘K</kbd>
           </button>
         </header>

@@ -8,11 +8,12 @@ import './command.css';
 
 const DESTINATIONS = [
   { label: 'Brief', to: '/' },
+  { label: 'Ask', to: '/ask' },
   { label: 'Timeline', to: '/timeline' },
   { label: 'Library', to: '/library' },
   { label: 'Connections', to: '/connections' },
   { label: 'Studio', to: '/studio' },
-  { label: 'Recall', to: '/recall' },
+  { label: 'Quiz', to: '/quiz' },
   { label: 'Archive', to: '/archive' },
   { label: 'Settings', to: '/settings' },
 ];

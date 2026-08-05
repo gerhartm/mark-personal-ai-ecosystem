@@ -24,6 +24,10 @@ test("keeps the experience private-ready, responsive, and free of starter artifa
   assert.match(graph, /MARK&apos;S MEMORY/);
   assert.match(graph, /Chat with Hermes about this memory/);
   assert.match(graph, /Drag a node to stretch its bonds/);
+  assert.match(graph, /aria-label="Return to main brain page"/);
+  assert.match(graph, /aria-label="Back to main brain page"/);
+  assert.match(experience, /https:\/\/crypto\.forkedbrain\.fyi\//);
+  assert.doesNotMatch(experience, /https:\/\/intel\.forkedbrain\.fyi\//);
   assert.doesNotMatch(graph, /Ask Brain about this/);
   assert.doesNotMatch(graph, /Unified Memory|unified-memory/i);
   assert.match(css, /:root\[data-theme="dark"\]/);

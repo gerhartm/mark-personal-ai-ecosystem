@@ -370,31 +370,27 @@ sysctl vm.swappiness vm.vfs_cache_pressure
 
 If `/swapfile` is missing after a reboot, recreate it using the exact procedure in `BUILD-LOG.md`.
 
-## Resume complete Crypto semantic import
+## Complete Crypto semantic import
 
-Current safe state:
+Accepted state:
 
-- OpenViking is healthy with an empty Hermes resource root and no queued/error tasks.
-- The partial quota-failed attempt was rolled back from the checksum-verified pre-import archive.
-- The complete structured/dashboard handoff and 89-file media archive are already verified at `/srv/mark-v2/`.
-- The clean 197-record semantic bundle is staged owner-only at `/root/mark-v2-imports/20260803T053000Z-complete-crypto-clean/`.
+- OpenViking contains exactly 131 source/artifact identities and 66 event identities.
+- Exact reconciliation found all 197 targets with zero locked, missing, or error results.
+- The acceptance replay produced 197 skips, zero creates, and zero failures.
+- The queue is idle with zero errors; Hermes reports OpenViking installed and available.
+- Production Crypto Ask returned through Hermes with eight evidence records and four citations, all resolving to returned canonical evidence.
+- The accepted recovery point is `/root/mark-v2-backups/20260805T112800Z-post-complete-crypto-import/`; its checksum and disposable restore test passed.
 
-Do not resume merely because the OpenAI key authenticates. First confirm the Platform account has a positive balance and the configured project may spend it. The prior attempt stopped on `credit_balance_exhausted`.
+For any future replay, use the deterministic target `stat` guard in
+`apply_crypto_packets.py`. Never use semantic search to decide identity, never
+reuse an existing receipt filename, and never add a second memory/vector layer.
+After any new ingestion, require an idle zero-error queue, exact target
+reconciliation, a skip-only replay, representative deep reads, and a new
+checksum/restore-tested backup.
 
-After funded access is confirmed:
-
-1. Add a pending operations-log entry and capture `ov status`, queue state, model state, disk, and container health.
-2. Recheck the pre-import archive checksum from `/root/mark-v2-backups/20260803T050000Z-pre-complete-crypto-import/`.
-3. Run one isolated non-sensitive OpenViking fixture through add, queue-idle, search, and exact read. Remove only the fixture after it passes.
-4. Re-run the staged packet plan. It must report 197 records and no write.
-5. Run `apply_crypto_packets.py` inside Hermes with the exact apply confirmation and a **new** receipt filename. Never reuse an existing JSONL receipt because the executor creates receipts exclusively.
-6. Monitor `ov observer queue` and `ov observer models`. Stop submission on a real error; do not treat repeated insufficient-quota retries as progress.
-7. After completion, require 197 successful create/skip receipts, zero failed receipts, an idle zero-error queue, and exact reconciliation of 131 source/artifact identities plus 66 events.
-8. Replay all packets with another new receipt. Require 197 skips, zero creates, and no additional raw resources.
-9. Test exact source, event, theme, draft, quiz, pin, and transcript reads plus Hermes Crypto questions with citations.
-10. Create/checksum a post-import backup and test it in a disposable volume before declaring memory accepted.
-
-The authoritative sequence and counts are in `docs/migration/CRYPTO-V2-MIGRATION-REVIEW.md`. The import does not authorize any Cloudflare, DNS, tunnel, legacy hostname, Telegram, or dashboard deployment change.
+The authoritative acceptance counts and estimated model cost are in
+`docs/migration/CRYPTO-V2-MIGRATION-REVIEW.md`. The import did not alter
+Cloudflare, DNS, tunnels, the legacy hostname, Telegram, or dashboard code.
 
 ## Next application sequence
 
@@ -412,19 +408,19 @@ The isolated V2 Cloudflare tunnel, `brain`, `manage`, and `manage-realtime` host
 10. **Superseded by the complete plan:** the earlier 47-source/66-event bundle remains a historical dry-run artifact.
 11. **Completed:** build and independently verify the complete 131-source/artifact plus 66-event semantic bundle, normalized dashboard database, 89-file media archive, and Claude Code handoff.
 12. **Completed:** stage and verify the immutable dashboard database and media originals privately on the VPS.
-13. **Paused cleanly:** resume the 197-record semantic import only after funded provider access is confirmed. The quota-failed partial run was restored to the clean pre-import state.
+13. **Completed:** imported all 197 semantic packets through native OpenViking, proved a 197-skip replay, verified exact reads and production Hermes citations, and restore-tested the post-import backup.
 14. **Claude Code boundary:** Claude may begin isolated dashboard information architecture and implementation from the frozen handoff; do not cut over the legacy hostname until both semantic-memory and dashboard acceptance gates pass.
 
 The governing architecture rule remains: **Hermes first; build only verified gaps.**
 
 ## ForkedBrain command center operations
 
-Current accepted release: `20260803T1408Z`
+Current accepted release: `20260805T152846Z`
 
 Runtime contract:
 
 - container: `forkedbrain`
-- image: `mark-forkedbrain:20260803T1408Z`
+- image: `mark-forkedbrain:20260805T152846Z`
 - loopback origin: `http://127.0.0.1:9320`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - release link: `/srv/mark-v2/forkedbrain/current`
@@ -463,12 +459,12 @@ Stopping ForkedBrain does not stop Hermes, OpenViking, Coolify, the V2 tunnel, o
 
 ### Roll back the application
 
-The latest accepted predecessor is retained as stopped container `forkedbrain-rollback-20260803T1357Z` and image `mark-forkedbrain:20260803T1357Z`.
+The latest accepted predecessor is retained as stopped container `forkedbrain-rollback-20260803T1408Z` and image `mark-forkedbrain:20260803T1408Z`.
 
 ```bash
 docker stop forkedbrain
 docker rename forkedbrain forkedbrain-failed-<utc-release>
-docker rename forkedbrain-rollback-20260803T1357Z forkedbrain
+docker rename forkedbrain-rollback-20260803T1408Z forkedbrain
 docker update --restart=unless-stopped forkedbrain
 docker start forkedbrain
 ```
@@ -508,12 +504,12 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260804T081020Z`
+Current accepted release: `20260805T152846Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260804T081020Z`
+- image: `mark-crypto-dashboard:20260805T152846Z`
 - loopback origin: `http://127.0.0.1:9330`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`
@@ -538,20 +534,24 @@ Expected state is healthy, `127.0.0.1:9330->5183/tcp`, read-only root filesystem
 The static interface must be protected by Cloudflare Access. Every data endpoint also requires the verified Access identity header and rejects missing or unknown identities with HTTP `401`. With an approved identity, require:
 
 - brief reports 66 events, 47 sources, and 89 media files
+- `GET /api/intelligence` reports `connected=true`, a 24-hour refresh interval,
+  and the latest accepted briefing
+- a disposable-canary `POST /api/intelligence/refresh` returns a non-empty
+  briefing with at least one verified HTTP or HTTPS source
 - media streaming supports byte ranges and returns HTTP `206`
 - Ask returns `mode=hermes`, `state=connected`, a non-empty answer, and at least one canonical evidence record
 - `GET /api/ingestion` reports `configured=true` and `connected=true`
 - Capture accepts URL and pasted-text requests only after OpenViking accepts them, skips exact duplicates, and records no local source on provider failure
 - `GET /api/studio/status` reports `connected=true` and exactly the five supported draft formats
 - Studio generation is exercised only in the disposable release canary: require a non-empty Hermes draft, at least one resolvable canonical citation, revision `0`, an appended revision `1`, and an unchanged production draft count
+- `GET /api/quiz/status` reports `connected=true`; Quiz generation and grading are exercised only in the disposable release canary and must return exactly three evidence-linked questions, one complete feedback record per answer, and no production quiz write
 - database `PRAGMA integrity_check` is `ok` and `PRAGMA foreign_key_check` returns no rows
 
 Capture uses OpenViking's native URL/text acquisition path. Do not add a custom
-scraper, queue, vector database, or memory service around it. The current OpenAI
-embedding project reports exhausted credits, so a live Capture request is
-expected to fail safely until credits are added or a different supported
-provider is explicitly approved. Before client ingestion, use a disposable
-fixture and require native acceptance, search/read recall, and cleanup. If a
+scraper, queue, vector database, or memory service around it. OpenViking's
+approved VLM and embedding providers are funded and available. Before a release
+that changes ingestion behavior, use a disposable fixture and require native
+acceptance, search/read recall, and cleanup. If a
 provider failure materialises a remote target, the application removes that
 exact remote-only resource or returns `memory_processing`; it must never promote
 the source to the local database while memory is incomplete.
@@ -568,6 +568,26 @@ without creating a partial revision. Migrated legacy drafts retain their
 existing edit contract. Run live generation acceptance only against a disposable
 canary database because a successful request intentionally creates a draft.
 
+Daily Intelligence uses Hermes's native full-agent session and native web tool.
+The configured search backend is the key-free DDGS provider. It adds no service,
+scraper, provider key, database, or reasoning layer. After recreating the Hermes
+container, restore the native optional dependency and verify the backend:
+
+```bash
+hermes tools post-setup ddgs
+hermes config set web.backend ddgs
+hermes config get web.backend
+```
+
+The dashboard requests no more than five focused searches per review, stores
+only the accepted bounded JSON briefing in the existing `generation_meta`
+table, and retains the previous accepted briefing if validation fails. Scheduled
+work runs at most once per 24 hours. A failed scheduled attempt also backs off
+for 24 hours, so a transient failure cannot create a paid retry loop. Manual
+refresh is limited to once every ten minutes per authenticated user and IP.
+Hermes researches and recommends only; it does not publish, message, modify
+accounts, or perform an external action from this workflow.
+
 ### Restart and rollback
 
 Before restart, record the database SHA-256 and brief counts. Restart only `crypto-dashboard`, wait for healthy, and require the same checksum and counts.
@@ -578,7 +598,7 @@ The pre-route Cloudflare tunnel configuration is retained at:
 /srv/mark-v2/operator-backups/20260803T154358Z-cloudflared-crypto-route/config.yml
 ```
 
-To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, restore `/srv/mark-v2/crypto-dashboard/backups/pre-20260804T081020Z/crypto-intelligence.db`, stop and remove only the current `crypto-dashboard`, rename `crypto-dashboard-rollback-20260804T075332Z` back to `crypto-dashboard`, restore its restart policy, and start it. The retained predecessor image is `mark-crypto-dashboard:20260804T075332Z`. Do not alter Hermes, OpenViking, ForkedBrain, Cloudflare, or the legacy `intel.forkedbrain.fyi` service.
+To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, restore `/srv/mark-v2/crypto-dashboard/backups/pre-20260805T152846Z/crypto-intelligence.db`, stop and remove only the current `crypto-dashboard`, rename `crypto-dashboard-rollback-20260805T143933Z` back to `crypto-dashboard`, restore its restart policy, and start it. The retained predecessor image is `mark-crypto-dashboard:20260805T143933Z`. Do not alter Hermes, OpenViking, ForkedBrain, Cloudflare, or the legacy `intel.forkedbrain.fyi` service.
 
 # Cloudflare domain change gate
 

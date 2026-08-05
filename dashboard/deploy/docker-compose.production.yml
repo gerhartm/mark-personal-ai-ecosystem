@@ -1,6 +1,6 @@
 services:
   crypto-dashboard:
-    image: mark-crypto-dashboard:20260804T081020Z
+    image: mark-crypto-dashboard:20260805T152846Z
     container_name: crypto-dashboard
     restart: unless-stopped
     env_file:
@@ -10,6 +10,7 @@ services:
       OPENVIKING_API_KEY_FILE: /run/secrets/openviking-dashboard-key
       OPENVIKING_ACCOUNT: mark-gerhart
       OPENVIKING_USER: hermes
+      INTELLIGENCE_AUTO_REFRESH_HOURS: "24"
     ports:
       - "127.0.0.1:9330:5183"
     volumes:

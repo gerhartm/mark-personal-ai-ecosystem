@@ -685,7 +685,12 @@ export function MemoryGraph({ onClose }: { onClose: () => void }) {
   return (
     <section className="memory-graph memory-graph--dynamic" role="dialog" aria-modal="true" aria-labelledby="memory-graph-title">
       <header className="memory-graph__header">
-        <div className="memory-graph__title">
+        <button
+          className="memory-graph__title"
+          type="button"
+          onClick={onClose}
+          aria-label="Return to main brain page"
+        >
           <span className="logo-mark logo-mark--graph" aria-hidden="true">
             <span className="logo-mark__lobe logo-mark__lobe--left" />
             <span className="logo-mark__lobe logo-mark__lobe--right" />
@@ -695,15 +700,15 @@ export function MemoryGraph({ onClose }: { onClose: () => void }) {
             <small>MARK&apos;S MEMORY</small>
             <strong id="memory-graph-title">Memory Graph</strong>
           </span>
-        </div>
+        </button>
 
         <div className="memory-graph__summary">
           <span><strong>{graphState === "loading" ? "..." : graphData.meta.totalMemories}</strong> indexed memories</span>
           <span className="graph-live"><i />Live relationships</span>
         </div>
 
-        <button className="graph-close" type="button" onClick={onClose} aria-label="Close memory graph">
-          Close
+        <button className="graph-close" type="button" onClick={onClose} aria-label="Back to main brain page">
+          Back
         </button>
       </header>
 

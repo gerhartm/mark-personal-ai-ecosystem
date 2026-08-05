@@ -5,6 +5,19 @@ uses the existing Hermes central brain for answers, the existing unified crypto
 database for evidence, and Cloudflare Access for the public authentication
 boundary. It does not modify Hermes, OpenViking, or the legacy platform.
 
+Primary workflows:
+
+- **Daily Intelligence:** one sourced Hermes market review that compares live
+  changes with the private corpus and proposes useful work inside the product.
+- **Ask:** grounded answers with the exact corpus records Hermes reviewed.
+- **Quiz:** evidence-linked questions, one bounded Hermes grading pass,
+  feedback, scores, and preserved session history.
+- **Studio:** X threads, LinkedIn posts, review briefs, and source-cited drafts.
+- **Speaking Prep:** theses, talking points, likely questions,
+  counterarguments, and closing takeaways from a selected date range.
+- **Capture:** native OpenViking URL or text ingestion with deterministic
+  identity, duplicate protection, and explicit receipts.
+
 ## Run it
 
 ```bash
@@ -31,6 +44,7 @@ Environment, all optional, all by name only:
 | `HERMES_BASE_URL` | Hermes dashboard origin. Unset means Ask runs in its explicit degraded state |
 | `HERMES_DASHBOARD_USERNAME` | Hermes dashboard service account name |
 | `HERMES_DASHBOARD_PASSWORD_FILE` | mounted file containing the Hermes dashboard password |
+| `INTELLIGENCE_AUTO_REFRESH_HOURS` | minimum interval between scheduled live intelligence reviews, defaults to `24` |
 | `OPENVIKING_BASE_URL` | private OpenViking service origin. Unset leaves Capture explicitly unavailable |
 | `OPENVIKING_API_KEY_FILE` | read-only mounted file containing the tenant-scoped OpenViking key |
 | `OPENVIKING_ACCOUNT_ID`, `OPENVIKING_USER_ID`, `OPENVIKING_AGENT_ID` | non-secret tenant identity used by the native resource API |
@@ -40,7 +54,7 @@ Environment, all optional, all by name only:
 
 ## Production deployment
 
-The accepted V2 release is `20260804T081020Z`. Its reproducible runtime contract
+The accepted V2 release is `20260805T152846Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
@@ -54,7 +68,8 @@ An unauthenticated request must redirect to the Cloudflare Access login, and an
 externally forged identity header must not bypass that redirect. Production also
 requires the Access identity on static application requests as defense in depth.
 The accepted origin and public-boundary tests include the complete dashboard,
-private media range streaming, and a real Hermes answer with canonical evidence.
+private media range streaming, a real sourced live briefing, and a real Hermes
+answer with canonical evidence.
 
 The guarded cutover script updates only that Access application and the V2
 tunnel route, verifies the exact policy and all existing hostnames, and restores
@@ -96,20 +111,23 @@ npm start &               # the API tests exercise the running server
 npx vitest run
 ```
 
-72 tests: reconciliation against the handoff manifest, canonical identity
+77 tests: reconciliation against the handoff manifest, canonical identity
 preservation, facet derivation, precision spans, taxonomy verbatim, append-only
 notes, the identity register, unified search determinism, media authorisation
 and traversal, the Access identity boundary, bounded Hermes evidence assembly,
 safe provider errors, the degraded intelligence plane, URL and text capture,
 exact duplicate skipping, partial-native-write cleanup, locked-resource safety,
 Studio evidence packaging, citation enforcement, atomic generation, append-only
-draft editing, and the build's refusal of a tampered handoff.
+draft editing, evidence-linked Quiz generation and atomic grading, sourced
+briefing validation and preservation, and the build's refusal of a tampered
+handoff.
 
 ## Screenshots
 
 ```bash
 cd server
 node src/screenshots.mjs
+node src/screenshots.mjs --base http://127.0.0.1:9330 --identity approved@example.com
 ```
 
 Captures every screen at 1440 and 390, plus reduced motion and high contrast,

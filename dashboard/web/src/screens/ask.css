@@ -1,0 +1,211 @@
+.ask-page {
+  max-width: 1120px;
+}
+
+.ask-head {
+  align-items: flex-start;
+}
+
+.ask-eyebrow {
+  color: var(--accent-strong);
+}
+
+.ask-composer {
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent-deep) 38%, var(--hairline));
+  box-shadow: var(--elev-2);
+}
+
+.ask-form {
+  padding: var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.ask-field {
+  gap: var(--sp-3);
+}
+
+.ask-input {
+  min-height: 112px;
+  max-width: none;
+  resize: vertical;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 1.125rem;
+  line-height: 1.55;
+}
+
+.ask-input:focus-visible {
+  outline: 0;
+}
+
+.ask-submit-row,
+.ask-response-head,
+.ask-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.ask-error {
+  padding: var(--sp-4);
+  border: 1px solid color-mix(in srgb, var(--status-critical) 55%, transparent);
+  background: color-mix(in srgb, var(--status-critical) 12%, transparent);
+  color: var(--status-critical);
+  font-size: 0.8125rem;
+}
+
+.ask-starters,
+.ask-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.ask-section-head .faint {
+  font-size: 0.75rem;
+}
+
+.ask-starter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+
+.ask-starter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  min-height: 86px;
+  padding: var(--sp-5);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  color: var(--ink-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+
+.ask-starter:hover {
+  border-color: var(--accent-deep);
+  background: var(--surface-raised);
+  color: var(--ink-primary);
+}
+
+.ask-starter svg {
+  color: var(--accent-strong);
+  flex: none;
+}
+
+.ask-turn {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.42fr) minmax(0, 1.58fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.ask-question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border-top: 1px solid var(--hairline-strong);
+  color: var(--ink-primary);
+  line-height: 1.55;
+}
+
+.ask-response {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding: var(--sp-6);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--elev-1);
+}
+
+.ask-answer-copy {
+  white-space: pre-wrap;
+  font-size: 1rem;
+  line-height: 1.72;
+  color: var(--ink-secondary);
+  max-width: 78ch;
+}
+
+.ask-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--hairline);
+}
+
+.ask-evidence ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  list-style: none;
+}
+
+.ask-evidence a {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  min-height: 96px;
+  padding: var(--sp-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-flat);
+  background: var(--surface-sunken);
+  color: var(--ink-secondary);
+}
+
+.ask-evidence a:hover {
+  border-color: var(--accent-deep);
+  text-decoration: none;
+  color: var(--ink-primary);
+}
+
+.ask-evidence-title {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.ask-evidence-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  color: var(--ink-faint);
+  font-size: 0.6875rem;
+}
+
+@media (max-width: 760px) {
+  .ask-starter-grid,
+  .ask-evidence ul,
+  .ask-turn {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ask-question {
+    padding: var(--sp-4) 0 0;
+  }
+  .ask-response,
+  .ask-form {
+    padding: var(--sp-5);
+  }
+  .ask-submit-row .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .ask-shortcut {
+    display: none;
+  }
+}

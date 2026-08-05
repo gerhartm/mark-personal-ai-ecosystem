@@ -125,6 +125,15 @@ describe('read routes', () => {
 });
 
 describe('the intelligence plane boundary', () => {
+  it('reports command-center readiness without inventing a live briefing', async () => {
+    const status: any = await json('/api/intelligence');
+    expect(status.connected).toBe(false);
+    expect(status.refresh_hours).toBe(24);
+    expect(status.stale).toBe(true);
+    expect(status.last_attempt_at).toBeNull();
+    expect(status.brief).toBeNull();
+  });
+
   it('says plainly that Hermes is not connected, and never fabricates an answer', async () => {
     const res = await fetch(`${BASE}/api/ask`, {
       method: 'POST',

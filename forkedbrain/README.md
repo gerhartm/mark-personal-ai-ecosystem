@@ -50,7 +50,7 @@ npm audit --omit=dev
 
 ## Production
 
-Current release: `20260803T1408Z`
+Current release: `20260805T152846Z`
 Private URL: `https://forkedbrain.fyi/`
 
 Server paths:

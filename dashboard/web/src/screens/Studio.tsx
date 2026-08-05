@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, invalidate, useQuery } from '../lib/api';
 import { formatDate, formatDateTime, paragraphs, plural, truncate } from '../lib/format';
 import {
@@ -11,6 +11,7 @@ import {
   StatusChip,
 } from '../components/primitives';
 import { TEMPLATE_LABEL } from '../lib/taxonomy';
+import { IconArrow } from '../components/icons';
 import './studio.css';
 
 const FALLBACK_TEMPLATES = [
@@ -21,13 +22,39 @@ const FALLBACK_TEMPLATES = [
   'year_in_review',
 ];
 
+const STUDIO_TASKS = [
+  {
+    template: 'speaking_prep',
+    title: 'Prepare to speak',
+    description: 'Build a thesis, talking points, likely questions, counterarguments, and a strong closing takeaway.',
+  },
+  {
+    template: 'twitter_thread',
+    title: 'Create for X',
+    description: 'Turn a topic and date window into a concise evidence-backed thread that is ready to refine.',
+  },
+  {
+    template: 'linkedin_post',
+    title: 'Create for LinkedIn',
+    description: 'Shape stored intelligence into a thoughtful post with a clear argument and practical implication.',
+  },
+  {
+    template: 'month_in_review',
+    title: 'Build a review brief',
+    description: 'Summarize what changed, why it matters, the recurring signals, and what to watch next.',
+  },
+];
+
 export function Studio() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data, error, refetch } = useQuery('/drafts');
   const status = useQuery('/studio/status');
   const [template, setTemplate] = useState<string>('all');
-  const [creating, setCreating] = useState(false);
+  const requestedTemplate = searchParams.get('new');
+  const [creating, setCreating] = useState(Boolean(requestedTemplate));
+  const [selectedTemplate, setSelectedTemplate] = useState(requestedTemplate || 'speaking_prep');
 
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (!data) return <Skeleton rows={6} height={60} />;
@@ -40,7 +67,19 @@ export function Studio() {
     invalidate('/drafts');
     refetch();
     setCreating(false);
+    setSearchParams({});
     navigate(`/studio/${draftId}`);
+  };
+
+  const start = (value: string) => {
+    setSelectedTemplate(value);
+    setCreating(true);
+    setSearchParams({ new: value });
+  };
+
+  const closeComposer = () => {
+    setCreating(false);
+    setSearchParams({});
   };
 
   return (
@@ -61,7 +100,7 @@ export function Studio() {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => setCreating((value) => !value)}
+            onClick={() => creating ? closeComposer() : start('speaking_prep')}
             disabled={!connected}
           >
             {creating ? 'Close composer' : 'Create draft'}
@@ -69,11 +108,33 @@ export function Studio() {
         </div>
       </header>
 
+      <section className="studio-task-grid" aria-label="Create from intelligence">
+        {STUDIO_TASKS.map((task) => (
+          <button
+            key={task.template}
+            type="button"
+            className="studio-task"
+            onClick={() => start(task.template)}
+            disabled={!connected}
+          >
+            <span className="studio-task-label label">{TEMPLATE_LABEL[task.template]}</span>
+            <span className="studio-task-title">{task.title}</span>
+            <span className="studio-task-copy">{task.description}</span>
+            <span className="studio-task-action">
+              Start with Hermes <IconArrow />
+            </span>
+          </button>
+        ))}
+      </section>
+
       {creating && (
         <DraftComposer
+          key={selectedTemplate}
           templates={status.data?.templates ?? FALLBACK_TEMPLATES}
+          initialTemplate={selectedTemplate}
+          initialFocus={searchParams.get('focus') ?? ''}
           onCreated={generated}
-          onCancel={() => setCreating(false)}
+          onCancel={closeComposer}
         />
       )}
 
@@ -126,15 +187,21 @@ export function Studio() {
 
 function DraftComposer({
   templates,
+  initialTemplate,
+  initialFocus,
   onCreated,
   onCancel,
 }: {
   templates: string[];
+  initialTemplate: string;
+  initialFocus: string;
   onCreated: (id: string) => void;
   onCancel: () => void;
 }) {
-  const [template, setTemplate] = useState(templates[0] ?? 'speaking_prep');
-  const [focus, setFocus] = useState('');
+  const [template, setTemplate] = useState(
+    templates.includes(initialTemplate) ? initialTemplate : (templates[0] ?? 'speaking_prep'),
+  );
+  const [focus, setFocus] = useState(initialFocus.slice(0, 500));
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [state, setState] = useState<'idle' | 'generating' | 'error'>('idle');

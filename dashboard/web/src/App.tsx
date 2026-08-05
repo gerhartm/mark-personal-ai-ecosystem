@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { Shell } from './components/Shell';
 import { Skeleton } from './components/primitives';
 import { Brief } from './screens/Brief';
@@ -10,10 +10,11 @@ import { SourceDetail } from './screens/SourceDetail';
 import { ThemeDetail } from './screens/ThemeDetail';
 import { Connections } from './screens/Connections';
 import { Studio } from './screens/Studio';
-import { Recall } from './screens/Recall';
+import { Quiz } from './screens/Recall';
 import { Archive } from './screens/Archive';
 import { Settings } from './screens/Settings';
 import { Capture } from './screens/Capture';
+import { Ask } from './screens/Ask';
 
 export default function App() {
   // Appearance preferences are applied before first paint of any screen.
@@ -28,6 +29,7 @@ export default function App() {
       <Suspense fallback={<Skeleton rows={5} height={72} />}>
         <Routes>
           <Route path="/" element={<Brief />} />
+          <Route path="/ask" element={<Ask />} />
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/library" element={<Library />} />
           <Route path="/capture" element={<Capture />} />
@@ -37,8 +39,10 @@ export default function App() {
           <Route path="/connections" element={<Connections />} />
           <Route path="/studio" element={<Studio />} />
           <Route path="/studio/:id" element={<Studio />} />
-          <Route path="/recall" element={<Recall />} />
-          <Route path="/recall/:id" element={<Recall />} />
+          <Route path="/quiz" element={<Quiz />} />
+          <Route path="/quiz/:id" element={<Quiz />} />
+          <Route path="/recall" element={<Navigate to="/quiz" replace />} />
+          <Route path="/recall/:id" element={<LegacyRecallRedirect />} />
           <Route path="/archive" element={<Archive />} />
           <Route path="/archive/:id" element={<Archive />} />
           <Route path="/settings" element={<Settings />} />
@@ -47,6 +51,11 @@ export default function App() {
       </Suspense>
     </Shell>
   );
+}
+
+function LegacyRecallRedirect() {
+  const id = window.location.pathname.split('/').pop();
+  return <Navigate to={id ? `/quiz/${id}` : '/quiz'} replace />;
 }
 
 function NotFound() {

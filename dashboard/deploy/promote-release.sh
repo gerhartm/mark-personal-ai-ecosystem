@@ -42,6 +42,11 @@ brief="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com
 jq -e '.counts.events == 66 and .counts.sources == 47 and .counts.media == 89' <<<"$brief" >/dev/null
 test "$before" = "$(sha256sum /srv/mark-v2/crypto-dashboard/data/crypto-intelligence.db | awk '{print $1}')"
 
+intelligence_status="$(curl -fsS \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  http://127.0.0.1:9330/api/intelligence)"
+jq -e '.connected == true and .refresh_hours == 24' <<<"$intelligence_status" >/dev/null
+
 ingestion="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/api/ingestion)"
 jq -e '.configured == true and .connected == true and (.receipts | type == "array")' <<<"$ingestion" >/dev/null
 
@@ -60,8 +65,13 @@ studio_status="$(curl -fsS \
   http://127.0.0.1:9330/api/studio/status)"
 jq -e '.connected == true and (.templates | length == 5)' <<<"$studio_status" >/dev/null
 
+quiz_status="$(curl -fsS \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  http://127.0.0.1:9330/api/quiz/status)"
+jq -e '.connected == true and .default_question_count == 5' <<<"$quiz_status" >/dev/null
+
 docker rm -f "$canary" >/dev/null
 rm -rf "/srv/mark-v2/crypto-dashboard/canary/${release}"
 
-printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nmemory=connected\nmedia_range=206\nask=connected\nstudio=connected\nrollback=%s\nbackup=%s\n' \
+printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nintelligence=connected\nmemory=connected\nmedia_range=206\nask=connected\nstudio=connected\nquiz=connected\nrollback=%s\nbackup=%s\n' \
   "$release" "$rollback" "${backup_dir}/crypto-intelligence.db"

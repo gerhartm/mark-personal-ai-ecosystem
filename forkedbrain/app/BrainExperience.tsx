@@ -16,7 +16,7 @@ const systemLinks = [
   {
     label: "Crypto Intelligence",
     detail: "Research, timelines, sources, and analysis",
-    href: "https://intel.forkedbrain.fyi/",
+    href: "https://crypto.forkedbrain.fyi/",
     access: "Operational",
   },
   {
@@ -377,7 +377,7 @@ function Overview({ theme, onOpenGraph }: { theme: Theme; onOpenGraph: () => voi
               </div>
             ))}
           </div>
-          <a className="primary-action" href="https://intel.forkedbrain.fyi/" target="_blank" rel="noreferrer">
+          <a className="primary-action" href="https://crypto.forkedbrain.fyi/" target="_blank" rel="noreferrer">
             Open Crypto Intelligence
             <span aria-hidden="true">&#8599;</span>
           </a>
@@ -458,6 +458,11 @@ export function BrainExperience() {
     window.localStorage.setItem("forkedbrain-theme-v2", theme);
   }, [theme]);
 
+  const returnToOverview = () => {
+    setGraphOpen(false);
+    setView("overview");
+  };
+
   return (
     <div className="site-shell">
       <header className="masthead">
@@ -519,7 +524,7 @@ export function BrainExperience() {
         <span>Mark Gerhart</span>
         <span>Private intelligence system</span>
       </footer>
-      {graphOpen ? <MemoryGraph onClose={() => setGraphOpen(false)} /> : null}
+      {graphOpen ? <MemoryGraph onClose={returnToOverview} /> : null}
     </div>
   );
 }

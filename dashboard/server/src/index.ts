@@ -7,6 +7,12 @@ import { MEDIA_ROOT, audit, all, one, run } from './db.js';
 import { buildAskContext } from './ask-context.js';
 import { askHermes, cleanHermesError } from './hermes-client.js';
 import {
+  IntelligenceError,
+  intelligenceStatus,
+  refreshIntelligence,
+  startIntelligenceScheduler,
+} from './intelligence.js';
+import {
   CaptureInputError,
   captureSource,
   ingestionConfigured,
@@ -21,6 +27,12 @@ import {
   draftCitations,
   studioStatus,
 } from './studio.js';
+import {
+  QuizInputError,
+  createQuizSession,
+  gradeQuizSession,
+  quizStatus,
+} from './quiz.js';
 import * as t from './tools.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -64,6 +76,8 @@ const num = (v: unknown) => (v == null || v === '' ? undefined : Number(v));
 app.get('/api/health', async () => ({ ok: true, mediaAvailable: Boolean(MEDIA_ROOT) }));
 
 app.get('/api/brief', async () => t.brief());
+
+app.get('/api/intelligence', async () => intelligenceStatus());
 
 app.get('/api/facets', async () => t.facetOptions());
 
@@ -141,6 +155,7 @@ app.get('/api/drafts/:id', async (req, reply) => {
 app.get('/api/studio/status', async () => studioStatus());
 
 app.get('/api/quiz/sessions', async () => ({ sessions: t.listQuizSessions() }));
+app.get('/api/quiz/status', async () => quizStatus());
 app.get('/api/quiz/sessions/:id', async (req, reply) => {
   const session = t.getQuizSession((req.params as { id: string }).id);
   return session ?? reply.code(404).send({ error: 'not_found' });
@@ -226,6 +241,8 @@ app.delete('/api/views/:id', async (req) => {
 const askAttempts = new Map<string, number[]>();
 const captureAttempts = new Map<string, number[]>();
 const studioAttempts = new Map<string, number[]>();
+const quizAttempts = new Map<string, number[]>();
+const intelligenceAttempts = new Map<string, number[]>();
 
 function isAskRateLimited(key: string) {
   const now = Date.now();
@@ -253,6 +270,87 @@ function isStudioRateLimited(key: string) {
   studioAttempts.set(key, recent);
   return false;
 }
+
+function isQuizRateLimited(key: string) {
+  const now = Date.now();
+  const recent = (quizAttempts.get(key) ?? []).filter((time) => time > now - 60_000);
+  if (recent.length >= 6) return true;
+  recent.push(now);
+  quizAttempts.set(key, recent);
+  return false;
+}
+
+function isIntelligenceRateLimited(key: string) {
+  const now = Date.now();
+  const recent = (intelligenceAttempts.get(key) ?? []).filter((time) => time > now - 10 * 60_000);
+  if (recent.length >= 1) return true;
+  recent.push(now);
+  intelligenceAttempts.set(key, recent);
+  return false;
+}
+
+app.post('/api/intelligence/refresh', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isIntelligenceRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({
+      error: 'rate_limited',
+      message: 'A fresh intelligence briefing can be requested once every ten minutes.',
+    });
+  }
+  try {
+    const brief = await refreshIntelligence(actor, 'manual');
+    return { connected: true, stale: false, brief };
+  } catch (error) {
+    if (error instanceof IntelligenceError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(503).send({
+      error: 'hermes_unavailable',
+      message: cleanHermesError(error instanceof Error ? error.message : error),
+    });
+  }
+});
+
+app.post('/api/quiz/sessions', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isQuizRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before generating another quiz.' });
+  }
+  try {
+    return await createQuizSession(req.body as any, actor);
+  } catch (error) {
+    if (error instanceof QuizInputError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(503).send({
+      error: 'hermes_unavailable',
+      message: cleanHermesError(error instanceof Error ? error.message : error),
+    });
+  }
+});
+
+app.post('/api/quiz/sessions/:id/answers', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isQuizRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before submitting another quiz.' });
+  }
+  try {
+    const { id } = req.params as { id: string };
+    const body = req.body as { answers?: any[] };
+    return await gradeQuizSession(id, body?.answers ?? [], actor);
+  } catch (error) {
+    if (error instanceof QuizInputError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(503).send({
+      error: 'hermes_unavailable',
+      message: cleanHermesError(error instanceof Error ? error.message : error),
+    });
+  }
+});
 
 app.post('/api/studio/drafts', async (req, reply) => {
   const actor = requestActor(req);
@@ -442,6 +540,7 @@ if (existsSync(WEB_DIST)) {
 
 if (process.env.NODE_ENV !== 'test') {
   await app.listen({ port: PORT, host: HOST });
+  startIntelligenceScheduler();
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);
   console.log(`  media archive: ${MEDIA_ROOT ? 'mounted' : 'not mounted (degraded, documented)'}`);
   console.log(`  intelligence plane: ${process.env.HERMES_BASE_URL ? 'configured' : 'not connected (degraded)'}`);

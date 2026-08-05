@@ -162,7 +162,8 @@ class LegacyPacketBuilderTests(unittest.TestCase):
         class FakeProvider:
             def __init__(self) -> None:
                 self.resources: dict[str, str] = {}
-                self.transient_search_errors = 1
+                self.transient_stat_errors = 1
+                self.stat_paths: list[str] = []
 
             def handle_tool_call(self, name: str, args: dict) -> str:
                 if name == "viking_read":
@@ -170,19 +171,19 @@ class LegacyPacketBuilderTests(unittest.TestCase):
                     if uri not in self.resources:
                         return json.dumps({"error": "NOT_FOUND: fixture"})
                     return json.dumps({"content": self.resources[uri]})
-                if name == "viking_search":
-                    if self.transient_search_errors:
-                        self.transient_search_errors -= 1
+                if name == "viking_browse":
+                    if args["action"] != "stat":
+                        raise AssertionError(args)
+                    path = args["path"]
+                    self.stat_paths.append(path)
+                    if self.transient_stat_errors:
+                        self.transient_stat_errors -= 1
                         return json.dumps({"error": "temporary provider fixture error"})
-                    query = args["query"]
+                    children = [uri for uri in self.resources if uri.startswith(path + "/")]
+                    if not children:
+                        return json.dumps({"error": "NOT_FOUND: fixture"})
                     return json.dumps(
-                        {
-                            "results": [
-                                {"uri": uri}
-                                for uri, content in self.resources.items()
-                                if query in content
-                            ]
-                        }
+                        {"isDir": True, "isLocked": False, "count": len(children)}
                     )
                 if name == "viking_add_resource":
                     target = args["to"].rstrip("/")
@@ -207,6 +208,11 @@ class LegacyPacketBuilderTests(unittest.TestCase):
             self.assertEqual(second["created"], 0)
             self.assertEqual(second["skipped"], 3)
             self.assertEqual(len(provider.resources), 3)
+            expected_scopes = {
+                item["target_uri"]
+                for item in manifest["source_packets"] + manifest["event_packets"]
+            }
+            self.assertEqual(set(provider.stat_paths), expected_scopes)
 
     def test_complete_handoff_preserves_memory_and_dashboard_layers(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -18,6 +18,10 @@ const arg = (n, d) => {
 };
 const BASE = arg('base', 'http://127.0.0.1:5183');
 const OUT = resolve(arg('out', join(HERE, '..', '..', 'screenshots')));
+const IDENTITY = arg('identity', '');
+const ACCESS_HEADERS = IDENTITY
+  ? { extraHTTPHeaders: { 'cf-access-authenticated-user-email': IDENTITY } }
+  : {};
 const CHROME =
   process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
@@ -35,7 +39,8 @@ const SHOTS = [
   { name: '06-event-detail', path: '/event/2026-05-13-0026', full: false },
   { name: '07-connections', path: '/connections', full: false, settle: 2600 },
   { name: '08-studio', path: '/studio', full: false },
-  { name: '09-recall', path: '/recall', full: false },
+  { name: '09-quiz', path: '/quiz', full: false },
+  { name: '10-ask', path: '/ask', full: false },
   { name: '10-archive', path: '/archive', full: false },
   { name: '11-settings', path: '/settings', full: false },
   { name: '12-theme', path: '/theme/d9dd821b4b0d64da', full: false },
@@ -54,7 +59,7 @@ const browser = await chromium.launch({
 
 try {
   console.log('desktop 1440x950');
-  const desk = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, colorScheme: 'dark' });
+  const desk = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, colorScheme: 'dark', ...ACCESS_HEADERS });
   const page = await desk.newPage();
   for (const s of SHOTS) {
     await page.goto(`${BASE}${s.path}`, { waitUntil: 'networkidle' });
@@ -103,13 +108,24 @@ try {
   console.log('phone 390x844');
   const mob = await browser.newContext({
     viewport: PHONE,
-    deviceScaleFactor: 3,
+    deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
     colorScheme: 'dark',
+    ...ACCESS_HEADERS,
   });
   const mp = await mob.newPage();
-  for (const s of [SHOTS[0], SHOTS[1], SHOTS[2], SHOTS[5], SHOTS[12]]) {
+  for (const s of [
+    SHOTS[0],
+    SHOTS[1],
+    SHOTS[2],
+    SHOTS[5],
+    SHOTS[7],
+    SHOTS[8],
+    SHOTS[9],
+    SHOTS[12],
+    SHOTS[13],
+  ]) {
     await mp.goto(`${BASE}${s.path}`, { waitUntil: 'networkidle' });
     await mp.waitForTimeout(s.settle ?? 900);
     await shot(mp, `m-${s.name}`, s.full);
@@ -129,6 +145,7 @@ try {
     deviceScaleFactor: 2,
     colorScheme: 'dark',
     reducedMotion: 'reduce',
+    ...ACCESS_HEADERS,
   });
   const rp = await rm.newPage();
   await rp.goto(`${BASE}/`, { waitUntil: 'networkidle' });
@@ -141,7 +158,7 @@ try {
   await shot(rp, '17-connections-reduced-motion', false);
   await rm.close();
 
-  const hc = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, colorScheme: 'dark' });
+  const hc = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 2, colorScheme: 'dark', ...ACCESS_HEADERS });
   const hp = await hc.newPage();
   await hp.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
   await hp.evaluate(() => {

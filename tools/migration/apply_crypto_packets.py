@@ -64,58 +64,27 @@ def decode(raw: str) -> dict[str, Any]:
     return value
 
 
-def read_optional(provider: Any, uri: str) -> str | None:
-    value = decode(provider.handle_tool_call("viking_read", {"uri": uri, "level": "full"}))
-    error = str(value.get("error") or "")
+def find_exact_resource(provider: Any, record: dict[str, Any]) -> str | None:
+    """Return the packet's deterministic OpenViking root URI, if complete."""
+    target_uri = str(record["target_uri"])
+    result = decode(
+        provider.handle_tool_call(
+            "viking_browse",
+            {"action": "stat", "path": target_uri},
+        )
+    )
+    error = str(result.get("error") or "")
     if error:
         if "NOT_FOUND" in error or "not found" in error.casefold():
             return None
-        raise RuntimeError("native provider read failed")
-    return str(value.get("content") or "")
-
-
-def expected_identity(record: dict[str, Any]) -> tuple[str, str]:
-    if "event_id" in record:
-        return "mark.crypto.event/v1", str(record["event_id"])
-    return "mark.crypto.source/v1", str(record["source_id"])
-
-
-def find_exact_resource(provider: Any, record: dict[str, Any]) -> str | None:
-    """Return OpenViking's canonical URI for a packet identity, if present.
-
-    OpenViking owns the final stored filename and may append a collision-safe
-    suffix. Deterministic provenance inside the packet is therefore the stable
-    identity; a caller must not predict the generated resource URI.
-    """
-    schema, identity = expected_identity(record)
-    result = decode(
-        provider.handle_tool_call(
-            "viking_search",
-            {"query": identity, "mode": "fast", "limit": 50},
-        )
-    )
-    if result.get("error"):
-        raise RuntimeError("native provider search failed")
-    matches: set[str] = set()
-    read_errors = 0
-    for item in result.get("results", []):
-        uri = str(item.get("uri") or "")
-        if not uri:
-            continue
-        try:
-            content = read_optional(provider, uri)
-        except RuntimeError:
-            # Semantic summaries are replaced atomically during processing;
-            # retry instead of interpreting a transient stale hit as absence.
-            read_errors += 1
-            continue
-        if content is not None and schema in content and identity in content:
-            matches.add(uri)
-    if not matches:
-        if read_errors:
-            raise RuntimeError("native provider read failed during identity search")
-        return None
-    return sorted(matches)[0]
+        raise RuntimeError("native provider stat failed")
+    if not bool(result.get("isDir") or result.get("is_dir")):
+        raise ResourceIdentityConflict("deterministic target exists but is not a directory")
+    if bool(result.get("isLocked") or result.get("is_locked")):
+        raise RuntimeError("native target is still processing")
+    if int(result.get("count") or 0) <= 0:
+        raise RuntimeError("native target is empty")
+    return target_uri
 
 
 def find_exact_resource_with_retry(

@@ -24,6 +24,7 @@ docker run -d \
   --env OPENVIKING_API_KEY_FILE=/run/secrets/openviking-dashboard-key \
   --env OPENVIKING_ACCOUNT=mark-gerhart \
   --env OPENVIKING_USER=hermes \
+  --env INTELLIGENCE_AUTO_REFRESH_HOURS=24 \
   --network 27am3wgv7vkohkenprml4s3p \
   -p 127.0.0.1:9331:5183 \
   --mount "type=bind,src=${canary_dir},dst=/data" \
@@ -49,6 +50,24 @@ test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'cf-access-authenticated-user
 
 brief="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9331/api/brief)"
 jq -e '.counts.events == 66 and .counts.sources == 47 and .counts.media == 89' <<<"$brief" >/dev/null
+
+intelligence_status="$(curl -fsS \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  http://127.0.0.1:9331/api/intelligence)"
+jq -e '.connected == true and .refresh_hours == 24' <<<"$intelligence_status" >/dev/null
+
+intelligence="$(curl -fsS --max-time 240 -X POST \
+  -H 'Content-Type: application/json' \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  -d '{}' \
+  http://127.0.0.1:9331/api/intelligence/refresh)"
+jq -e '
+  (.brief.id | startswith("brief_")) and
+  (.brief.headline | length > 8) and
+  (.brief.summary | length > 30) and
+  (.brief.changes | length > 0) and
+  all(.brief.changes[]; (.source_url | test("^https?://")))
+' <<<"$intelligence" >/dev/null
 
 ingestion="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9331/api/ingestion)"
 jq -e '.configured == true and .connected == true and (.receipts | type == "array")' <<<"$ingestion" >/dev/null
@@ -85,4 +104,24 @@ studio_saved="$(curl -fsS \
   "http://127.0.0.1:9331/api/drafts/${studio_id}")"
 jq -e '(.raw_output != .edited_output) and (.revisions | length == 2) and (.citations | length > 0)' <<<"$studio_saved" >/dev/null
 
-printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nmemory=connected\nask=connected\nstudio=generated-cited-revised\n'
+quiz_status="$(curl -fsS \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  http://127.0.0.1:9331/api/quiz/status)"
+jq -e '.connected == true and .default_question_count == 5' <<<"$quiz_status" >/dev/null
+
+quiz="$(curl -fsS \
+  -H 'Content-Type: application/json' \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  -d '{"focus":"Aave protocol risk and durable implications","question_count":3}' \
+  http://127.0.0.1:9331/api/quiz/sessions)"
+jq -e '(.id | startswith("quiz_")) and (.questions | length == 3) and all(.questions[]; (.events | length) > 0)' <<<"$quiz" >/dev/null
+quiz_id="$(jq -r '.id' <<<"$quiz")"
+quiz_answers="$(jq -c '{answers: [.questions[] | {question_id: .id, answer_text: "This answer uses the linked stored evidence and explains the central fact, its implications, and why it matters."}]}' <<<"$quiz")"
+quiz_graded="$(curl -fsS \
+  -H 'Content-Type: application/json' \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  -d "$quiz_answers" \
+  "http://127.0.0.1:9331/api/quiz/sessions/${quiz_id}/answers")"
+jq -e '.completed_at != null and .score_total == 3 and (.questions | length == 3) and all(.questions[]; (.answer.feedback | length) > 0)' <<<"$quiz_graded" >/dev/null
+
+printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nintelligence=live-sourced\nmemory=connected\nask=connected\nstudio=generated-cited-revised\nquiz=generated-evidence-linked-graded\n'

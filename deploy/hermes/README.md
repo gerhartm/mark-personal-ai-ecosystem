@@ -102,6 +102,8 @@ The repository-owned skills in `skills/mark/` extend the unmodified Hermes runti
 
 Deploy these directories to `/opt/data/skills/mark/`. All skills continue to use the same Hermes brain and the same OpenViking provider. They do not add another agent, database, vector store, or model service.
 
+Mark's professional background, working goals, system capabilities, and confidence boundaries live as one private canonical OpenViking resource under the Mark namespace. The private source document stays outside Git in the owner-only client secret tree. `tools/memory/sync_mark_context.py` is the replay-safe importer; it checks the deterministic target before writing and verifies the accepted content through native reads. The `satoshi` skill requires this profile to be consulted for Mark-specific identity, career, goal, architecture, Crypto Intelligence, and Creator Reference questions.
+
 ## Telegram context topics
 
 Hermes natively supports isolated private-message topic sessions with a skill bound to each topic. The approved layout is:

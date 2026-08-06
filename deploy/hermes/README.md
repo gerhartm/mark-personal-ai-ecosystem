@@ -132,6 +132,7 @@ The three-topic layout above proved the native bindings but produced unnecessary
 - Satoshi infers an obvious destination without asking.
 - Satoshi asks one short question before genuinely ambiguous ingestion.
 - Humanization is opt-in through an ordinary request such as `Humanize this`.
+- All routing stays invisible during normal conversation. Satoshi behaves as Mark's single personal assistant, uses any available native Hermes or approved custom skill as needed, and consults unified memory for relevant day-to-day context without making Mark manage the machinery.
 
 The value-free target configuration is in `telegram-single-chat.example.yaml`. It uses Hermes's native per-channel prompt to load the `satoshi` router skill; the router delegates to the existing specialist skills and native OpenViking tools. No routing service or additional persistence layer is introduced.
 

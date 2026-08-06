@@ -63,7 +63,11 @@ jq -e '.mode == "hermes" and .state == "connected" and (.answer | length > 40) a
 studio_status="$(curl -fsS \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
   http://127.0.0.1:9330/api/studio/status)"
-jq -e '.connected == true and (.templates | length == 5)' <<<"$studio_status" >/dev/null
+jq -e '
+  .connected == true and
+  (.templates | length == 5) and
+  (.writing_lenses | sort) == ["creator_reference", "mark"]
+' <<<"$studio_status" >/dev/null
 
 quiz_status="$(curl -fsS \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
@@ -73,5 +77,5 @@ jq -e '.connected == true and .default_question_count == 5' <<<"$quiz_status" >/
 docker rm -f "$canary" >/dev/null
 rm -rf "/srv/mark-v2/crypto-dashboard/canary/${release}"
 
-printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nintelligence=connected\nmemory=connected\nmedia_range=206\nask=connected\nstudio=connected\nquiz=connected\nrollback=%s\nbackup=%s\n' \
+printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nintelligence=connected\nmemory=connected\nmedia_range=206\nask=connected\nstudio=connected-with-lenses\nquiz=connected\nrollback=%s\nbackup=%s\n' \
   "$release" "$rollback" "${backup_dir}/crypto-intelligence.db"

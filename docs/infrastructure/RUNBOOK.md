@@ -504,12 +504,12 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260805T152846Z`
+Current accepted release: `20260806T052651Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260805T152846Z`
+- image: `mark-crypto-dashboard:20260806T052651Z`
 - loopback origin: `http://127.0.0.1:9330`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`
@@ -542,8 +542,8 @@ The static interface must be protected by Cloudflare Access. Every data endpoint
 - Ask returns `mode=hermes`, `state=connected`, a non-empty answer, and at least one canonical evidence record
 - `GET /api/ingestion` reports `configured=true` and `connected=true`
 - Capture accepts URL and pasted-text requests only after OpenViking accepts them, skips exact duplicates, and records no local source on provider failure
-- `GET /api/studio/status` reports `connected=true` and exactly the five supported draft formats
-- Studio generation is exercised only in the disposable release canary: require a non-empty Hermes draft, at least one resolvable canonical citation, revision `0`, an appended revision `1`, and an unchanged production draft count
+- `GET /api/studio/status` reports `connected=true`, exactly the five supported draft formats, and the `mark` and `creator_reference` writing lenses
+- Studio generation is exercised only in the disposable release canary: require a non-empty Hermes draft, the selected writing lens in the immediate and stored responses, at least one resolvable canonical citation, revision `0`, an appended revision `1`, and an unchanged production draft count
 - `GET /api/quiz/status` reports `connected=true`; Quiz generation and grading are exercised only in the disposable release canary and must return exactly three evidence-linked questions, one complete feedback record per answer, and no production quiz write
 - database `PRAGMA integrity_check` is `ok` and `PRAGMA foreign_key_check` returns no rows
 
@@ -556,9 +556,13 @@ provider failure materialises a remote target, the application removes that
 exact remote-only resource or returns `memory_processing`; it must never promote
 the source to the local database while memory is incomplete.
 
-Studio uses the existing Hermes `llm.oneshot` transport and the existing Crypto
+Studio uses the existing native Hermes agent path and the existing Crypto
 database. The application may select and serialize bounded corpus evidence, but
 must not add a second agent, model provider, vector store, or reasoning engine.
+The Mark lens loads `crypto-intelligence` and `humanized-content`. The Creator
+Reference lens loads `creator-reference` and `humanized-content`, affects only
+expression, and must return a clear unavailable state until manually supplied
+reference material is present. Both use the same OpenViking memory.
 Generated content is accepted only after canonical event/source citations
 resolve locally. Invalid or missing citations must fail without creating a
 draft. Revision `0` is the Hermes generation and browser edits append revisions;
@@ -598,7 +602,7 @@ The pre-route Cloudflare tunnel configuration is retained at:
 /srv/mark-v2/operator-backups/20260803T154358Z-cloudflared-crypto-route/config.yml
 ```
 
-To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, restore `/srv/mark-v2/crypto-dashboard/backups/pre-20260805T152846Z/crypto-intelligence.db`, stop and remove only the current `crypto-dashboard`, rename `crypto-dashboard-rollback-20260805T143933Z` back to `crypto-dashboard`, restore its restart policy, and start it. The retained predecessor image is `mark-crypto-dashboard:20260805T143933Z`. Do not alter Hermes, OpenViking, ForkedBrain, Cloudflare, or the legacy `intel.forkedbrain.fyi` service.
+To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, restore `/srv/mark-v2/crypto-dashboard/backups/pre-20260806T052651Z/crypto-intelligence.db`, stop and remove only the current `crypto-dashboard`, rename `crypto-dashboard-rollback-20260805T152846Z` back to `crypto-dashboard`, restore its restart policy, and start it. The retained predecessor image is `mark-crypto-dashboard:20260805T152846Z`. Do not alter Hermes, OpenViking, ForkedBrain, Cloudflare, or the legacy `intel.forkedbrain.fyi` service.
 
 # Cloudflare domain change gate
 

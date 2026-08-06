@@ -21,6 +21,8 @@ let base = '';
 let appOutput = '';
 let generated = '';
 let knownEvent = '';
+let lastPrompt = '';
+let requestSequence = 1;
 
 async function freePort() {
   return new Promise<number>((resolvePort, reject) => {
@@ -47,11 +49,18 @@ async function waitForHealth() {
   throw new Error(`isolated Studio dashboard did not start\n${appOutput}`);
 }
 
-async function postDraft() {
+async function postDraft(writingLens = 'mark') {
   const response = await fetch(`${base}/api/studio/drafts`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ template_type: 'speaking_prep', focus: 'Aave protocol risk' }),
+    headers: {
+      'content-type': 'application/json',
+      'cf-connecting-ip': `198.51.100.${requestSequence++}`,
+    },
+    body: JSON.stringify({
+      template_type: 'speaking_prep',
+      focus: 'Aave protocol risk',
+      writing_lens: writingLens,
+    }),
   });
   return { response, body: await response.json() as any };
 }
@@ -67,7 +76,27 @@ beforeAll(async () => {
   sockets.on('connection', (socket) => {
     socket.on('message', (raw) => {
       const request = JSON.parse(String(raw));
-      socket.send(JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { text: generated } }));
+      if (request.method === 'session.create') {
+        socket.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: request.id,
+          result: { session_id: 'studio-test-session' },
+        }));
+        return;
+      }
+      if (request.method === 'prompt.submit') {
+        lastPrompt = request.params.text;
+        socket.send(JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { status: 'accepted' } }));
+        socket.send(JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'event',
+          params: {
+            type: 'message.complete',
+            session_id: request.params.session_id,
+            payload: { text: generated, status: 'complete', usage: { total_tokens: 100 } },
+          },
+        }));
+      }
     });
   });
   mock = createServer((request, response) => {
@@ -128,9 +157,11 @@ describe('Hermes-powered Studio boundary', () => {
   it('generates, validates, and atomically saves a cited draft', async () => {
     const status = await (await fetch(`${base}/api/studio/status`)).json() as any;
     expect(status.connected).toBe(true);
+    expect(status.writing_lenses).toEqual(['mark', 'creator_reference']);
 
     const result = await postDraft();
     expect(result.response.status).toBe(200);
+    expect(result.body.writing_lens).toBe('mark');
     expect(result.body.citations).toEqual(expect.arrayContaining([expect.objectContaining({ id: knownEvent })]));
 
     const db = new Database(TEMP_DB, { readonly: true });
@@ -138,12 +169,40 @@ describe('Hermes-powered Studio boundary', () => {
     const revisions = db.prepare('SELECT * FROM draft_revisions WHERE draft_id = ?').all(result.body.id) as any[];
     expect(draft.origin).toBe('ingested');
     expect(draft.raw_output).toBe(generated);
+    expect(lastPrompt.startsWith('/crypto-intelligence /humanized-content')).toBe(true);
+    expect((db.prepare('SELECT value FROM generation_meta WHERE key = ?').get(`draft_lens:${result.body.id}`) as any).value).toBe('mark');
     expect(revisions).toHaveLength(1);
     expect(revisions[0].revision).toBe(0);
     expect(revisions[0].author).toBe('Hermes');
     expect((db.prepare("SELECT count(*) count FROM search_index WHERE canonical_id = ? AND kind = 'draft'").get(result.body.id) as any).count).toBe(1);
     expect((db.pragma('foreign_key_check') as unknown[]).length).toBe(0);
     db.close();
+  });
+
+  it('routes Creator Reference through the native context skill and records the lens', async () => {
+    generated = `Creator-lens draft grounded in the preserved record [${knownEvent}].`;
+    const result = await postDraft('creator_reference');
+    expect(result.response.status).toBe(200);
+    expect(result.body.writing_lens).toBe('creator_reference');
+    expect(lastPrompt.startsWith('/creator-reference /humanized-content')).toBe(true);
+    expect(lastPrompt).toContain('WRITING LENS\nCreator Reference');
+
+    const stored = await (await fetch(`${base}/api/drafts/${result.body.id}`)).json() as any;
+    expect(stored.writing_lens).toBe('creator_reference');
+  });
+
+  it('refuses the Creator Reference lens when the corpus is not ready', async () => {
+    generated = 'CREATOR_REFERENCE_UNAVAILABLE';
+    const result = await postDraft('creator_reference');
+    expect(result.response.status).toBe(422);
+    expect(result.body.error).toBe('creator_reference_unavailable');
+  });
+
+  it('rejects unknown writing lenses before generation', async () => {
+    generated = `Safe fallback [${knownEvent}].`;
+    const result = await postDraft('unknown');
+    expect(result.response.status).toBe(400);
+    expect(result.body.error).toBe('invalid_writing_lens');
   });
 
   it('rejects an invented citation and leaves no partial draft', async () => {

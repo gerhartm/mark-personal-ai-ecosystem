@@ -1,0 +1,18 @@
+# Merge this block into /opt/data/config.yaml only after BotFather reports
+# has_topics_enabled=true for the selected bot. Keep the bot token and Mark's
+# numeric Telegram user ID in /opt/data/.env, never in this file or Git.
+platforms:
+  telegram:
+    extra:
+      ignore_root_dm: true
+      dm_topics:
+        - chat_id: REPLACE_WITH_MARK_TELEGRAM_USER_ID
+          topics:
+            - name: General
+              icon_color: 7322096
+            - name: Crypto Intelligence
+              icon_color: 9367192
+              skill: crypto-intelligence
+            - name: Creator Reference
+              icon_color: 16766590
+              skill: creator-reference

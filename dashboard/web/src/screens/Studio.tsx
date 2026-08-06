@@ -22,6 +22,11 @@ const FALLBACK_TEMPLATES = [
   'year_in_review',
 ];
 
+const WRITING_LENS_LABEL: Record<string, string> = {
+  mark: 'Mark',
+  creator_reference: 'Creator reference',
+};
+
 const STUDIO_TASKS = [
   {
     template: 'speaking_prep',
@@ -170,6 +175,7 @@ export function Studio() {
                     <span className="draft-row-focus">{truncate(draft.focus ?? 'No focus recorded', 96)}</span>
                     <span className="draft-row-meta faint">
                       {draft.date_from && draft.date_to ? `${draft.date_from} to ${draft.date_to}` : 'all dates'}
+                      {` · ${WRITING_LENS_LABEL[draft.writing_lens] ?? 'Mark'} lens`}
                       {draft.edited_output ? ' · edited' : ' · original'}
                     </span>
                   </Link>
@@ -202,6 +208,7 @@ function DraftComposer({
     templates.includes(initialTemplate) ? initialTemplate : (templates[0] ?? 'speaking_prep'),
   );
   const [focus, setFocus] = useState(initialFocus.slice(0, 500));
+  const [writingLens, setWritingLens] = useState('mark');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [state, setState] = useState<'idle' | 'generating' | 'error'>('idle');
@@ -220,6 +227,7 @@ function DraftComposer({
           focus: focus.trim(),
           date_from: dateFrom || null,
           date_to: dateTo || null,
+          writing_lens: writingLens,
         }),
       });
       onCreated(result.id);
@@ -239,6 +247,17 @@ function DraftComposer({
               <option key={value} value={value}>{TEMPLATE_LABEL[value] ?? value}</option>
             ))}
           </select>
+        </label>
+
+        <label className="field">
+          <span className="field-label">Writing lens</span>
+          <select className="field-control" value={writingLens} onChange={(event) => setWritingLens(event.target.value)}>
+            <option value="mark">Mark</option>
+            <option value="creator_reference">Creator reference</option>
+          </select>
+          <span className="field-help">
+            Creator reference changes expression, not the verified facts.
+          </span>
         </label>
 
         <label className="field studio-focus-field">
@@ -351,6 +370,8 @@ function DraftView({ id }: { id: string }) {
           <dd>{data.focus ?? 'none recorded'}</dd>
           <dt>Window</dt>
           <dd className="mono">{data.date_from ? `${data.date_from} to ${data.date_to}` : 'all dates'}</dd>
+          <dt>Writing lens</dt>
+          <dd>{WRITING_LENS_LABEL[data.writing_lens] ?? 'Mark'}</dd>
           <dt>Created</dt>
           <dd className="mono">{formatDateTime(data.created_at)}</dd>
           <dt>Revisions</dt>

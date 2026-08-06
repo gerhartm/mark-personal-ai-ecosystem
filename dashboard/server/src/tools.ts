@@ -453,13 +453,20 @@ export function brief() {
 
 export function listDrafts() {
   return all(
-    `SELECT d.*, (SELECT count(*) FROM draft_revisions r WHERE r.draft_id = d.id) AS revisions
+    `SELECT d.*,
+            COALESCE((SELECT value FROM generation_meta g WHERE g.key = 'draft_lens:' || d.id), 'mark') AS writing_lens,
+            (SELECT count(*) FROM draft_revisions r WHERE r.draft_id = d.id) AS revisions
        FROM content_drafts d ORDER BY d.updated_at DESC`,
   );
 }
 
 export function getDraft(id: string) {
-  const draft = one('SELECT * FROM content_drafts WHERE id = ?', id);
+  const draft = one(
+    `SELECT d.*,
+            COALESCE((SELECT value FROM generation_meta g WHERE g.key = 'draft_lens:' || d.id), 'mark') AS writing_lens
+       FROM content_drafts d WHERE d.id = ?`,
+    id,
+  );
   if (!draft) return null;
   const revisions = all(
     'SELECT revision, body, author, created_at FROM draft_revisions WHERE draft_id = ? ORDER BY revision DESC',

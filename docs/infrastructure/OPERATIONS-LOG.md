@@ -829,3 +829,14 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Verification: ForkedBrain tests, lint, and build passed; Crypto type checking and build passed; real Chromium navigation passed at desktop and mobile widths against local builds, isolated production-image canaries, and the promoted production containers. Both production containers are healthy and retain their non-root, read-only, capability-dropped, loopback-only security boundary.
 - Public regression: ForkedBrain and Crypto Intelligence return the expected Cloudflare Access redirects, Crypto HTTP redirects to HTTPS, and legacy `intel.forkedbrain.fyi` remains HTTP `200` and unchanged.
 - Recovery: ForkedBrain predecessor `forkedbrain-rollback-20260803T1408Z`; Crypto predecessor `crypto-dashboard-rollback-20260805T143933Z`; Crypto pre-promotion backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260805T152846Z/crypto-intelligence.db`.
+
+## 2026-08-06 04:44-05:35 UTC - Native context skills and Studio writing lenses deployed
+
+- Operator: Codex implementing Darshan's approved unified-context design.
+- Status: completed and promoted as Crypto Intelligence release `20260806T052651Z`.
+- Hermes: installed and validated the local `crypto-intelligence`, `creator-reference`, and `humanized-content` skills in the existing persistent Hermes skill directory. The unmodified Hermes runtime and the single OpenViking memory remain authoritative.
+- Product: added Mark and Creator Reference writing lenses inside Content Studio. Creator Reference is not a top-level product branch. It changes expression only, keeps facts grounded in verified Crypto evidence, and returns a clear unavailable state until manually supplied creator material exists.
+- Telegram: prepared a dormant native private-topic configuration for General, Crypto Intelligence, and Creator Reference. Activation remains gated on BotFather topic enablement and confirmation that the selected token has no competing poller. No live Telegram configuration or token changed.
+- Verification: all 80 server tests passed; server and web type checks and production builds passed; desktop and mobile Studio checks passed; all three skills report enabled. The disposable canary passed identity, corpus, sourced intelligence, memory, Ask, Studio lens persistence, citations, append-only revision, and Quiz checks.
+- Production: container is healthy, loopback-only, non-root, read-only, capability-dropped, and protected by Cloudflare Access. The previous release is retained as `crypto-dashboard-rollback-20260805T152846Z`.
+- Recovery: pre-promotion database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260806T052651Z/crypto-intelligence.db`; retained predecessor image `mark-crypto-dashboard:20260805T152846Z`.

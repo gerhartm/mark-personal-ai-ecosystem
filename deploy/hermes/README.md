@@ -87,3 +87,35 @@ The direct restart acceptance test leaves a non-blocking recent-history warning 
 ## Rollback
 
 Stop the Coolify service without deleting either persistent volume. If only OpenViking must be rolled back, remove its service from Compose while retaining `openviking_data`; Hermes can be returned to built-in-only memory without changing its image or data. If a release must be rolled back, change only that service's image to a previously approved tag and digest. Never run two Hermes gateways against `hermes_data` or two OpenViking writers against `openviking_data` at once.
+
+## Mark context skills
+
+The repository-owned skills in `skills/mark/` extend the unmodified Hermes runtime:
+
+- `crypto-intelligence` handles crypto ingestion, recall, research, quiz, speaking, and evidence-backed content.
+- `creator-reference` stores manually supplied creator material and applies it only as an explicit writing lens.
+- `humanized-content` is an invisible final writing pass for outward-facing content. It does not change evidence, citations, or research answers.
+
+Deploy these directories to `/opt/data/skills/mark/`. All skills continue to use the same Hermes brain and the same OpenViking provider. They do not add another agent, database, vector store, or model service.
+
+## Telegram context topics
+
+Hermes natively supports isolated private-message topic sessions with a skill bound to each topic. The approved layout is:
+
+- General: central Hermes with no forced context skill.
+- Crypto Intelligence: automatically loads `crypto-intelligence`.
+- Creator Reference: automatically loads `creator-reference`.
+
+Every topic is a separate conversation context, but all topics use the same OpenViking memory. The topic does not create or own a separate memory store.
+
+The dormant configuration is in `telegram-topics.example.yaml`. Do not activate it until all of these checks pass:
+
+1. BotFather topics are enabled for the selected Mark-owned bot.
+2. Telegram `getMe` reports `has_topics_enabled=true`.
+3. The old poller for the selected token is stopped or a currently inactive bot is selected.
+4. `/opt/data/.env` contains `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS` set to Mark's numeric user ID, with mode `0600`.
+5. The example block is merged into a backed-up `/opt/data/config.yaml`, replacing the placeholder chat ID with the same numeric user ID.
+
+On the first safe gateway start, Hermes creates any missing topics and persists their thread IDs. Keep `ignore_root_dm: true` so ordinary messages cannot bypass the context topics. Never commit the token, numeric user ID, generated thread IDs, or the live config.
+
+Rollback is to stop the gateway, restore the pre-change config and `.env` backups, and start the gateway again. This does not affect OpenViking memory.

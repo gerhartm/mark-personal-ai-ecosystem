@@ -12,7 +12,7 @@ Primary workflows:
 - **Ask:** grounded answers with the exact corpus records Hermes reviewed.
 - **Quiz:** evidence-linked questions, one bounded Hermes grading pass,
   feedback, scores, and preserved session history.
-- **Studio:** X threads, LinkedIn posts, review briefs, and source-cited drafts.
+- **Studio:** X threads, LinkedIn posts, review briefs, source-cited drafts, and an explicit Mark or Creator Reference writing lens.
 - **Speaking Prep:** theses, talking points, likely questions,
   counterarguments, and closing takeaways from a selected date range.
 - **Capture:** native OpenViking URL or text ingestion with deterministic
@@ -54,7 +54,7 @@ Environment, all optional, all by name only:
 
 ## Production deployment
 
-The accepted V2 release is `20260805T152846Z`. Its reproducible runtime contract
+The accepted V2 release is `20260806T052651Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
@@ -111,7 +111,7 @@ npm start &               # the API tests exercise the running server
 npx vitest run
 ```
 
-77 tests: reconciliation against the handoff manifest, canonical identity
+80 tests: reconciliation against the handoff manifest, canonical identity
 preservation, facet derivation, precision spans, taxonomy verbatim, append-only
 notes, the identity register, unified search determinism, media authorisation
 and traversal, the Access identity boundary, bounded Hermes evidence assembly,
@@ -157,13 +157,16 @@ Writes reach the database only from the authenticated browser session. Notes are
 append only: revision 0 is the value preserved in the frozen handoff, and saving
 adds a revision rather than editing it.
 
-Studio reuses the same Hermes transport as Ask. The backend selects a small,
+Studio uses the existing native Hermes agent path so the approved context skills
+and unified OpenViking memory remain available. The backend selects a small,
 bounded set of existing corpus records and gives Hermes the chosen format,
-focus, date window, and citation contract. A generated draft is saved only when
-every returned canonical event/source citation resolves in the existing
-database. The generated body is revision 0; each browser edit appends a new
-revision and leaves the original body untouched. This adds no second agent,
-model provider, memory service, or reasoning layer.
+focus, date window, writing lens, and citation contract. The Mark lens uses the
+Crypto context directly. The Creator Reference lens changes expression only and
+refuses generation until manually supplied reference material exists. A draft is
+saved only when every returned canonical event/source citation resolves in the
+existing database. The generated body is revision 0; each browser edit appends
+a new revision and leaves the original body untouched. This adds no second
+agent, model provider, memory service, or reasoning layer.
 
 The Capture screen submits only a URL or pasted text to the authenticated
 backend. The backend computes a stable source identity, prevents exact replay,

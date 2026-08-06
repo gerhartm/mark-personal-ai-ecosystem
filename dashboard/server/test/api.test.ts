@@ -152,6 +152,7 @@ describe('the intelligence plane boundary', () => {
     const status: any = await json('/api/studio/status');
     expect(status.connected).toBe(false);
     expect(status.templates).toContain('speaking_prep');
+    expect(status.writing_lenses).toEqual(['mark', 'creator_reference']);
     const before = (await json('/api/drafts')).drafts.length;
     const res = await fetch(`${BASE}/api/studio/drafts`, {
       method: 'POST',

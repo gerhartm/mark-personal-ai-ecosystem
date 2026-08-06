@@ -82,14 +82,18 @@ jq -e '.mode == "hermes" and .state == "connected" and (.answer | length > 40) a
 studio_status="$(curl -fsS \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
   http://127.0.0.1:9331/api/studio/status)"
-jq -e '.connected == true and (.templates | index("speaking_prep")) != null' <<<"$studio_status" >/dev/null
+jq -e '
+  .connected == true and
+  (.templates | index("speaking_prep")) != null and
+  (.writing_lenses | sort) == ["creator_reference", "mark"]
+' <<<"$studio_status" >/dev/null
 
 studio_draft="$(curl -fsS \
   -H 'Content-Type: application/json' \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
-  -d '{"template_type":"speaking_prep","focus":"Aave protocol risk and market implications","date_from":"2026-04-01","date_to":"2026-07-04"}' \
+  -d '{"template_type":"speaking_prep","writing_lens":"mark","focus":"Aave protocol risk and market implications","date_from":"2026-04-01","date_to":"2026-07-04"}' \
   http://127.0.0.1:9331/api/studio/drafts)"
-jq -e '(.id | startswith("draft_")) and (.body | length > 40) and (.citations | length > 0) and .revision == 0' <<<"$studio_draft" >/dev/null
+jq -e '(.id | startswith("draft_")) and (.body | length > 40) and (.citations | length > 0) and .revision == 0 and .writing_lens == "mark"' <<<"$studio_draft" >/dev/null
 studio_id="$(jq -r '.id' <<<"$studio_draft")"
 studio_citation="$(jq -r '.citations[0].id' <<<"$studio_draft")"
 studio_revision_body="$(jq -cn --arg citation "$studio_citation" '{body: ("Canary revision preserving verified evidence [" + $citation + "].")}')"
@@ -102,7 +106,7 @@ jq -e '.revision == 1 and (.citations | length > 0)' <<<"$studio_revision" >/dev
 studio_saved="$(curl -fsS \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
   "http://127.0.0.1:9331/api/drafts/${studio_id}")"
-jq -e '(.raw_output != .edited_output) and (.revisions | length == 2) and (.citations | length > 0)' <<<"$studio_saved" >/dev/null
+jq -e '(.raw_output != .edited_output) and (.revisions | length == 2) and (.citations | length > 0) and .writing_lens == "mark"' <<<"$studio_saved" >/dev/null
 
 quiz_status="$(curl -fsS \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
@@ -124,4 +128,4 @@ quiz_graded="$(curl -fsS \
   "http://127.0.0.1:9331/api/quiz/sessions/${quiz_id}/answers")"
 jq -e '.completed_at != null and .score_total == 3 and (.questions | length == 3) and all(.questions[]; (.answer.feedback | length) > 0)' <<<"$quiz_graded" >/dev/null
 
-printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nintelligence=live-sourced\nmemory=connected\nask=connected\nstudio=generated-cited-revised\nquiz=generated-evidence-linked-graded\n'
+printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nintelligence=live-sourced\nmemory=connected\nask=connected\nstudio=generated-cited-revised-with-lenses\nquiz=generated-evidence-linked-graded\n'

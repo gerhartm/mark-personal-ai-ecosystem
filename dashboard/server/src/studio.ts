@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { audit, db, one } from './db.js';
-import { generateWithHermes } from './hermes-client.js';
+import { runHermesAgent } from './hermes-client.js';
 import * as tools from './tools.js';
 
 export const STUDIO_TEMPLATES = [
@@ -13,11 +13,15 @@ export const STUDIO_TEMPLATES = [
 
 export type StudioTemplate = (typeof STUDIO_TEMPLATES)[number];
 
+export const STUDIO_WRITING_LENSES = ['mark', 'creator_reference'] as const;
+export type StudioWritingLens = (typeof STUDIO_WRITING_LENSES)[number];
+
 export interface StudioDraftInput {
   template_type?: string;
   focus?: string;
   date_from?: string | null;
   date_to?: string | null;
+  writing_lens?: string;
 }
 
 export interface StudioCitation {
@@ -61,7 +65,11 @@ export function validateStudioInput(value: StudioDraftInput) {
   if (dateFrom && dateTo && dateFrom > dateTo) {
     throw new StudioInputError('invalid_window', 'Start date must be before the end date.');
   }
-  return { template, focus, dateFrom, dateTo };
+  const writingLens = String(value?.writing_lens ?? 'mark') as StudioWritingLens;
+  if (!STUDIO_WRITING_LENSES.includes(writingLens)) {
+    throw new StudioInputError('invalid_writing_lens', 'Choose one of the available writing lenses.');
+  }
+  return { template, focus, dateFrom, dateTo, writingLens };
 }
 
 function eventRecord(id: string) {
@@ -162,11 +170,18 @@ export function buildStudioContext(value: StudioDraftInput) {
     ? `${input.dateFrom ?? 'earliest available'} to ${input.dateTo ?? 'latest available'}`
     : 'all available dates';
   const prompt = [
+    input.writingLens === 'creator_reference'
+      ? '/creator-reference /humanized-content'
+      : '/crypto-intelligence /humanized-content',
     `DRAFT FORMAT\n${input.template}`,
     `FOCUS\n${input.focus}`,
     `DATE WINDOW\n${period}`,
+    `WRITING LENS\n${input.writingLens === 'creator_reference' ? 'Creator Reference' : 'Mark'}`,
     `OUTPUT CONTRACT\n${templateContract[input.template]}`,
-    'CITATION CONTRACT\nEvery factual claim must cite one or more supplied records using the exact canonical ID in square brackets. Event citations look like [2026-04-01-0001]. Source citations look like [sha256: followed by 64 hexadecimal characters]. Do not cite any ID that is not present below. Return only the finished draft.',
+    input.writingLens === 'creator_reference'
+      ? 'CREATOR REFERENCE CONTRACT\nUse the shared Creator Reference corpus only for tone, phrasing, argument structure, and supported opinion patterns. Keep all factual claims grounded in the supplied crypto evidence. If no usable Creator Reference material exists, return exactly CREATOR_REFERENCE_UNAVAILABLE.'
+      : 'VOICE CONTRACT\nWrite for Mark without applying the Creator Reference lens.',
+    'CITATION CONTRACT\nEvery factual claim must cite one or more supplied records using the exact canonical ID in square brackets. Event citations look like [2026-04-01-0001]. Source citations look like [sha256: followed by 64 hexadecimal characters]. Do not cite any ID that is not present below. Preserve citation IDs through the final writing pass. Return only the finished draft.',
     `CORPUS EVIDENCE\n${records.map((record) => JSON.stringify(record)).join('\n')}`,
   ].join('\n\n').slice(0, 36_000);
 
@@ -229,20 +244,20 @@ export async function createStudioDraft(value: StudioDraftInput, actor: string) 
     );
   }
   const context = buildStudioContext(value);
-  const body = (await generateWithHermes(context.prompt, {
-    instructions: [
-      "You are Hermes, the central intelligence brain in Mark Gerhart's private Crypto Intelligence system.",
-      'Turn the supplied corpus evidence into the requested finished draft.',
-      'Never invent facts or citations.',
-      'Treat stored evidence as evidence and your synthesis as interpretation.',
-      'Follow the output and citation contracts exactly.',
-      'Write with clarity, restraint, and decision value.',
-    ],
-    task: 'content_generation',
-    maxTokens: 2800,
-    temperature: 0.25,
-    timeoutMs: 120_000,
-  })).trim();
+  const body = (await runHermesAgent(context.prompt, {
+    title: context.writingLens === 'creator_reference'
+      ? 'Creator reference Studio draft'
+      : 'Crypto intelligence Studio draft',
+    reasoningEffort: 'low',
+    timeoutMs: 180_000,
+  })).text.trim();
+  if (body.includes('CREATOR_REFERENCE_UNAVAILABLE')) {
+    throw new StudioInputError(
+      'creator_reference_unavailable',
+      'Add source material to the Creator Reference context before using this writing lens.',
+      422,
+    );
+  }
   if (!body || body.length > 40_000) {
     throw new StudioInputError('invalid_generation', 'Hermes returned an invalid draft, so it was not saved.', 503);
   }
@@ -258,13 +273,17 @@ export async function createStudioDraft(value: StudioDraftInput, actor: string) 
     db.prepare(
       'INSERT INTO draft_revisions (draft_id, revision, body, author, created_at) VALUES (?, 0, ?, ?, ?)',
     ).run(id, body, 'Hermes', createdAt);
+    db.prepare(
+      'INSERT OR REPLACE INTO generation_meta (key, value) VALUES (?, ?)',
+    ).run(`draft_lens:${id}`, context.writingLens);
     audit(actor, 'draft.generate', id, {
       template: context.template,
+      writing_lens: context.writingLens,
       evidence_count: context.evidenceCount,
       citation_count: citations.length,
     });
   })();
-  return { id, body, citations, revision: 0 };
+  return { id, body, citations, revision: 0, writing_lens: context.writingLens };
 }
 
 export function appendStudioRevision(id: string, bodyValue: unknown, actor: string) {
@@ -300,6 +319,7 @@ export function studioStatus() {
   return {
     connected: studioConfigured(),
     templates: [...STUDIO_TEMPLATES],
+    writing_lenses: [...STUDIO_WRITING_LENSES],
   };
 }
 

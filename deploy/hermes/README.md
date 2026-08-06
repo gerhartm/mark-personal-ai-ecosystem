@@ -67,7 +67,7 @@ The server uses API-key authentication. Hermes receives a dedicated tenant-bound
 5. A deliberate container restart preserved `/opt/data`, the migrated configuration, the acceptance probe, and the authenticated dashboard session.
 6. The configuration was migrated to schema version `33`; exact-failure and idempotent-no-progress hard stops are enabled at five repetitions.
 7. CPU and memory limits are active at 2 vCPU and 4 GiB.
-8. Mark's approved OpenAI Platform key is connected through Hermes' native `openai-api` credential pool; GPT-5.6 Sol model discovery, one exact-response inference, and restart persistence passed. No Telegram or legacy-data credential has been added.
+8. Mark's approved model-provider credential is connected through Hermes' native credential pool and restart persistence passed. Telegram activation is recorded in the dedicated section below; no legacy-data credential has been added.
 9. OpenViking `v0.4.11` is active through Hermes's native provider path; write/search/read, independent restarts, consistent backup, disposable restore, private exposure, and credential isolation passed.
 
 OpenViking runtime acceptance is complete. No custom adapter, extra vector service, parallel agent, or Hermes source modification was introduced.
@@ -92,6 +92,7 @@ Stop the Coolify service without deleting either persistent volume. If only Open
 
 The repository-owned skills in `skills/mark/` extend the unmodified Hermes runtime:
 
+- `mark-general` gives Satoshi a focused general-assistant context for Mark while preserving the native Hermes toolset.
 - `crypto-intelligence` handles crypto ingestion, recall, research, quiz, speaking, and evidence-backed content.
 - `creator-reference` stores manually supplied creator material and applies it only as an explicit writing lens.
 - `humanized-content` is an invisible final writing pass for outward-facing content. It does not change evidence, citations, or research answers.
@@ -102,13 +103,13 @@ Deploy these directories to `/opt/data/skills/mark/`. All skills continue to use
 
 Hermes natively supports isolated private-message topic sessions with a skill bound to each topic. The approved layout is:
 
-- General: central Hermes with no forced context skill.
+- General: automatically loads `mark-general` for Mark's everyday assistant, planning, research, recall, and coordination work.
 - Crypto Intelligence: automatically loads `crypto-intelligence`.
 - Creator Reference: automatically loads `creator-reference`.
 
 Every topic is a separate conversation context, but all topics use the same OpenViking memory. The topic does not create or own a separate memory store.
 
-The dormant configuration is in `telegram-topics.example.yaml`. Do not activate it until all of these checks pass:
+The value-free reference configuration is in `telegram-topics.example.yaml`. The live Satoshi bot was activated on 2026-08-06 after all of these checks passed:
 
 1. BotFather topics are enabled for the selected Mark-owned bot.
 2. Telegram `getMe` reports `has_topics_enabled=true`.
@@ -116,6 +117,8 @@ The dormant configuration is in `telegram-topics.example.yaml`. Do not activate 
 4. `/opt/data/.env` contains `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS` set to Mark's numeric user ID, with mode `0600`.
 5. The example block is merged into a backed-up `/opt/data/config.yaml`, replacing the placeholder chat ID with the same numeric user ID.
 
-On the first safe gateway start, Hermes creates any missing topics and persists their thread IDs. Keep `ignore_root_dm: true` so ordinary messages cannot bypass the context topics. Never commit the token, numeric user ID, generated thread IDs, or the live config.
+The live bot created and persisted General, Crypto Intelligence, and Creator Reference topic IDs. General binds `mark-general`; the other two bind their matching context skills. The gateway is connected in polling mode, its allowlist is closed, and `ignore_root_dm: true` prevents ordinary root messages from bypassing the named contexts. The temporary implementation tester remains the only allowed user until Mark starts the bot and supplies his own numeric Telegram ID for the handoff. Never commit the token, numeric user ID, generated thread IDs, or the live config.
+
+Before final owner handoff, add Mark's ID to both the environment allowlist and a matching `dm_topics` block, verify all three topic bindings from Mark's account, then remove the temporary tester and their topic block. Creator Reference is operationally ready but intentionally has no invented creator profile; the first accepted source must identify the reference creator.
 
 Rollback is to stop the gateway, restore the pre-change config and `.env` backups, and start the gateway again. This does not affect OpenViking memory.

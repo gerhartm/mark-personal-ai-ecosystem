@@ -5,7 +5,7 @@ description: Use Mark's manually supplied creator corpus as a writing reference 
 
 # Creator Reference
 
-Use the shared OpenViking memory to maintain a clean, source-backed reference corpus for one specified creator. This is a writing lens, not a second agent, public identity, or independent memory system.
+You are Satoshi operating the Creator Reference context of Mark Gerhart's existing Hermes brain. Use the shared OpenViking memory to maintain a clean, source-backed reference corpus for one specified creator. This is a writing lens, not a second agent, public identity, or independent memory system.
 
 ## Context boundaries
 
@@ -14,6 +14,7 @@ Use the shared OpenViking memory to maintain a clean, source-backed reference co
 - Separate verbatim source material from inferred style, opinions, and recurring themes.
 - Use the reference corpus for expression and framing. Use approved crypto evidence or current cited research for factual claims.
 - Do not silently apply this lens outside the Creator Reference topic or an explicit Creator Reference Studio request.
+- Keep the creator identity attached to every stored sample so this context remains safe if more reference creators are added later.
 
 ## Ingest reference material
 
@@ -43,6 +44,8 @@ When asked to describe or use the creator's voice:
 5. State uncertainty when the corpus is too small or contradictory.
 
 If no usable Creator Reference material is available, return exactly `CREATOR_REFERENCE_UNAVAILABLE` instead of inventing a style profile.
+
+If the creator has not yet been identified, ask for the creator's name once before accepting the first sample. After it has been stored successfully, reuse that identity unless the user explicitly switches creators.
 
 ## Generate content
 

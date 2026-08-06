@@ -10,6 +10,7 @@ platforms:
           topics:
             - name: General
               icon_color: 7322096
+              skill: mark-general
             - name: Crypto Intelligence
               icon_color: 9367192
               skill: crypto-intelligence

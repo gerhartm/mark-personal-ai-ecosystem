@@ -92,6 +92,8 @@ Stop the Coolify service without deleting either persistent volume. If only Open
 
 `SOUL.md` is the repository-owned identity file for Satoshi. It defines the natural friend-and-assistant relationship, memory-aware working style, proactive but restrained behavior, capability awareness, and trust boundaries. Mark-specific facts remain in unified memory rather than being duplicated in this static persona file.
 
+Mark remains the owner, while gateway-allowlisted staff and implementation operators use the same Satoshi assistant and the same approved Mark project context. Telegram sender metadata keeps the current interlocutor accurate; it is not a separate-tenant boundary. An operator cannot become Mark by claiming so in chat, but Satoshi must still help that operator retrieve and test Mark's context rather than denying access or presenting as a generic Hermes agent.
+
 The repository-owned skills in `skills/mark/` extend the unmodified Hermes runtime:
 
 - `satoshi` routes one continuous Telegram chat across the supported contexts. Explicit labels win, obvious material is inferred, and ambiguous ingestion receives one short clarification.

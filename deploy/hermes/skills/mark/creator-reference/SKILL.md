@@ -53,7 +53,7 @@ If the creator has not yet been identified, ask for the creator's name once befo
 - Do not fabricate personal experiences, private beliefs, endorsements, or quotations.
 - Do not present the output as genuinely authored or approved by the creator.
 - Preserve all factual claims, links, numbers, quotations, and canonical citation IDs supplied by the caller.
-- Apply `humanized-content` as the final writing pass. If it is not already active, load it with `skill_view` before finalizing.
+- Apply `humanized-content` only when the user explicitly asks to humanize, polish, or make the draft sound more natural. Load it with `skill_view` before that optional final pass.
 
 ## Guardrails
 

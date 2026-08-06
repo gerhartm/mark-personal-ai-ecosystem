@@ -851,3 +851,12 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Architecture: all topics are isolated conversation sessions over the same Hermes brain and the same OpenViking memory. No Hermes or OpenViking source, model, provider, database, vector store, dashboard, Cloudflare object, DNS record, tunnel, Access policy, or legacy service was changed.
 - Initial verification: BotFather capability discovery passed; Telegram polling connected without conflict or authentication errors; topic creation and restart persistence passed; a real Crypto Intelligence message auto-loaded `crypto-intelligence` and returned through Hermes. General and Creator Reference binding checks are queued as the final interactive acceptance because Telegram requires a real user message in each named topic.
 - Owner handoff: after Mark starts the bot, add his numeric ID to the closed allowlist and an equivalent three-topic block, run the same acceptance checks from his account, then remove the temporary tester and their topic configuration.
+
+## 2026-08-06 - Unified Satoshi conversation approved and prepared
+
+- Operator: Codex following Darshan's approved simplification of Satoshi's Telegram experience.
+- Status: single-chat router skill prepared and documented; live cutover remains pending the required BotFather Topics toggle.
+- Product decision: replace the three visible private topics with one ordinary Satoshi conversation. Mark may explicitly label new material as Crypto Intelligence, Creator Reference, or General; obvious material is inferred; genuinely ambiguous ingestion receives one short clarification. Humanization is opt-in through ordinary language.
+- Architecture: added one native `satoshi` skill that delegates to the existing specialist skills and OpenViking tools. The single Hermes brain, single OpenViking memory, model, databases, dashboard, and security boundaries remain unchanged. No router service, second bot, agent, store, or model was added.
+- Safety gate: do not remove the live `dm_topics` configuration or enable root-DM processing until BotFather reports that Topics are disabled. The existing topic configuration remains the rollback state until the unified root chat passes real-message acceptance.
+- Recovery material: `deploy/hermes/telegram-single-chat.example.yaml` records the value-free target configuration; live token, user ID, chat ID, and prior generated topic IDs remain outside Git.

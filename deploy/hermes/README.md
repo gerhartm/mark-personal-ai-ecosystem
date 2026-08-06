@@ -92,10 +92,11 @@ Stop the Coolify service without deleting either persistent volume. If only Open
 
 The repository-owned skills in `skills/mark/` extend the unmodified Hermes runtime:
 
+- `satoshi` routes one continuous Telegram chat across the supported contexts. Explicit labels win, obvious material is inferred, and ambiguous ingestion receives one short clarification.
 - `mark-general` gives Satoshi a focused general-assistant context for Mark while preserving the native Hermes toolset.
 - `crypto-intelligence` handles crypto ingestion, recall, research, quiz, speaking, and evidence-backed content.
 - `creator-reference` stores manually supplied creator material and applies it only as an explicit writing lens.
-- `humanized-content` is an invisible final writing pass for outward-facing content. It does not change evidence, citations, or research answers.
+- `humanized-content` is an opt-in final writing pass. Mark invokes it when he wants a draft polished; it never changes evidence, citations, or research answers.
 
 Deploy these directories to `/opt/data/skills/mark/`. All skills continue to use the same Hermes brain and the same OpenViking provider. They do not add another agent, database, vector store, or model service.
 
@@ -122,3 +123,24 @@ The live bot created and persisted General, Crypto Intelligence, and Creator Ref
 Before final owner handoff, add Mark's ID to both the environment allowlist and a matching `dm_topics` block, verify all three topic bindings from Mark's account, then remove the temporary tester and their topic block. Creator Reference is operationally ready but intentionally has no invented creator profile; the first accepted source must identify the reference creator.
 
 Rollback is to stop the gateway, restore the pre-change config and `.env` backups, and start the gateway again. This does not affect OpenViking memory.
+
+## Unified Telegram chat cutover
+
+The three-topic layout above proved the native bindings but produced unnecessary Telegram UI friction. The approved steady-state design is one ordinary Satoshi DM with request-level routing:
+
+- Mark can explicitly say whether new material is for Crypto Intelligence, Creator Reference, or General memory.
+- Satoshi infers an obvious destination without asking.
+- Satoshi asks one short question before genuinely ambiguous ingestion.
+- Humanization is opt-in through an ordinary request such as `Humanize this`.
+
+The value-free target configuration is in `telegram-single-chat.example.yaml`. It uses Hermes's native per-channel prompt to load the `satoshi` router skill; the router delegates to the existing specialist skills and native OpenViking tools. No routing service or additional persistence layer is introduced.
+
+Cutover must be performed in this order:
+
+1. Disable Topics for the bot in BotFather and confirm Telegram reports `has_topics_enabled=false`.
+2. Back up the live Hermes config, environment, skills, and session state.
+3. Remove `dm_topics`, set `ignore_root_dm: false`, and add the root-chat prompt shown in the value-free example for each allowed owner or tester.
+4. Restart only the Hermes gateway and send a real root-DM message.
+5. Verify the `satoshi` skill loads, explicit Crypto and Creator Reference ingestion routes correctly, ambiguous ingestion asks once, and `Humanize this` loads only the writing finalizer.
+
+Do not apply step 3 while Topics remain enabled. The old topic sessions may remain as inactive history; no destructive deletion is required.

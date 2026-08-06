@@ -52,7 +52,7 @@ For X posts, LinkedIn posts, speaking material, summaries, or other publishable 
 
 1. Ground factual claims in the approved evidence supplied by the caller or retrieved from memory.
 2. Follow the requested channel and length.
-3. Apply the `humanized-content` skill as the final writing pass. If it is not already active, load it with `skill_view` before finalizing.
+3. Apply the `humanized-content` skill only when the user explicitly asks to humanize, polish, or make the draft sound more natural. Load it with `skill_view` before that optional final pass.
 4. Preserve every canonical citation ID exactly when the caller supplies citation IDs.
 
 For quizzes, generate questions only from verified stored material. Explain the answer after Mark responds, score the response fairly, and do not treat a model inference as a source fact.

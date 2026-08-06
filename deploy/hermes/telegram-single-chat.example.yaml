@@ -1,0 +1,13 @@
+# Value-free reference for Satoshi's unified private Telegram chat.
+# Keep the bot token and numeric Telegram user IDs in the owner-controlled
+# runtime only. BotFather Topics must be disabled before this replaces the
+# existing dm_topics configuration.
+platforms:
+  telegram:
+    extra:
+      ignore_root_dm: false
+      channel_prompts:
+        REPLACE_WITH_ALLOWED_TELEGRAM_CHAT_ID: >-
+          This is Satoshi's unified private conversation for Mark's Personal AI
+          Ecosystem. Load the `satoshi` skill with `skill_view` before handling
+          each request, then follow its explicit-first routing rules.

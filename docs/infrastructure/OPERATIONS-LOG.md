@@ -861,3 +861,10 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Safety gate: do not remove the live `dm_topics` configuration or enable root-DM processing until BotFather reports that Topics are disabled. The existing topic configuration remains the rollback state until the unified root chat passes real-message acceptance.
 - Recovery material: `deploy/hermes/telegram-single-chat.example.yaml` records the value-free target configuration; live token, user ID, chat ID, and prior generated topic IDs remain outside Git.
 - Interaction contract: routing is internal and invisible during ordinary use. Satoshi presents as one natural personal assistant, may use any installed native Hermes or approved Mark skill, consults unified memory when day-to-day context is relevant, verifies real tool access rather than assuming it, and asks for a branch only before genuinely ambiguous ingestion.
+
+## 2026-08-06 - Satoshi identity customized
+
+- Operator: Codex following Darshan's explicit instruction to make the assistant feel like a capable friend who understands Mark's day-to-day work.
+- Identity: named the assistant Satoshi in the supported Hermes `SOUL.md` identity slot. The persona is warm, candid, context-aware, proactive without noise, honest about uncertainty, and able to use the full installed Hermes tool and skill set without exposing internal routing.
+- Knowledge boundary: dynamic facts about Mark remain in the unified OpenViking memory and current conversation instead of being copied into a static persona file. Satoshi must search that memory when Mark's projects, preferences, people, routines, decisions, or commitments affect the answer.
+- Safety: the identity requires real access verification, privacy and budget protection, source fidelity, and confirmation before destructive, public, financial, or externally consequential actions. No Hermes source, model, provider, database, or memory implementation was changed.

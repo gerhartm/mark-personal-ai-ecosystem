@@ -90,6 +90,8 @@ Stop the Coolify service without deleting either persistent volume. If only Open
 
 ## Mark context skills
 
+`SOUL.md` is the repository-owned identity file for Satoshi. It defines the natural friend-and-assistant relationship, memory-aware working style, proactive but restrained behavior, capability awareness, and trust boundaries. Mark-specific facts remain in unified memory rather than being duplicated in this static persona file.
+
 The repository-owned skills in `skills/mark/` extend the unmodified Hermes runtime:
 
 - `satoshi` routes one continuous Telegram chat across the supported contexts. Explicit labels win, obvious material is inferred, and ambiguous ingestion receives one short clarification.

@@ -94,6 +94,8 @@ Stop the Coolify service without deleting either persistent volume. If only Open
 
 Mark remains the owner, while gateway-allowlisted staff and implementation operators use the same Satoshi assistant and the same approved Mark project context. Telegram sender metadata keeps the current interlocutor accurate; it is not a separate-tenant boundary. An operator cannot become Mark by claiming so in chat, but Satoshi must still help that operator retrieve and test Mark's context rather than denying access or presenting as a generic Hermes agent.
 
+One explicitly allowlisted implementation chat may be placed in bounded owner-experience acceptance mode through a native channel prompt. In that chat only, Satoshi addresses the tester as Mark, resolves first-person language as Mark, retrieves Mark's canonical context, and exercises the same workflows Mark will receive. This is a test-harness behavior, not an identity or authorization change: it does not add users, widen the Telegram allowlist, create another profile, duplicate memory, or allow casual test statements to overwrite Mark's canonical biography. The value-free reference is `telegram-owner-simulation.example.yaml`. Back up the config and recent tester sessions before enabling it; reset only the tester's Telegram sessions afterward so cached identity conclusions cannot survive the cutover.
+
 The repository-owned skills in `skills/mark/` extend the unmodified Hermes runtime:
 
 - `satoshi` routes one continuous Telegram chat across the supported contexts. Explicit labels win, obvious material is inferred, and ambiguous ingestion receives one short clarification.
@@ -103,6 +105,8 @@ The repository-owned skills in `skills/mark/` extend the unmodified Hermes runti
 - `humanized-content` is an opt-in final writing pass. Mark invokes it when he wants a draft polished; it never changes evidence, citations, or research answers.
 
 Deploy these directories to `/opt/data/skills/mark/`. All skills continue to use the same Hermes brain and the same OpenViking provider. They do not add another agent, database, vector store, or model service.
+
+The active Hermes inference provider is the native `openai-api` provider with `gpt-5.6-sol` and `agent.reasoning_effort=high`. The credential remains in Hermes's native credential pool and is not stored in this repository. Anthropic remains available only as an unused recovery credential. Provider changes require a configuration backup, an isolated response canary, a restart, and a real Satoshi acceptance check.
 
 Mark's professional background, working goals, system capabilities, and confidence boundaries live as one private canonical OpenViking resource under the Mark namespace. The private source document stays outside Git in the owner-only client secret tree. `tools/memory/sync_mark_context.py` is the replay-safe importer; it checks the deterministic target before writing and verifies the accepted content through native reads. The `satoshi` skill requires this profile to be consulted for Mark-specific identity, career, goal, architecture, Crypto Intelligence, and Creator Reference questions.
 

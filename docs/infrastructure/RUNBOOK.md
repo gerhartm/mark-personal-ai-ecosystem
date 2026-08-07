@@ -222,38 +222,52 @@ The configuration backup created before schema migration is:
 
 ### Hermes model provider
 
-The active primary provider is Hermes' native Anthropic provider with default model `claude-sonnet-5`. This is the shared brain provider for ForkedBrain and the Crypto Intelligence dashboard. No Hermes source, tool, memory, or prompt behavior was patched for this switch.
+The active primary provider is Hermes' native `openai-api` provider with default model `gpt-5.6-sol` and reasoning effort `high`. This is the shared brain provider for Satoshi, ForkedBrain, and the Crypto Intelligence dashboard. No Hermes source, tool, or memory implementation was patched for this switch.
 
-The raw provider key is stored only in the owner-only credential bundle and `/opt/data/.env`. The runtime file must remain mode `0600`, owned by Hermes UID/GID `10000:10000`, and included only in encrypted backups. The dashboard container receives no model-provider credential.
+The raw provider key is stored only in the owner-only credential bundle and Hermes's native credential pool inside persistent data. The dashboard containers receive no model-provider credential.
 
 Verify without exposing the key:
 
 ```bash
 docker exec hermes-27am3wgv7vkohkenprml4s3p hermes config get model.provider
 docker exec hermes-27am3wgv7vkohkenprml4s3p hermes config get model.default
+docker exec hermes-27am3wgv7vkohkenprml4s3p hermes config get agent.reasoning_effort
 docker exec hermes-27am3wgv7vkohkenprml4s3p hermes config check
-docker exec hermes-27am3wgv7vkohkenprml4s3p stat -c '%n|%a|%u:%g' /opt/data/.env
 ```
 
 Expected provider state:
 
 ```text
-model.provider=anthropic
-model.default=claude-sonnet-5
+model.provider=openai-api
+model.default=gpt-5.6-sol
+agent.reasoning_effort=high
 configuration valid at schema 33
-/opt/data/.env mode 600, owner 10000:10000
 ```
 
-The pre-switch configuration and provider-file backups are:
+The current pre-switch recovery point is:
 
 ```text
-/opt/data/operator-backups/provider-switch-20260803T151944Z/config.yaml
-/opt/data/operator-backups/provider-switch-20260803T151944Z/provider.env
+/root/mark-v2-backups/20260807T120931Z-mark-owner-simulation-sol/
 ```
 
-The former OpenAI pool remains historical and inactive. Its project currently reports exhausted quota. Do not silently switch providers or delete historical authentication state. Any future change requires a provider backup, one isolated minimal response, configuration validation, a Hermes restart, and a real application-level Ask test.
+The Anthropic credential is retained only for controlled rollback and is not selected. Do not silently switch providers or delete historical authentication state. Any future change requires a provider backup, one isolated minimal response, configuration validation, a Hermes restart, and real Satoshi plus application-level Ask tests.
 
 The gateway status may briefly retain a recent-history message that the pre-restart process is gone. That message was produced by the deliberate restart acceptance test; verify the current process and dashboard before treating it as an incident.
+
+### Telegram owner-experience acceptance mode
+
+Darshan's existing allowlisted implementation chat is intentionally configured as a bounded Mark owner-experience test. The native Telegram channel prompt makes Satoshi address that chat as Mark and retrieve Mark's canonical context, while the gateway's numeric-user allowlist remains the real access boundary.
+
+Verify without printing the real chat ID or prompt:
+
+```bash
+docker exec -u hermes hermes-27am3wgv7vkohkenprml4s3p /opt/hermes/.venv/bin/python -c "import yaml; c=yaml.safe_load(open('/opt/data/config.yaml')); p=c['platforms']['telegram']['extra'].get('channel_prompts', {}); print(len(p)); print(any('owner-experience acceptance testing' in str(v) for v in p.values()))"
+docker exec -u hermes hermes-27am3wgv7vkohkenprml4s3p hermes sessions list --source telegram --limit 20
+```
+
+Expected configuration result is one prompt and `True`. After a deliberate identity-behavior change, back up recent Telegram session state and remove only the tester sessions so cached conclusions do not override the new instructions. Never remove OpenViking memory for this purpose. The accepted pre-change recovery point is `/root/mark-v2-backups/20260807T120931Z-mark-owner-simulation-sol/`.
+
+To end the simulation, restore the backed-up config or remove only the tester's channel prompt through Hermes's supported config path, restart Hermes, and send a new test message. Do not change the allowlist, token, memory provider, or Mark's canonical profile.
 
 ## OpenViking native memory — deployed privately
 
@@ -403,7 +417,7 @@ The isolated V2 Cloudflare tunnel, `brain`, `manage`, and `manage-realtime` host
 5. **Completed:** deploy the official self-hosted OpenViking provider as a separate internal Coolify service with persistent encrypted storage and no public exposure.
 6. **Completed:** connect Hermes through the official OpenViking provider path and verify tenancy, write/search/read, independent restarts, consistent backup, disposable restore, credential escrow, and temporary-access cleanup.
 7. **Completed:** add and live-test only the thin Crypto-specific identity, visible provenance, replay guard, and receipt logic that Hermes/OpenViking do not already provide.
-8. Keep `claude-sonnet-5` as the shared Hermes default until measured Crypto workloads justify a different native provider or model.
+8. **Completed:** promoted native OpenAI API `gpt-5.6-sol` with high reasoning as the shared Hermes default after an isolated canary and Satoshi owner-context acceptance.
 9. **Completed for synthetic data:** run native URL/document/transcript/event acceptance, exact retrieval, replay-skip, failure-receipt, and cleanup tests.
 10. **Superseded by the complete plan:** the earlier 47-source/66-event bundle remains a historical dry-run artifact.
 11. **Completed:** build and independently verify the complete 131-source/artifact plus 66-event semantic bundle, normalized dashboard database, 89-file media archive, and Claude Code handoff.
@@ -488,7 +502,7 @@ The health endpoint is intentionally available only on the loopback origin. Ever
 
 - graph HTTP `200`, exactly 20 total visible nodes, 16 ranked memory records, at least one retained research conversation when conversation data exists, and the current total of 164 indexed memories
 - detail HTTP `200` with real body, metadata, and stored insights where available
-- chat reaches Hermes and returns a non-empty answer through the configured native Anthropic provider
+- chat reaches Hermes and returns a non-empty answer through the configured native OpenAI API provider
 - unknown or unapproved identities receive HTTP `401`
 
 ### Root-domain verification

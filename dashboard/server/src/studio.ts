@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { audit, db, one } from './db.js';
 import { runHermesAgent } from './hermes-client.js';
+import { sourceContent } from './ingestion.js';
 import * as tools from './tools.js';
 
 export const STUDIO_TEMPLATES = [
@@ -90,15 +91,17 @@ function eventRecord(id: string) {
   };
 }
 
-function sourceRecord(id: string) {
+async function sourceRecord(id: string) {
   const source = tools.getSource(id) as any;
   if (!source) return null;
+  const content = await sourceContent(id, 5_000);
   return {
     id: source.source_id,
     kind: 'source',
     title: compact(source.title ?? source.source_label, 300),
     source_type: source.source_type,
     captured_at: source.captured_at ?? source.timestamp,
+    content: compact(content, 5_000),
     events: Array.isArray(source.events)
       ? source.events.slice(0, 5).map((event: any) => ({
           id: event.id,
@@ -122,7 +125,7 @@ const templateContract: Record<StudioTemplate, string> = {
     'Create a year-in-review briefing that identifies major shifts, durable patterns, turning points, risks, and forward implications.',
 };
 
-export function buildStudioContext(value: StudioDraftInput) {
+export async function buildStudioContext(value: StudioDraftInput) {
   const input = validateStudioInput(value);
   const hits = tools.search(input.focus, 16).results as any[];
   const records: any[] = [];
@@ -134,7 +137,7 @@ export function buildStudioContext(value: StudioDraftInput) {
     const record = hit.kind === 'event'
       ? eventRecord(hit.canonical_id)
       : hit.kind === 'source'
-        ? sourceRecord(hit.canonical_id)
+        ? await sourceRecord(hit.canonical_id)
         : null;
     if (!record) continue;
     seen.add(key);
@@ -169,6 +172,15 @@ export function buildStudioContext(value: StudioDraftInput) {
   const period = input.dateFrom || input.dateTo
     ? `${input.dateFrom ?? 'earliest available'} to ${input.dateTo ?? 'latest available'}`
     : 'all available dates';
+  const evidence: string[] = [];
+  let evidenceLength = 0;
+  for (const record of records) {
+    const serialized = JSON.stringify(record);
+    if (evidenceLength + serialized.length > 28_000) continue;
+    evidence.push(serialized);
+    evidenceLength += serialized.length;
+  }
+
   const prompt = [
     input.writingLens === 'creator_reference'
       ? '/creator-reference /humanized-content'
@@ -179,13 +191,13 @@ export function buildStudioContext(value: StudioDraftInput) {
     `WRITING LENS\n${input.writingLens === 'creator_reference' ? 'Creator Reference' : 'Mark'}`,
     `OUTPUT CONTRACT\n${templateContract[input.template]}`,
     input.writingLens === 'creator_reference'
-      ? 'CREATOR REFERENCE CONTRACT\nUse the shared Creator Reference corpus only for tone, phrasing, argument structure, and supported opinion patterns. Keep all factual claims grounded in the supplied crypto evidence. If no usable Creator Reference material exists, return exactly CREATOR_REFERENCE_UNAVAILABLE.'
+      ? 'CREATOR REFERENCE CONTRACT\nUse the shared Creator Reference corpus only for tone, phrasing, argument structure, and supported opinion patterns. Keep all factual claims grounded in the supplied crypto evidence. Search and read the unified OpenViking memory for the Creator Reference profile and sources before deciding they are unavailable. If no usable Creator Reference material exists after that native retrieval, return exactly CREATOR_REFERENCE_UNAVAILABLE.'
       : 'VOICE CONTRACT\nWrite for Mark without applying the Creator Reference lens.',
     'CITATION CONTRACT\nEvery factual claim must cite one or more supplied records using the exact canonical ID in square brackets. Event citations look like [2026-04-01-0001]. Source citations look like [sha256: followed by 64 hexadecimal characters]. Do not cite any ID that is not present below. Preserve citation IDs through the final writing pass. Return only the finished draft.',
-    `CORPUS EVIDENCE\n${records.map((record) => JSON.stringify(record)).join('\n')}`,
+    `CORPUS EVIDENCE\n${evidence.join('\n')}`,
   ].join('\n\n').slice(0, 36_000);
 
-  return { ...input, prompt, evidenceCount: records.length };
+  return { ...input, prompt, evidenceCount: evidence.length };
 }
 
 export function extractCitationIds(body: string) {
@@ -243,14 +255,18 @@ export async function createStudioDraft(value: StudioDraftInput, actor: string) 
       503,
     );
   }
-  const context = buildStudioContext(value);
-  const body = (await runHermesAgent(context.prompt, {
+  const context = await buildStudioContext(value);
+  const generate = (prompt: string) => runHermesAgent(prompt, {
     title: context.writingLens === 'creator_reference'
       ? 'Creator reference Studio draft'
       : 'Crypto intelligence Studio draft',
     reasoningEffort: 'low',
     timeoutMs: 180_000,
-  })).text.trim();
+  });
+  let body = (await generate(context.prompt)).text.trim();
+  if (context.writingLens === 'creator_reference' && body.includes('CREATOR_REFERENCE_UNAVAILABLE')) {
+    body = (await generate(`${context.prompt}\n\nRETRY REQUIREMENT\nThe shared Creator Reference material is known to exist. Use native OpenViking search and read now, then produce the requested cited draft.`)).text.trim();
+  }
   if (body.includes('CREATOR_REFERENCE_UNAVAILABLE')) {
     throw new StudioInputError(
       'creator_reference_unavailable',

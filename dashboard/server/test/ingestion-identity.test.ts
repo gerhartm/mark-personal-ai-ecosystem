@@ -41,4 +41,11 @@ describe('capture identity contract', () => {
   it('refuses credentials embedded in a URL', () => {
     expect(() => normalizeCaptureUrl('https://user:secret@example.com/report')).toThrow(CaptureInputError);
   });
+
+  it('refuses local and private network targets before acquisition', () => {
+    expect(() => normalizeCaptureUrl('http://127.0.0.1/private')).toThrow(/public source URL/i);
+    expect(() => normalizeCaptureUrl('http://10.0.0.4/private')).toThrow(/public source URL/i);
+    expect(() => normalizeCaptureUrl('http://[::1]/private')).toThrow(/public source URL/i);
+    expect(() => normalizeCaptureUrl('http://localhost/private')).toThrow(/public source URL/i);
+  });
 });

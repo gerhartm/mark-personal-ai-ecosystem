@@ -29,8 +29,8 @@ describe('production access boundary', () => {
 });
 
 describe('Hermes evidence boundary', () => {
-  it('assembles bounded evidence from the existing crypto database', () => {
-    const context = buildAskContext('What happened with Aave utilisation?');
+  it('assembles bounded evidence from the existing crypto database', async () => {
+    const context = await buildAskContext('What happened with Aave utilisation?');
     expect(context.records).toBeGreaterThan(0);
     expect(context.hits.length).toBeLessThanOrEqual(10);
     expect(context.input).toContain('CURRENT QUESTION');
@@ -45,8 +45,8 @@ describe('Hermes evidence boundary', () => {
 });
 
 describe('Studio intelligence boundary', () => {
-  it('builds one bounded, evidence-backed request for the existing Hermes brain', () => {
-    const context = buildStudioContext({
+  it('builds one bounded, evidence-backed request for the existing Hermes brain', async () => {
+    const context = await buildStudioContext({
       template_type: 'speaking_prep',
       focus: 'Aave utilisation and protocol risk',
       date_from: '2026-04-01',

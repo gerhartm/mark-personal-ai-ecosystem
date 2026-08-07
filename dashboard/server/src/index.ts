@@ -5,7 +5,7 @@ import { dirname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MEDIA_ROOT, audit, all, one, run } from './db.js';
 import { buildAskContext } from './ask-context.js';
-import { askHermes, cleanHermesError } from './hermes-client.js';
+import { cleanHermesError, runHermesAgent } from './hermes-client.js';
 import {
   IntelligenceError,
   intelligenceStatus,
@@ -399,7 +399,11 @@ app.post('/api/ingestion', async (req, reply) => {
     return await captureSource(req.body as any, actor);
   } catch (error) {
     if (error instanceof CaptureInputError) {
-      const status = error.code.startsWith('invalid_') || error.code === 'text_too_long' ? 400 : 503;
+      const status = error.code.startsWith('invalid_') || error.code === 'text_too_long'
+        ? 400
+        : error.code === 'unsupported_social_url'
+          ? 422
+          : 503;
       return reply.code(status).send({ error: error.code, message: error.message });
     }
     return reply.code(503).send({
@@ -437,9 +441,13 @@ app.post('/api/ask', async (req, reply) => {
       results,
     };
   }
-  const context = buildAskContext(question);
+  const context = await buildAskContext(question);
   try {
-    const answer = await askHermes(context.input);
+    const answer = (await runHermesAgent(context.input, {
+      title: 'Crypto Intelligence question',
+      reasoningEffort: 'low',
+      timeoutMs: 180_000,
+    })).text;
     return {
       mode: 'hermes',
       state: 'connected',

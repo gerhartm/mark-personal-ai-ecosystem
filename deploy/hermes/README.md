@@ -110,9 +110,9 @@ The active Hermes inference provider is the native `openai-api` provider with `g
 
 Mark's professional background, working goals, system capabilities, and confidence boundaries live as one private canonical OpenViking resource under the Mark namespace. The private source document stays outside Git in the owner-only client secret tree. `tools/memory/sync_mark_context.py` is the replay-safe importer; it checks the deterministic target before writing and verifies the accepted content through native reads. The `satoshi` skill requires this profile to be consulted for Mark-specific identity, career, goal, architecture, Crypto Intelligence, and Creator Reference questions.
 
-## Telegram context topics
+## Historical Telegram topic trial
 
-Hermes natively supports isolated private-message topic sessions with a skill bound to each topic. The approved layout is:
+Hermes natively supports isolated private-message topic sessions with a skill bound to each topic. This three-topic layout was activated and validated on 2026-08-06, then retired because the extra Telegram UI did not fit the desired single-assistant experience:
 
 - General: automatically loads `mark-general` for Mark's everyday assistant, planning, research, recall, and coordination work.
 - Crypto Intelligence: automatically loads `crypto-intelligence`.
@@ -128,13 +128,9 @@ The value-free reference configuration is in `telegram-topics.example.yaml`. The
 4. `/opt/data/.env` contains `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS` set to Mark's numeric user ID, with mode `0600`.
 5. The example block is merged into a backed-up `/opt/data/config.yaml`, replacing the placeholder chat ID with the same numeric user ID.
 
-The live bot created and persisted General, Crypto Intelligence, and Creator Reference topic IDs. General binds `mark-general`; the other two bind their matching context skills. The gateway is connected in polling mode, its allowlist is closed, and `ignore_root_dm: true` prevents ordinary root messages from bypassing the named contexts. The temporary implementation tester remains the only allowed user until Mark starts the bot and supplies his own numeric Telegram ID for the handoff. Never commit the token, numeric user ID, generated thread IDs, or the live config.
+The trial created and persisted General, Crypto Intelligence, and Creator Reference topic IDs. Its configuration and IDs are retained only in private recovery material. They are not part of the current runtime. Never commit the token, numeric user ID, generated thread IDs, or live config.
 
-Before final owner handoff, add Mark's ID to both the environment allowlist and a matching `dm_topics` block, verify all three topic bindings from Mark's account, then remove the temporary tester and their topic block. Creator Reference is operationally ready but intentionally has no invented creator profile; the first accepted source must identify the reference creator.
-
-Rollback is to stop the gateway, restore the pre-change config and `.env` backups, and start the gateway again. This does not affect OpenViking memory.
-
-## Unified Telegram chat cutover
+## Unified Telegram chat — current accepted state
 
 The three-topic layout above proved the native bindings but produced unnecessary Telegram UI friction. The approved steady-state design is one ordinary Satoshi DM with request-level routing:
 
@@ -146,12 +142,6 @@ The three-topic layout above proved the native bindings but produced unnecessary
 
 The value-free target configuration is in `telegram-single-chat.example.yaml`. It uses Hermes's native per-channel prompt to load the `satoshi` router skill; the router delegates to the existing specialist skills and native OpenViking tools. No routing service or additional persistence layer is introduced.
 
-Cutover must be performed in this order:
+The cutover was accepted on 2026-08-07 after BotFather reported `has_topics_enabled=false`. The live configuration has no `dm_topics`, uses `ignore_root_dm: false`, and retains one channel prompt for the explicitly approved owner-simulation tester. The gateway runs as user `hermes`, registered the bot successfully, and a real Bot API delivery to the allowlisted tester passed.
 
-1. Disable Topics for the bot in BotFather and confirm Telegram reports `has_topics_enabled=false`.
-2. Back up the live Hermes config, environment, skills, and session state.
-3. Remove `dm_topics`, set `ignore_root_dm: false`, and add the root-chat prompt shown in the value-free example for each allowed owner or tester.
-4. Restart only the Hermes gateway and send a real root-DM message.
-5. Verify the `satoshi` skill loads, explicit Crypto and Creator Reference ingestion routes correctly, ambiguous ingestion asks once, and `Humanize this` loads only the writing finalizer.
-
-Do not apply step 3 while Topics remain enabled. The old topic sessions may remain as inactive history; no destructive deletion is required.
+Mark owner handoff is the only external step: Mark starts the bot and provides his numeric Telegram ID; the operator backs up the live config and state, moves the closed allowlist and matching channel prompt from the temporary tester to Mark, restarts only Hermes, and repeats the Satoshi identity, memory, Crypto, Creator Reference and humanization checks from Mark's account. Rollback is to restore the pre-final Hermes config and state from `/root/mark-v2-backups/20260807T152133Z-pre-final-option1/` and restart only Hermes. This does not affect OpenViking or dashboard data.

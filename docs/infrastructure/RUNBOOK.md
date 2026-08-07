@@ -518,12 +518,12 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260806T052651Z`
+Current accepted release: `20260807T152605Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260806T052651Z`
+- image: `mark-crypto-dashboard:20260807T152605Z`
 - loopback origin: `http://127.0.0.1:9330`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`
@@ -561,7 +561,12 @@ The static interface must be protected by Cloudflare Access. Every data endpoint
 - `GET /api/quiz/status` reports `connected=true`; Quiz generation and grading are exercised only in the disposable release canary and must return exactly three evidence-linked questions, one complete feedback record per answer, and no production quiz write
 - database `PRAGMA integrity_check` is `ok` and `PRAGMA foreign_key_check` returns no rows
 
-Capture uses OpenViking's native URL/text acquisition path. Do not add a custom
+Capture uses OpenViking's native URL/text acquisition path and Hermes's native
+media skill for YouTube transcripts. YouTube is accepted only after a non-empty
+transcript is stored and an exact native readback succeeds. Exact duplicates may
+repair a stale capture and refresh the existing FTS projection. Private or
+loopback targets are rejected. X and Instagram links are not claimed as captured;
+the current interface asks for pasted source text instead. Do not add a custom
 scraper, queue, vector database, or memory service around it. OpenViking's
 approved VLM and embedding providers are funded and available. Before a release
 that changes ingestion behavior, use a disposable fixture and require native
@@ -616,7 +621,7 @@ The pre-route Cloudflare tunnel configuration is retained at:
 /srv/mark-v2/operator-backups/20260803T154358Z-cloudflared-crypto-route/config.yml
 ```
 
-To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, restore `/srv/mark-v2/crypto-dashboard/backups/pre-20260806T052651Z/crypto-intelligence.db`, stop and remove only the current `crypto-dashboard`, rename `crypto-dashboard-rollback-20260805T152846Z` back to `crypto-dashboard`, restore its restart policy, and start it. The retained predecessor image is `mark-crypto-dashboard:20260805T152846Z`. Do not alter Hermes, OpenViking, ForkedBrain, Cloudflare, or the legacy `intel.forkedbrain.fyi` service.
+To remove public routing without changing the application, restore that file to `/etc/cloudflared/config.yml`, validate it, and restart `cloudflared`. To roll back the application, first preserve the current database, point `dashboard/deploy/docker-compose.production.yml` to `mark-crypto-dashboard:20260806T052651Z`, and recreate only `crypto-dashboard`. Restore `/srv/mark-v2/crypto-dashboard/backups/pre-20260807T152605Z/crypto-intelligence.db` only if a data rollback is also required. The clean accepted-state backup is `/srv/mark-v2/crypto-dashboard/backups/post-20260807T152605Z/`. The 2026-08-07 promotion used the old default Compose project identity, which consumed the renamed predecessor, so do not expect a stopped rollback container for this one release. The corrected promotion script assigns each future release a unique Compose project and will retain its renamed predecessor. Do not alter Hermes, OpenViking, ForkedBrain, Cloudflare, or the legacy `intel.forkedbrain.fyi` service.
 
 # Cloudflare domain change gate
 

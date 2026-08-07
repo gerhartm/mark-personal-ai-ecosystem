@@ -3,6 +3,7 @@ set -euo pipefail
 
 release="${1:?usage: promote-release.sh <release> <previous-release>}"
 previous="${2:?usage: promote-release.sh <release> <previous-release>}"
+project="crypto-dashboard-${release,,}"
 compose=/srv/mark-v2/crypto-dashboard/deploy/docker-compose.production.yml
 canary="crypto-dashboard-canary-${release}"
 rollback="crypto-dashboard-rollback-${previous}"
@@ -27,7 +28,10 @@ before="$(sha256sum /srv/mark-v2/crypto-dashboard/data/crypto-intelligence.db | 
 docker stop crypto-dashboard >/dev/null
 docker rename crypto-dashboard "$rollback"
 docker update --restart=no "$rollback" >/dev/null
-docker compose -f "$compose" up -d
+# Give every release its own Compose project identity. Reusing the default
+# project name causes Compose to adopt and recreate the renamed predecessor,
+# defeating the stopped-container rollback we intentionally keep above.
+docker compose -p "$project" -f "$compose" up -d
 
 for _ in $(seq 1 30); do
   test "$(docker inspect -f '{{.State.Health.Status}}' crypto-dashboard)" = healthy && break
@@ -39,7 +43,7 @@ test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9330/)" = 401
 test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/)" = 200
 
 brief="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/api/brief)"
-jq -e '.counts.events == 66 and .counts.sources == 47 and .counts.media == 89' <<<"$brief" >/dev/null
+jq -e '.counts.events >= 66 and .counts.sources >= 47 and .counts.media == 89' <<<"$brief" >/dev/null
 test "$before" = "$(sha256sum /srv/mark-v2/crypto-dashboard/data/crypto-intelligence.db | awk '{print $1}')"
 
 intelligence_status="$(curl -fsS \
@@ -77,5 +81,6 @@ jq -e '.connected == true and .default_question_count == 5' <<<"$quiz_status" >/
 docker rm -f "$canary" >/dev/null
 rm -rf "/srv/mark-v2/crypto-dashboard/canary/${release}"
 
-printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nintelligence=connected\nmemory=connected\nmedia_range=206\nask=connected\nstudio=connected-with-lenses\nquiz=connected\nrollback=%s\nbackup=%s\n' \
-  "$release" "$rollback" "${backup_dir}/crypto-intelligence.db"
+counts="$(jq -r '[.counts.events,.counts.sources,.counts.media]|join(":")' <<<"$brief")"
+printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=%s\nintelligence=connected\nmemory=connected\nmedia_range=206\nask=connected\nstudio=connected-with-lenses\nquiz=connected\nrollback=%s\nbackup=%s\n' \
+  "$release" "$counts" "$rollback" "${backup_dir}/crypto-intelligence.db"

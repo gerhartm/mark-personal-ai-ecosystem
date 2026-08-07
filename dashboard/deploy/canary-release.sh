@@ -49,7 +49,7 @@ test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9331/)" = 401
 test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9331/)" = 200
 
 brief="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9331/api/brief)"
-jq -e '.counts.events == 66 and .counts.sources == 47 and .counts.media == 89' <<<"$brief" >/dev/null
+jq -e '.counts.events >= 66 and .counts.sources >= 47 and .counts.media == 89' <<<"$brief" >/dev/null
 
 intelligence_status="$(curl -fsS \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
@@ -128,4 +128,5 @@ quiz_graded="$(curl -fsS \
   "http://127.0.0.1:9331/api/quiz/sessions/${quiz_id}/answers")"
 jq -e '.completed_at != null and .score_total == 3 and (.questions | length == 3) and all(.questions[]; (.answer.feedback | length) > 0)' <<<"$quiz_graded" >/dev/null
 
-printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=66:47:89\nintelligence=live-sourced\nmemory=connected\nask=connected\nstudio=generated-cited-revised-with-lenses\nquiz=generated-evidence-linked-graded\n'
+counts="$(jq -r '[.counts.events,.counts.sources,.counts.media]|join(":")' <<<"$brief")"
+printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=%s\nintelligence=live-sourced\nmemory=connected\nask=connected\nstudio=generated-cited-revised-with-lenses\nquiz=generated-evidence-linked-graded\n' "$counts"

@@ -14,6 +14,7 @@ const SOURCE_DB = resolve(ROOT, '..', 'data', 'crypto-intelligence.db');
 const TEMP_DIR = mkdtempSync(join(tmpdir(), 'mark-crypto-ingestion-'));
 const TEMP_DB = join(TEMP_DIR, 'crypto-intelligence.db');
 const resources = new Set<string>();
+const resourceContent = new Map<string, string>();
 const resourceBodies: Record<string, any>[] = [];
 let blockDeletes = false;
 
@@ -21,6 +22,7 @@ let mock: Server;
 let app: ChildProcessWithoutNullStreams;
 let base = '';
 let appOutput = '';
+let requestSequence = 1;
 
 async function freePort() {
   return new Promise<number>((resolvePort, reject) => {
@@ -50,7 +52,10 @@ async function waitForHealth() {
 async function postCapture(body: Record<string, unknown>) {
   const response = await fetch(`${base}/api/ingestion`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      'cf-connecting-ip': `198.51.100.${requestSequence++}`,
+    },
     body: JSON.stringify(body),
   });
   return { response, body: await response.json() as any };
@@ -77,6 +82,22 @@ beforeAll(async () => {
       }
       return;
     }
+    if (request.method === 'GET' && url.pathname === '/api/v1/fs/tree') {
+      const uri = url.searchParams.get('uri') ?? '';
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({
+        status: 'success',
+        result: resources.has(uri) ? [{ uri: `${uri}/content.md`, isDir: false }] : [],
+      }));
+      return;
+    }
+    if (request.method === 'GET' && url.pathname === '/api/v1/content/read') {
+      const uri = url.searchParams.get('uri') ?? '';
+      const root = uri.replace(/\/content\.md$/, '');
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ status: 'success', result: resourceContent.get(root) ?? '' }));
+      return;
+    }
     if (request.method === 'DELETE' && url.pathname === '/api/v1/fs') {
       if (blockDeletes) {
         response.statusCode = 409;
@@ -85,6 +106,7 @@ beforeAll(async () => {
         return;
       }
       resources.delete(url.searchParams.get('uri') ?? '');
+      resourceContent.delete(url.searchParams.get('uri') ?? '');
       response.setHeader('content-type', 'application/json');
       response.end(JSON.stringify({ status: 'success', result: { removed: true } }));
       return;
@@ -109,6 +131,7 @@ beforeAll(async () => {
           return;
         }
         resources.add(body.to);
+        resourceContent.set(body.to, 'Verified fixture source body with enough content to prove that acquisition stored the source itself, rather than only its URL or title.');
         response.end(JSON.stringify({ status: 'success', result: { root_uri: body.to } }));
         return;
       }
@@ -171,6 +194,13 @@ describe('authenticated source capture boundary', () => {
     expect(result.response.status).toBe(200);
     expect(result.body.status).toBe('ready');
     expect(resourceBodies.some((body) => body.temp_file_id === 'fixture-upload')).toBe(true);
+  });
+
+  it('fails blocked social URLs honestly and asks for the source text', async () => {
+    const result = await postCapture({ kind: 'url', value: 'https://x.com/example/status/12345' });
+    expect(result.response.status).toBe(422);
+    expect(result.body.error).toBe('unsupported_social_url');
+    expect(result.body.message).toMatch(/paste/i);
   });
 
   it('reports provider failure without registering a false-ready source', async () => {

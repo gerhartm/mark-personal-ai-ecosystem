@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { isIP } from 'node:net';
 import { db, one, run, audit } from './db.js';
+import { runHermesAgent } from './hermes-client.js';
 
 const TRACKING_PARAMETERS = new Set([
   'dclid',
@@ -94,6 +96,9 @@ export function normalizeCaptureUrl(raw: string) {
 
   parsed.protocol = parsed.protocol.toLowerCase();
   parsed.hostname = parsed.hostname.toLowerCase().replace(/\.$/, '');
+  if (isPrivateHostname(parsed.hostname)) {
+    throw new CaptureInputError('invalid_url', 'Enter a public source URL. Private and local network addresses are not accepted.');
+  }
   parsed.hash = '';
   if ((parsed.protocol === 'http:' && parsed.port === '80') || (parsed.protocol === 'https:' && parsed.port === '443')) {
     parsed.port = '';
@@ -109,6 +114,30 @@ export function normalizeCaptureUrl(raw: string) {
   const query = kept.map(([key, value]) => `${quotePlus(key)}=${quotePlus(value)}`).join('&');
   parsed.search = query ? `?${query}` : '';
   return parsed.toString();
+}
+
+function isPrivateHostname(hostname: string) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true;
+  const version = isIP(host);
+  if (version === 4) {
+    const [a, b] = host.split('.').map(Number);
+    return a === 0
+      || a === 10
+      || a === 127
+      || (a === 100 && b >= 64 && b <= 127)
+      || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168)
+      || a >= 224;
+  }
+  if (version === 6) {
+    if (host === '::' || host === '::1') return true;
+    if (/^(fc|fd)/.test(host) || /^fe[89ab]/.test(host)) return true;
+    const mapped = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    return Boolean(mapped && isPrivateHostname(mapped[1]));
+  }
+  return false;
 }
 
 function compareCodePoints(a: string, b: string) {
@@ -297,6 +326,69 @@ async function openVikingRequest(path: string, init: RequestInit, timeoutMs = 85
   return payload ?? {};
 }
 
+type OpenVikingTreeItem = {
+  uri?: string;
+  isDir?: boolean;
+  is_dir?: boolean;
+};
+
+/** Read the human-visible files beneath one native OpenViking resource root. */
+export async function readOpenVikingResource(rootUri: string, limit = 24_000) {
+  if (!rootUri || !ingestionConfigured()) return '';
+  const boundedLimit = Math.max(1_000, Math.min(limit, 120_000));
+  try {
+    const tree = await openVikingRequest(
+      `/api/v1/fs/tree?uri=${encodeURIComponent(rootUri)}&depth=4`,
+      { method: 'GET', headers: openVikingHeaders() },
+      20_000,
+    );
+    const items = Array.isArray(tree?.result) ? tree.result as OpenVikingTreeItem[] : [];
+    const leaves = items
+      .filter((item) => item.uri && !(item.isDir ?? item.is_dir ?? false))
+      .map((item) => String(item.uri))
+      .filter((uri) => /\.(?:md|txt|json|csv|srt|vtt)$/i.test(uri))
+      .sort(compareCodePoints);
+    const parts: string[] = [];
+    let remaining = boundedLimit;
+    for (const uri of leaves) {
+      if (remaining <= 0) break;
+      const payload = await openVikingRequest(
+        `/api/v1/content/read?uri=${encodeURIComponent(uri)}&raw=true`,
+        { method: 'GET', headers: openVikingHeaders() },
+        20_000,
+      );
+      const value = typeof payload?.result === 'string'
+        ? payload.result
+        : typeof payload?.result?.content === 'string'
+          ? payload.result.content
+          : '';
+      if (!value.trim()) continue;
+      const chunk = value.trim().slice(0, remaining);
+      parts.push(chunk);
+      remaining -= chunk.length;
+    }
+    return parts.join('\n\n').slice(0, boundedLimit);
+  } catch {
+    return '';
+  }
+}
+
+export async function sourceContent(canonicalId: string, limit = 12_000) {
+  const identity = one<{ openviking_uri: string | null }>(
+    "SELECT openviking_uri FROM identity_register WHERE canonical_id = ? AND kind = 'source'",
+    canonicalId,
+  );
+  const remote = identity?.openviking_uri
+    ? await readOpenVikingResource(identity.openviking_uri, limit)
+    : '';
+  if (remote.trim()) return remote.slice(0, limit);
+  const indexed = one<{ body: string }>(
+    "SELECT body FROM search_index WHERE canonical_id = ? AND kind = 'source' LIMIT 1",
+    canonicalId,
+  );
+  return String(indexed?.body ?? '').slice(0, limit);
+}
+
 async function remoteResourceExists(uri: string) {
   try {
     await openVikingRequest(`/api/v1/fs/stat?uri=${encodeURIComponent(uri)}`, {
@@ -380,6 +472,57 @@ async function ingestUrl(source: PreparedSource) {
   });
 }
 
+function parseAgentJson(text: string) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  const candidate = fenced ?? text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  try { return JSON.parse(candidate); } catch { return null; }
+}
+
+async function ingestYoutube(source: PreparedSource): Promise<OpenVikingResult & { transcriptCharacters: number }> {
+  const existedBefore = await remoteResourceExists(source.targetUri);
+  try {
+    const result = await runHermesAgent([
+      '/crypto-intelligence',
+      'Perform one deterministic source-ingestion task. Do not summarize instead of ingesting.',
+      'Load and use Hermes native skill `youtube-content` to fetch the complete available transcript for this public YouTube URL.',
+      `SOURCE URL\n${JSON.stringify(source.normalizedUrl)}`,
+      `TITLE\n${JSON.stringify(source.title)}`,
+      `CANONICAL SOURCE ID\n${JSON.stringify(source.sourceId)}`,
+      `EXACT OPENVIKING ROOT\n${JSON.stringify(source.targetUri)}`,
+      'Store a Markdown source beneath that exact OpenViking root containing provenance, the video URL, title, and the complete transcript with timestamps when available.',
+      'Then read the stored file back. Return only JSON with keys status, memory_uri, transcript_characters, and verified.',
+      'Set verified true only when the readback contains a real transcript, not merely page metadata or navigation text.',
+    ].join('\n\n'), {
+      title: 'YouTube transcript ingestion',
+      reasoningEffort: 'low',
+      timeoutMs: 240_000,
+    });
+    const payload = parseAgentJson(result.text);
+    const transcriptCharacters = Number(payload?.transcript_characters ?? 0);
+    if (payload?.verified !== true || transcriptCharacters < 100) {
+      throw new OpenVikingRequestError(502, 'transcript_unavailable', 'Hermes did not verify a usable YouTube transcript');
+    }
+    const rootUri = String(payload?.memory_uri ?? source.targetUri);
+    const content = await readOpenVikingResource(rootUri, 120_000);
+    if (content.length < 100) {
+      throw new OpenVikingRequestError(502, 'transcript_unavailable', 'The stored YouTube transcript could not be read back');
+    }
+    return { rootUri, transcriptCharacters };
+  } catch (error) {
+    if (!existedBefore) {
+      try {
+        if (await remoteResourceExists(source.targetUri)) await removeRemoteResource(source.targetUri);
+      } catch { /* a later retry will reconcile this exact target */ }
+    }
+    throw error;
+  }
+}
+
+function hasTranscriptContent(content: string) {
+  const words = content.trim().split(/\s+/).filter(Boolean).length;
+  return content.length >= 500 && words >= 80 && /\b(?:transcript|speaker|timestamp|00:\d{2})\b/i.test(content);
+}
+
 async function writeToOpenViking(source: PreparedSource): Promise<OpenVikingResult> {
   if (await remoteResourceExists(source.targetUri)) {
     // A remote-only target has no accepted local receipt. It may be residue
@@ -440,7 +583,18 @@ function updateReceipt(id: number, status: string, detail: ReceiptDetail) {
   run('UPDATE ingestion_receipts SET status = ?, detail_json = ? WHERE id = ?', status, JSON.stringify(detail), id);
 }
 
-function registerSource(source: PreparedSource, openVikingUri: string, extractionStatus: string) {
+function replaceSearchBody(sourceId: string, title: string, body: string) {
+  run("DELETE FROM search_index WHERE canonical_id = ? AND kind = 'source'", sourceId);
+  run(
+    `INSERT INTO search_index (canonical_id, kind, field, origin, title, body)
+     VALUES (?, 'source', 'content', 'ingested', ?, ?)`,
+    sourceId,
+    title,
+    body,
+  );
+}
+
+function registerSource(source: PreparedSource, openVikingUri: string, extractionStatus: string, content: string) {
   const save = db.transaction(() => {
     run(
       `INSERT OR IGNORE INTO sources
@@ -471,15 +625,7 @@ function registerSource(source: PreparedSource, openVikingUri: string, extractio
       'openviking.add-resource',
       extractionStatus,
     );
-    if (!one('SELECT 1 FROM search_index WHERE canonical_id = ? AND kind = ?', source.sourceId, 'source')) {
-      run(
-        `INSERT INTO search_index (canonical_id, kind, field, origin, title, body)
-         VALUES (?, 'source', 'content', 'ingested', ?, ?)`,
-        source.sourceId,
-        source.title,
-        source.normalizedUrl ?? source.text ?? '',
-      );
-    }
+    replaceSearchBody(source.sourceId, source.title, content || source.normalizedUrl || source.text || '');
   });
   save();
 }
@@ -505,16 +651,83 @@ function publicFailure(error: unknown) {
   if (code === 'memory_processing') {
     return { code, message: 'An earlier attempt is still finishing in private memory. Wait a moment, then retry.' };
   }
+  if (code === 'transcript_unavailable') {
+    return { code, message: 'A usable transcript was not available for this video, so it was not marked ready.' };
+  }
+  if (code === 'source_content_unavailable') {
+    return { code, message: 'The source page could not be read completely, so it was not marked ready.' };
+  }
   return { code, message: 'The source could not be added to private memory. Nothing was recorded as ready.' };
 }
 
 export async function captureSource(input: CaptureRequest, actor: string) {
   const source = prepareSource(input);
+  if (source.sourceType === 'x' || source.sourceType === 'instagram') {
+    throw new CaptureInputError(
+      'unsupported_social_url',
+      'This platform blocks reliable direct capture. Paste the post or transcript text so Satoshi can store it completely.',
+    );
+  }
   const existing = one<{ source_id: string; title: string }>(
     'SELECT source_id, title FROM sources WHERE source_id = ?',
     source.sourceId,
   );
   if (existing) {
+    if (source.sourceType === 'youtube') {
+      const before = await sourceContent(source.sourceId, 120_000);
+      if (!hasTranscriptContent(before)) {
+        const receiptId = insertReceipt(source, 'processing');
+        try {
+          const upgraded = await ingestYoutube(source);
+          const content = await readOpenVikingResource(upgraded.rootUri, 120_000);
+          if (!hasTranscriptContent(content)) {
+            throw new OpenVikingRequestError(502, 'transcript_unavailable', 'A complete transcript could not be verified');
+          }
+          db.transaction(() => {
+            replaceSearchBody(source.sourceId, existing.title, content);
+            run(
+              'UPDATE identity_register SET openviking_uri = ?, last_reconciled = ?, state = ? WHERE canonical_id = ?',
+              upgraded.rootUri,
+              source.capturedAt,
+              'registered',
+              source.sourceId,
+            );
+            run(
+              'INSERT INTO source_sightings (source_id, captured_at, extraction_method, extraction_status) VALUES (?, ?, ?, ?)',
+              source.sourceId,
+              source.capturedAt,
+              'hermes.youtube-content',
+              'complete',
+            );
+          })();
+          updateReceipt(receiptId, 'created', receiptDetail(source, {
+            openviking_uri: upgraded.rootUri,
+            character_count: content.length,
+          }));
+          audit(actor, 'source.youtube_reconciled', source.sourceId, { receipt_id: receiptId });
+          return {
+            receipt_id: receiptId,
+            status: 'ready',
+            source_id: source.sourceId,
+            title: existing.title,
+            source_type: source.sourceType,
+            openviking_uri: upgraded.rootUri,
+          };
+        } catch (error) {
+          const failure = publicFailure(error);
+          updateReceipt(receiptId, 'failed', receiptDetail(source, { error_code: failure.code }));
+          audit(actor, 'source.capture_failed', source.sourceId, { receipt_id: receiptId, error_code: failure.code });
+          throw new CaptureInputError(failure.code, failure.message);
+        }
+      }
+      // Older releases could persist only the YouTube URL in FTS even when
+      // OpenViking held the full transcript. Refresh the local search body on
+      // every verified duplicate so Ask and Studio immediately ground against
+      // the complete source without another model call.
+      db.transaction(() => {
+        replaceSearchBody(source.sourceId, existing.title, before);
+      })();
+    }
     const id = insertReceipt(source, 'skipped');
     run(
       'INSERT INTO source_sightings (source_id, captured_at, extraction_method, extraction_status) VALUES (?, ?, ?, ?)',
@@ -536,9 +749,21 @@ export async function captureSource(input: CaptureRequest, actor: string) {
   const receiptId = insertReceipt(source, 'processing');
   audit(actor, 'source.capture_started', source.sourceId, { receipt_id: receiptId, kind: source.kind });
   try {
-    const result = await writeToOpenViking(source);
-    registerSource(source, result.rootUri, 'complete');
-    updateReceipt(receiptId, 'created', receiptDetail(source, { openviking_uri: result.rootUri }));
+    const result = source.sourceType === 'youtube'
+      ? await ingestYoutube(source)
+      : await writeToOpenViking(source);
+    const content = source.text ?? await readOpenVikingResource(result.rootUri, 120_000);
+    if (source.kind === 'url' && content.trim().length < 80) {
+      throw new OpenVikingRequestError(502, 'source_content_unavailable', 'The source body could not be verified');
+    }
+    if (source.sourceType === 'youtube' && !hasTranscriptContent(content)) {
+      throw new OpenVikingRequestError(502, 'transcript_unavailable', 'A complete transcript could not be verified');
+    }
+    registerSource(source, result.rootUri, 'complete', content);
+    updateReceipt(receiptId, 'created', receiptDetail(source, {
+      openviking_uri: result.rootUri,
+      ...(content ? { character_count: content.length } : {}),
+    }));
     audit(actor, 'source.capture_ready', source.sourceId, {
       receipt_id: receiptId,
       openviking_uri: result.rootUri,
@@ -552,6 +777,12 @@ export async function captureSource(input: CaptureRequest, actor: string) {
       openviking_uri: result.rootUri,
     };
   } catch (error) {
+    try {
+      if (!one('SELECT 1 FROM sources WHERE source_id = ?', source.sourceId)
+        && await remoteResourceExists(source.targetUri)) {
+        await removeRemoteResource(source.targetUri);
+      }
+    } catch { /* a later retry will reconcile the exact canonical target */ }
     const failure = publicFailure(error);
     updateReceipt(receiptId, 'failed', receiptDetail(source, { error_code: failure.code }));
     audit(actor, 'source.capture_failed', source.sourceId, { receipt_id: receiptId, error_code: failure.code });

@@ -952,3 +952,10 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Persistence and integrity: after restarting both production applications, both were healthy and the same two jobs, dashboard results, and graph results remained available. SQLite quick check returned `ok`, foreign-key violations were zero, and migration `006` existed once.
 - Public regression: protected Crypto and ForkedBrain endpoints continued redirecting unauthenticated users to Cloudflare Access, Crypto HTTP continued redirecting to HTTPS, and legacy `intel.forkedbrain.fyi` remained HTTP `200` and unchanged.
 - Cost: synchronization acceptance used direct OpenViking reads and deterministic registration only; it made no paid model call.
+
+## 2026-08-11 14:15 UTC - Telegram sync release checkpoint archived
+
+- Operator: Codex closing the approved Satoshi synchronization task.
+- Repository: committed the implementation, tests, deployment definitions, and client-safe documentation to the private `main` branch with no credentials or private content.
+- Recovery mirror: replaced `/root/mark-v2-docs/` with a clean archive of the tracked repository, compared all 216 file hashes against the local checkpoint, found no AppleDouble or `.DS_Store` artifacts, and retained the prior generated mirror as a dated recovery copy.
+- Runtime: no production container, database, memory record, provider, Cloudflare configuration, or legacy service changed during this archival step.

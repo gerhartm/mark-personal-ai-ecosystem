@@ -119,7 +119,7 @@ The release passed these production checks without a paid model call:
 - [ ] Run Mari's staff-account Satoshi acceptance.
 - [ ] Remove the temporary tester after explicit approval.
 - [x] Refresh production counts and this matrix.
-- [ ] Refresh the non-secret server documentation mirror and verify hashes.
+- [x] Refresh the non-secret server documentation mirror and verify hashes.
 - [x] Push the final documentation and release checkpoint to the private repo.
 - [ ] Deliver the client handbook, access guide, and any requested restore
       demonstration.

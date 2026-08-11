@@ -19,9 +19,49 @@ if (!existsSync(DB_PATH)) {
  * One database. Nothing is attached, there are no temp views, and there is one
  * full-text index. Foreign keys are real and enforced by SQLite.
  */
-export const db = new Database(DB_PATH, { readonly: false });
+export const db = new Database(DB_PATH, { readonly: false, timeout: 5_000 });
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
+
+/**
+ * Runtime migration 006: durable handoff from Satoshi's native OpenViking
+ * ingestion into the existing dashboard corpus. The queue stores references
+ * and safe metadata only; complete source bodies remain in OpenViking.
+ */
+db.transaction(() => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS source_sync_jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      external_id TEXT NOT NULL UNIQUE,
+      submitted_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('queued','processing','ready','failed')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      not_before TEXT NOT NULL,
+      title TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_url TEXT,
+      openviking_uri TEXT NOT NULL,
+      captured_at TEXT NOT NULL,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      canonical_id TEXT,
+      last_error TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_source_sync_jobs_queue
+      ON source_sync_jobs(status, not_before, id);
+  `);
+  db.prepare(
+    `INSERT OR IGNORE INTO schema_migrations (id, name, applied_at)
+     VALUES ('006', 'telegram_source_sync', ?)`,
+  ).run(new Date().toISOString());
+  db.prepare(
+    `UPDATE source_sync_jobs
+        SET status='queued', updated_at=?, not_before=?, last_error='recovered_after_restart'
+      WHERE status='processing'`,
+  ).run(new Date().toISOString(), new Date().toISOString());
+})();
 
 /** The private media archive. Unset means media is unavailable in this environment. */
 export const MEDIA_ROOT = process.env.CRYPTO_MEDIA_ROOT ?? null;

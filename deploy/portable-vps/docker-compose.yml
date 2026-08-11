@@ -10,10 +10,12 @@ services:
       HERMES_DASHBOARD: "1"
       HERMES_DASHBOARD_HOST: "0.0.0.0"
       HERMES_DASHBOARD_PORT: "9119"
+      SATOSHI_DASHBOARD_SYNC_SECRET_FILE: /run/secrets/satoshi-dashboard-sync-key
     ports:
       - "127.0.0.1:9119:9119"
     volumes:
       - ${STATE_ROOT:?STATE_ROOT is required}/hermes:/opt/data
+      - ${SECRETS_ROOT:?SECRETS_ROOT is required}/satoshi-dashboard-sync-key:/run/secrets/satoshi-dashboard-sync-key:ro
     networks:
       - personal-ai
     security_opt:
@@ -63,7 +65,7 @@ services:
     ports:
       - "127.0.0.1:9320:3000"
     volumes:
-      - ${DATA_ROOT:?DATA_ROOT is required}/forkedbrain/crypto-intelligence.db:/data/crypto-intelligence.db:ro
+      - ${DATA_ROOT:?DATA_ROOT is required}/crypto-dashboard:/data:ro
       - ${SECRETS_ROOT:?SECRETS_ROOT is required}/hermes-dashboard-password:/run/secrets/hermes-dashboard-password:ro
     networks:
       - personal-ai
@@ -103,6 +105,7 @@ services:
       OPENVIKING_API_KEY_FILE: /run/secrets/openviking-dashboard-key
       OPENVIKING_ACCOUNT: ${OPENVIKING_ACCOUNT:?OPENVIKING_ACCOUNT is required}
       OPENVIKING_USER: ${OPENVIKING_USER:-hermes}
+      SATOSHI_DASHBOARD_SYNC_SECRET_FILE: /run/secrets/satoshi-dashboard-sync-key
     ports:
       - "127.0.0.1:9330:5183"
     volumes:
@@ -110,6 +113,7 @@ services:
       - ${DATA_ROOT:?DATA_ROOT is required}/media:/media:ro
       - ${SECRETS_ROOT:?SECRETS_ROOT is required}/hermes-dashboard-password:/run/secrets/hermes-dashboard-password:ro
       - ${SECRETS_ROOT:?SECRETS_ROOT is required}/openviking-dashboard-key:/run/secrets/openviking-dashboard-key:ro
+      - ${SECRETS_ROOT:?SECRETS_ROOT is required}/satoshi-dashboard-sync-key:/run/secrets/satoshi-dashboard-sync-key:ro
     networks:
       - personal-ai
     depends_on:

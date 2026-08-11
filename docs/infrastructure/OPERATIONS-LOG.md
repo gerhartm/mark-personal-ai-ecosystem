@@ -930,3 +930,25 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Architecture boundary: authorization and native channel context only. No bot, token, skill, memory, model, provider, database, dashboard, Cloudflare, DNS, tunnel or legacy service changed.
 - Next: Mark opens the existing Satoshi bot and sends `/start`, then completes owner-behavior, memory, Crypto, Creator Reference and humanization acceptance. Mari's Telegram numeric ID remains pending. After both owner/staff checks pass, Darshan may explicitly approve removal of the temporary tester.
 - Rollback: stop only Hermes, restore the verified archive into `/opt/data` with the preserved ownership and modes, restart Hermes, and repeat config plus Telegram API checks. OpenViking and dashboard data are not involved.
+
+## 2026-08-11 - Telegram source synchronization promotion opened
+
+- Operator: Codex completing Darshan's approved pending synchronization task.
+- Status: in progress; production mutation is gated on local tests, consistent database backup, canary acceptance, and rollback capture.
+- Intended change: after Satoshi completes native OpenViking ingestion, submit a safe metadata-only reference to a persistent FIFO dashboard queue. The queue reads the completed source from OpenViking, idempotently registers it in the existing SQLite source/identity/FTS tables, and makes it visible in Library, Ask, Studio, Quiz, and ForkedBrain search.
+- Architecture boundary: Hermes remains the only brain, OpenViking remains semantic memory, and `crypto-intelligence.db` remains the only structured application store. No second database, vector store, model service, router, or copy of source content is introduced.
+- Safety boundary: the internal endpoint uses a generated file-backed bearer secret, complete transcripts never appear in model tool arguments, duplicate submissions reconcile to one canonical source, and failed work remains retryable across application restarts.
+
+## 2026-08-11 13:22-14:10 UTC - Telegram source synchronization accepted
+
+- Operator: Codex completing Darshan's approved pending synchronization task.
+- Status: completed and promoted as Crypto Intelligence and ForkedBrain release `20260811T132229Z`.
+- Recovery first: created the owner-only package `/srv/mark-v2/recovery/pre-telegram-sync-20260811T132229Z`, verified the SQLite backup checksum, preserved both previous application definitions and installed skill state, and retained `crypto-dashboard-rollback-20260807T152605Z` plus `forkedbrain-rollback-20260805T152846Z`.
+- Implementation: added migration `006 telegram_source_sync`, a durable FIFO job table and worker, one private metadata-only service endpoint, and the small `sync_dashboard_source.py` helper used by Satoshi's existing Crypto skill after successful native ingestion. The worker reads complete retained content directly from the supplied OpenViking URI, then uses the existing source identity, sighting, receipt, audit, and unified FTS contracts.
+- Architecture boundary: Hermes remains the only brain, OpenViking remains the only semantic memory, and the existing `crypto-intelligence.db` remains the only structured store. No second database, vector service, memory provider, scraper, model provider, or Hermes/OpenViking source patch was added. ForkedBrain reads the same live database directory in query-only mode.
+- Security: generated a dedicated service credential, mounted it read only into only the dashboard and Hermes containers, and kept it out of model prompts, tool arguments, transcripts, container environments, images, Git, and documentation. Missing and invalid endpoint credentials both returned HTTP `401`.
+- Local acceptance: dashboard server and web builds passed; all 84 dashboard tests passed; ForkedBrain build and all four tests passed; deployment-script syntax, Python compilation, and `git diff --check` passed. A 144,000-character source test proved that a distinctive term near the end of retained content is indexed and retrieved without truncation.
+- Production proof: two existing Satoshi/OpenViking Crypto sources entered the live queue, both reached `ready` on attempt one, and both became searchable in the dashboard and ForkedBrain graph. Replaying one external identity returned the same canonical source, left the job count at two, left the source count at 49, and did not increment attempts.
+- Persistence and integrity: after restarting both production applications, both were healthy and the same two jobs, dashboard results, and graph results remained available. SQLite quick check returned `ok`, foreign-key violations were zero, and migration `006` existed once.
+- Public regression: protected Crypto and ForkedBrain endpoints continued redirecting unauthenticated users to Cloudflare Access, Crypto HTTP continued redirecting to HTTPS, and legacy `intel.forkedbrain.fyi` remained HTTP `200` and unchanged.
+- Cost: synchronization acceptance used direct OpenViking reads and deterministic registration only; it made no paid model call.

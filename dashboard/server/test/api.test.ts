@@ -78,7 +78,7 @@ describe('read routes', () => {
     expect(recon.unresolvedConnections).toBe(7);
     expect(recon.orphanEvents).toBe(0);
     expect(recon.foreignKeyErrors).toBe(0);
-    expect(recon.migrations.length).toBe(5);
+    expect(recon.migrations.length).toBe(6);
   });
 
   it('serves the timeline on both axes', async () => {

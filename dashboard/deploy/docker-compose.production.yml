@@ -1,6 +1,6 @@
 services:
   crypto-dashboard:
-    image: mark-crypto-dashboard:20260807T152605Z
+    image: mark-crypto-dashboard:20260811T132229Z
     container_name: crypto-dashboard
     restart: unless-stopped
     env_file:
@@ -11,6 +11,7 @@ services:
       OPENVIKING_ACCOUNT: mark-gerhart
       OPENVIKING_USER: hermes
       INTELLIGENCE_AUTO_REFRESH_HOURS: "24"
+      SATOSHI_DASHBOARD_SYNC_SECRET_FILE: /run/secrets/satoshi-dashboard-sync-key
     ports:
       - "127.0.0.1:9330:5183"
     volumes:
@@ -18,6 +19,7 @@ services:
       - /srv/mark-v2/crypto-legacy-media/v1:/media:ro
       - /srv/mark-v2/secrets/forkedbrain-hermes-password:/run/secrets/hermes-dashboard-password:ro
       - /srv/mark-v2/secrets/crypto-dashboard-openviking-key:/run/secrets/openviking-dashboard-key:ro
+      - /srv/mark-v2/secrets/satoshi-dashboard-sync-key:/run/secrets/satoshi-dashboard-sync-key:ro
     networks:
       - personal-ai
     read_only: true

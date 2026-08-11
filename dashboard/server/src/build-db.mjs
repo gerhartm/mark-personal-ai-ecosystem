@@ -534,6 +534,34 @@ migration('005', 'search_index', () => {
 });
 
 /* ------------------------------------------------------------------ *
+ * 006 durable Satoshi -> dashboard source registration queue
+ * ------------------------------------------------------------------ */
+migration('006', 'telegram_source_sync', () => {
+  db.exec(`
+  CREATE TABLE source_sync_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    external_id TEXT NOT NULL UNIQUE,
+    submitted_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('queued','processing','ready','failed')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    not_before TEXT NOT NULL,
+    title TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_url TEXT,
+    openviking_uri TEXT NOT NULL,
+    captured_at TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    canonical_id TEXT,
+    last_error TEXT
+  );
+  CREATE INDEX idx_source_sync_jobs_queue
+    ON source_sync_jobs(status, not_before, id);
+  `);
+});
+
+/* ------------------------------------------------------------------ *
  * Apply
  * ------------------------------------------------------------------ */
 // ATTACH in migration 002 cannot run inside a transaction, so each migration

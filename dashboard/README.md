@@ -17,6 +17,9 @@ Primary workflows:
   counterarguments, and closing takeaways from a selected date range.
 - **Capture:** native OpenViking URL or text ingestion with deterministic
   identity, duplicate protection, and explicit receipts.
+- **Satoshi sync:** completed Telegram Crypto ingestions enter a durable FIFO
+  registration queue and become visible in Library, full-text search, and the
+  bounded ForkedBrain graph without a second ingestion or memory system.
 
 ## Run it
 
@@ -48,13 +51,14 @@ Environment, all optional, all by name only:
 | `OPENVIKING_BASE_URL` | private OpenViking service origin. Unset leaves Capture explicitly unavailable |
 | `OPENVIKING_API_KEY_FILE` | read-only mounted file containing the tenant-scoped OpenViking key |
 | `OPENVIKING_ACCOUNT_ID`, `OPENVIKING_USER_ID`, `OPENVIKING_AGENT_ID` | non-secret tenant identity used by the native resource API |
+| `SATOSHI_DASHBOARD_SYNC_SECRET_FILE` | read-only file containing the private service credential used by Satoshi's post-ingestion registration helper |
 | `REQUIRE_ACCESS_HEADER` | require the verified Cloudflare Access email header outside production as well |
 | `ACCESS_ALLOWED_EMAILS` | comma-separated exact allowlist for authenticated users |
 | `CRYPTO_ACTOR` | note author for the local single-user build |
 
 ## Production deployment
 
-The accepted V2 release is `20260806T052651Z`. Its reproducible runtime contract
+The accepted V2 release is `20260811T132229Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
@@ -111,7 +115,7 @@ npm start &               # the API tests exercise the running server
 npx vitest run
 ```
 
-80 tests: reconciliation against the handoff manifest, canonical identity
+84 tests: reconciliation against the handoff manifest, canonical identity
 preservation, facet derivation, precision spans, taxonomy verbatim, append-only
 notes, the identity register, unified search determinism, media authorisation
 and traversal, the Access identity boundary, bounded Hermes evidence assembly,
@@ -119,8 +123,9 @@ safe provider errors, the degraded intelligence plane, URL and text capture,
 exact duplicate skipping, partial-native-write cleanup, locked-resource safety,
 Studio evidence packaging, citation enforcement, atomic generation, append-only
 draft editing, evidence-linked Quiz generation and atomic grading, sourced
-briefing validation and preservation, and the build's refusal of a tampered
-handoff.
+briefing validation and preservation, Satoshi sync authentication, durable
+queue completion, long-source indexing, replay deduplication, and the build's
+refusal of a tampered handoff.
 
 ## Screenshots
 
@@ -153,7 +158,10 @@ to answer from those records with canonical-ID citations. If Hermes is not
 configured or available, the route reports that state plainly and returns exact
 corpus matches without presenting them as an answer.
 
-Writes reach the database only from the authenticated browser session. Notes are
+User writes reach the database only from an authenticated browser session.
+Satoshi source registration reaches one private internal endpoint authenticated
+by a file-mounted service secret; the request contains metadata and an
+OpenViking URI, never the retained transcript or a user credential. Notes are
 append only: revision 0 is the value preserved in the frozen handoff, and saving
 adds a revision rather than editing it.
 
@@ -177,12 +185,21 @@ that exact remote-only target or reports it as still processing; it never marks
 the source ready. There is no custom scraper, queue, vector store, memory engine,
 or second agent.
 
+After Satoshi completes a Crypto ingestion, its native Crypto skill calls the
+small `sync_dashboard_source.py` helper. The helper acknowledges one deterministic
+external identity, waits on the private queue, and reports `ready`, `failed`, or
+the current processing state. The queue survives application restarts, processes
+one registration at a time, retries bounded transient failures, and reads the
+full retained source from OpenViking. Replaying the same external identity or
+canonical source does not create another source.
+
 ## Deliberate boundaries
 
 - No second database, vector service, or memory provider.
 - No patch to Hermes or OpenViking native behavior.
-- No model-provider key in this container or repository. The only new runtime
-  credential is a tenant-scoped OpenViking key supplied by read-only file mount.
+- No model-provider key in this container or repository. Runtime credentials
+  are the tenant-scoped OpenViking key and Satoshi registration service secret,
+  both supplied by read-only file mounts.
 - No direct public origin listener. Production binds to VPS loopback and is
   published only through the existing Cloudflare tunnel and Access policy.
 - No change to `intel.forkedbrain.fyi`; it remains the isolated legacy service.

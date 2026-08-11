@@ -335,7 +335,7 @@ type OpenVikingTreeItem = {
 /** Read the human-visible files beneath one native OpenViking resource root. */
 export async function readOpenVikingResource(rootUri: string, limit = 24_000) {
   if (!rootUri || !ingestionConfigured()) return '';
-  const boundedLimit = Math.max(1_000, Math.min(limit, 120_000));
+  const boundedLimit = Math.max(1_000, Math.min(limit, 1_000_000));
   try {
     const tree = await openVikingRequest(
       `/api/v1/fs/tree?uri=${encodeURIComponent(rootUri)}&depth=4`,
@@ -594,24 +594,45 @@ function replaceSearchBody(sourceId: string, title: string, body: string) {
   );
 }
 
-function registerSource(source: PreparedSource, openVikingUri: string, extractionStatus: string, content: string) {
+type SourceRegistrationOptions = {
+  channel?: string;
+  label?: string | null;
+  extractionMethod?: string;
+};
+
+function registerSource(
+  source: PreparedSource,
+  openVikingUri: string,
+  extractionStatus: string,
+  content: string,
+  options: SourceRegistrationOptions = {},
+) {
+  const channel = options.channel ?? 'dashboard';
+  const label = options.label ?? (source.kind === 'text' ? 'Pasted text' : null);
+  const extractionMethod = options.extractionMethod ?? 'openviking.add-resource';
+  const duplicate = Boolean(one('SELECT 1 FROM sources WHERE source_id = ?', source.sourceId));
   const save = db.transaction(() => {
     run(
       `INSERT OR IGNORE INTO sources
        (source_id, identity_basis, source_url, source_label, source_type, source_channel, captured_at, title, origin)
-       VALUES (?, ?, ?, ?, ?, 'dashboard', ?, ?, 'ingested')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ingested')`,
       source.sourceId,
       source.normalizedUrl ? `url:${source.normalizedUrl}` : `text:${source.sourceId}`,
       source.normalizedUrl ?? null,
-      source.kind === 'text' ? 'Pasted text' : null,
+      label,
       source.sourceType,
+      channel,
       source.capturedAt,
       source.title,
     );
     run(
-      `INSERT OR IGNORE INTO identity_register
+      `INSERT INTO identity_register
        (canonical_id, kind, origin, openviking_uri, archive_ref, sha256, first_seen_at, last_reconciled, state)
-       VALUES (?, 'source', 'ingested', ?, NULL, ?, ?, ?, 'registered')`,
+       VALUES (?, 'source', 'ingested', ?, NULL, ?, ?, ?, 'registered')
+       ON CONFLICT(canonical_id) DO UPDATE SET
+         openviking_uri=excluded.openviking_uri,
+         last_reconciled=excluded.last_reconciled,
+         state='registered'`,
       source.sourceId,
       openVikingUri,
       source.sourceId,
@@ -622,12 +643,41 @@ function registerSource(source: PreparedSource, openVikingUri: string, extractio
       'INSERT INTO source_sightings (source_id, captured_at, extraction_method, extraction_status) VALUES (?, ?, ?, ?)',
       source.sourceId,
       source.capturedAt,
-      'openviking.add-resource',
+      extractionMethod,
       extractionStatus,
     );
     replaceSearchBody(source.sourceId, source.title, content || source.normalizedUrl || source.text || '');
   });
   save();
+  return { sourceId: source.sourceId, duplicate };
+}
+
+export function registerExistingOpenVikingSource(input: {
+  title: string;
+  sourceType: string;
+  sourceUrl?: string | null;
+  capturedAt: string;
+  openVikingUri: string;
+  content: string;
+}) {
+  const normalizedUrl = input.sourceUrl ? normalizeCaptureUrl(input.sourceUrl) : undefined;
+  const content = normalizeText(input.content);
+  const sourceId = normalizedUrl ? sha256(normalizedUrl) : sha256(content);
+  const source: PreparedSource = {
+    kind: normalizedUrl ? 'url' : 'text',
+    sourceId,
+    sourceType: input.sourceType,
+    title: input.title,
+    capturedAt: input.capturedAt,
+    normalizedUrl,
+    ...(!normalizedUrl ? { text: content } : {}),
+    targetUri: input.openVikingUri,
+  };
+  return registerSource(source, input.openVikingUri, 'complete', content, {
+    channel: 'telegram',
+    label: 'Satoshi / Telegram',
+    extractionMethod: 'hermes.openviking-sync',
+  });
 }
 
 function publicFailure(error: unknown) {

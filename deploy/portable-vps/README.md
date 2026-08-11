@@ -87,17 +87,17 @@ Required private files for the application layer:
 ```text
 SECRETS_ROOT/hermes-dashboard-password
 SECRETS_ROOT/openviking-dashboard-key
+SECRETS_ROOT/satoshi-dashboard-sync-key
 ```
 
 Required data inputs for the application layer:
 
 ```text
-DATA_ROOT/forkedbrain/crypto-intelligence.db
 DATA_ROOT/crypto-dashboard/crypto-intelligence.db
 DATA_ROOT/media/                              # may be empty
 ```
 
-Those database files may be blank schema-compatible databases or separately restored owner data. They are not part of this kit.
+The database may be a blank schema-compatible database or separately restored owner data. ForkedBrain mounts the same directory read-only, so the kit has one structured system of record rather than a copied graph database. Owner data is not part of this kit.
 
 ### 5. Deploy in two small stages
 

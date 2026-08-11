@@ -15,13 +15,13 @@ The current experience includes:
 
 ## Architecture
 
-ForkedBrain does not add another database, memory provider, or reasoning service. It reads the verified Crypto SQLite handoff in read-only mode, calls the existing Hermes service for reasoning, and leaves OpenViking as Hermes's native persistent-memory provider.
+ForkedBrain does not add another database, memory provider, or reasoning service. It reads the active Crypto SQLite directory in read-only mode, calls the existing Hermes service for reasoning, and leaves OpenViking as Hermes's native persistent-memory provider.
 
 Production boundaries:
 
 - standalone Next.js container running as UID `1001`
 - read-only container root filesystem
-- read-only database mount at `/data/crypto-intelligence.db`
+- read-only mount of the active database directory at `/data`, including its WAL state
 - loopback-only host binding at `127.0.0.1:9320`
 - existing private application network for Hermes access
 - Cloudflare Access required before any browser API can be used
@@ -57,7 +57,7 @@ Server paths:
 
 - releases: `/srv/mark-v2/forkedbrain/releases/`
 - current release link: `/srv/mark-v2/forkedbrain/current`
-- runtime database copy: `/srv/mark-v2/forkedbrain/data/crypto-intelligence.db`
+- authoritative runtime database: `/srv/mark-v2/crypto-dashboard/data/crypto-intelligence.db` (mounted read-only)
 - runtime environment: `/srv/mark-v2/secrets/forkedbrain.env`
 - Hermes password file: `/srv/mark-v2/secrets/forkedbrain-hermes-password`
 

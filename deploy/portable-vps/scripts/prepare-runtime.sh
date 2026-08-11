@@ -33,19 +33,18 @@ safe_path SECRETS_ROOT "${SECRETS_ROOT:?SECRETS_ROOT is required}"
 install -d -m 0750 \
   "${STATE_ROOT}/hermes" \
   "${STATE_ROOT}/openviking" \
-  "${DATA_ROOT}/forkedbrain" \
   "${DATA_ROOT}/crypto-dashboard" \
   "${DATA_ROOT}/media"
 install -d -m 0700 "${SECRETS_ROOT}"
 
 # Both first-party application images run as UID/GID 1001.
-chown 1001:1001 "${DATA_ROOT}/forkedbrain" "${DATA_ROOT}/crypto-dashboard"
-chmod 0750 "${DATA_ROOT}/forkedbrain" "${DATA_ROOT}/crypto-dashboard"
+chown 1001:1001 "${DATA_ROOT}/crypto-dashboard"
+chmod 0750 "${DATA_ROOT}/crypto-dashboard"
 
 echo "Runtime directories prepared."
 echo "Still required before the app stage:"
 printf '  %s\n' \
   "${SECRETS_ROOT}/hermes-dashboard-password" \
   "${SECRETS_ROOT}/openviking-dashboard-key" \
-  "${DATA_ROOT}/forkedbrain/crypto-intelligence.db" \
+  "${SECRETS_ROOT}/satoshi-dashboard-sync-key" \
   "${DATA_ROOT}/crypto-dashboard/crypto-intelligence.db"

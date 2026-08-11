@@ -1,0 +1,29 @@
+services:
+  forkedbrain:
+    image: mark-forkedbrain:20260811T132229Z
+    container_name: forkedbrain
+    restart: unless-stopped
+    env_file:
+      - /srv/mark-v2/secrets/forkedbrain.env
+    ports:
+      - "127.0.0.1:9320:3000"
+    volumes:
+      - /srv/mark-v2/crypto-dashboard/data:/data:ro
+      - /srv/mark-v2/secrets/forkedbrain-hermes-password:/run/secrets/hermes-dashboard-password:ro
+    networks:
+      - personal-ai
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 256
+
+networks:
+  personal-ai:
+    external: true
+    name: 27am3wgv7vkohkenprml4s3p

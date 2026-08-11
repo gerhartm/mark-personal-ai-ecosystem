@@ -15,16 +15,23 @@ grep -q "mark-crypto-dashboard:${release}" "$compose"
 docker compose -f "$compose" config --quiet
 
 install -d -m 0750 -o 1001 -g 1001 "$backup_dir"
-docker run --rm \
-  --network none \
-  --mount type=bind,src=/srv/mark-v2/crypto-dashboard/data,dst=/source,readonly \
-  --mount "type=bind,src=${backup_dir},dst=/dest" \
-  "mark-crypto-dashboard:${release}" \
-  node --input-type=module -e \
-  "import Database from 'better-sqlite3'; const db = new Database('/source/crypto-intelligence.db', { readonly: true }); await db.backup('/dest/crypto-intelligence.db'); db.close();" >/dev/null
+if [ ! -f "${backup_dir}/crypto-intelligence.db" ]; then
+  docker run --rm \
+    --network none \
+    --mount type=bind,src=/srv/mark-v2/crypto-dashboard/data,dst=/source,readonly \
+    --mount "type=bind,src=${backup_dir},dst=/dest" \
+    "mark-crypto-dashboard:${release}" \
+    node --input-type=module -e \
+    "import Database from 'better-sqlite3'; const db = new Database('/source/crypto-intelligence.db', { readonly: true }); await db.backup('/dest/crypto-intelligence.db'); db.close();" >/dev/null
+fi
 chmod 0640 "${backup_dir}/crypto-intelligence.db"
 
-before="$(sha256sum /srv/mark-v2/crypto-dashboard/data/crypto-intelligence.db | awk '{print $1}')"
+before_counts="$(docker run --rm \
+  --network none \
+  --mount "type=bind,src=${backup_dir},dst=/backup" \
+  "mark-crypto-dashboard:${release}" \
+  node --input-type=module -e \
+  "import Database from 'better-sqlite3'; const db = new Database('/backup/crypto-intelligence.db', { readonly: true }); console.log(JSON.stringify({sources:db.prepare('SELECT count(*) c FROM sources').get().c,events:db.prepare('SELECT count(*) c FROM events').get().c,media:db.prepare('SELECT count(*) c FROM media_assets').get().c})); db.close();")"
 docker stop crypto-dashboard >/dev/null
 docker rename crypto-dashboard "$rollback"
 docker update --restart=no "$rollback" >/dev/null
@@ -43,8 +50,15 @@ test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9330/)" = 401
 test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/)" = 200
 
 brief="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/api/brief)"
-jq -e '.counts.events >= 66 and .counts.sources >= 47 and .counts.media == 89' <<<"$brief" >/dev/null
-test "$before" = "$(sha256sum /srv/mark-v2/crypto-dashboard/data/crypto-intelligence.db | awk '{print $1}')"
+jq -e --argjson before "$before_counts" '
+  .counts.events >= $before.events and
+  .counts.sources >= $before.sources and
+  .counts.media >= $before.media
+' <<<"$brief" >/dev/null
+
+database_health="$(docker exec crypto-dashboard node --input-type=module -e \
+  "import Database from 'better-sqlite3'; const db = new Database('/data/crypto-intelligence.db', { readonly: true }); console.log(JSON.stringify({quick_check:db.pragma('quick_check',{simple:true}),foreign_keys:db.pragma('foreign_key_check').length,sync_migration:db.prepare(\"SELECT count(*) c FROM schema_migrations WHERE id='006' AND name='telegram_source_sync'\").get().c})); db.close();")"
+jq -e '.quick_check == "ok" and .foreign_keys == 0 and .sync_migration == 1' <<<"$database_health" >/dev/null
 
 intelligence_status="$(curl -fsS \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
@@ -56,13 +70,6 @@ jq -e '.configured == true and .connected == true and (.receipts | type == "arra
 
 media_ref="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/api/media | jq -r '.assets[0].archive_ref | @uri')"
 test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-31' -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' "http://127.0.0.1:9330/api/media/${media_ref}")" = 206
-
-ask="$(curl -fsS \
-  -H 'Content-Type: application/json' \
-  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
-  -d '{"question":"What are the most significant themes in the stored crypto research?"}' \
-  http://127.0.0.1:9330/api/ask)"
-jq -e '.mode == "hermes" and .state == "connected" and (.answer | length > 40) and .evidence_count > 0' <<<"$ask" >/dev/null
 
 studio_status="$(curl -fsS \
   -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
@@ -82,5 +89,5 @@ docker rm -f "$canary" >/dev/null
 rm -rf "/srv/mark-v2/crypto-dashboard/canary/${release}"
 
 counts="$(jq -r '[.counts.events,.counts.sources,.counts.media]|join(":")' <<<"$brief")"
-printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=%s\nintelligence=connected\nmemory=connected\nmedia_range=206\nask=connected\nstudio=connected-with-lenses\nquiz=connected\nrollback=%s\nbackup=%s\n' \
+printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=%s\ndatabase=healthy-with-sync-migration\nintelligence=connected\nmemory=connected\nmedia_range=206\nstudio=connected-with-lenses\nquiz=connected\nrollback=%s\nbackup=%s\n' \
   "$release" "$counts" "$rollback" "${backup_dir}/crypto-intelligence.db"

@@ -133,6 +133,15 @@ function matchesQuery(query: string, ...values: unknown[]) {
   return query.split(/\s+/).filter(Boolean).every((term) => haystack.includes(term));
 }
 
+function ftsQuery(query: string) {
+  return query
+    .split(/\s+/)
+    .map((term) => term.replace(/["*:^()]/g, "").trim())
+    .filter(Boolean)
+    .map((term) => `"${term}"*`)
+    .join(" AND ");
+}
+
 function hashUnit(value: string, salt: number) {
   let hash = 2166136261 ^ salt;
   for (let index = 0; index < value.length; index += 1) {
@@ -241,8 +250,21 @@ function sourceCandidates(query: string): Candidate[] {
     ORDER BY max_significance DESC, event_count DESC, s.captured_at DESC, s.source_id ASC
   `).all() as SourceRow[];
 
+  const matchedSourceIds = new Set<string>();
+  const match = ftsQuery(query);
+  if (match) {
+    const indexedMatches = getDatabase().prepare(`
+      SELECT DISTINCT canonical_id
+      FROM search_index
+      WHERE kind = 'source' AND search_index MATCH ?
+    `).all(match) as Array<{ canonical_id: string }>;
+    for (const row of indexedMatches) matchedSourceIds.add(row.canonical_id);
+  }
+
   return rows
-    .filter((row) => matchesQuery(query, row.title, row.source_type, row.source_channel, row.captured_at))
+    .filter((row) =>
+      matchesQuery(query, row.title, row.source_type, row.source_channel, row.captured_at)
+      || matchedSourceIds.has(row.source_id))
     .map((row, index) => ({
       id: `source:${row.source_id}`,
       label: compact(row.title),
@@ -513,13 +535,22 @@ function getSourceDetail(id: string): MemoryDetail | null {
     ORDER BY COALESCE(significance, 0) DESC, COALESCE(posted_date, timestamp, ingested_at) DESC
     LIMIT 4
   `).all(id) as Array<{ summary: string | null }>;
+  const indexed = getDatabase().prepare(`
+    SELECT body FROM search_index
+    WHERE canonical_id = ? AND kind = 'source'
+    LIMIT 1
+  `).get(id) as { body: string | null } | undefined;
   return {
     id: `source:${id}`,
     label: compact(row.title),
     group: "source",
     kind: "memory",
     summary: `${Number(row.event_count)} intelligence event${Number(row.event_count) === 1 ? "" : "s"} were extracted from this source.`,
-    body: compact(events.map((event) => event.summary).filter(Boolean).join(" "), "The original evidence is retained for reference.", 2400),
+    body: compact(
+      indexed?.body || events.map((event) => event.summary).filter(Boolean).join(" "),
+      "The original evidence is retained for reference.",
+      2400,
+    ),
     count: Number(row.event_count),
     sourceUrl: String(row.source_url || "").trim() || undefined,
     metadata: [

@@ -33,6 +33,15 @@ import {
   gradeQuizSession,
   quizStatus,
 } from './quiz.js';
+import {
+  TelegramSyncError,
+  enqueueTelegramSource,
+  recentTelegramSyncJobs,
+  startTelegramSyncWorker,
+  telegramSyncAuthorized,
+  telegramSyncConfigured,
+  telegramSyncJob,
+} from './telegram-sync.js';
 import * as t from './tools.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -54,7 +63,11 @@ app.addHook('onSend', async (req, reply) => {
 });
 
 app.addHook('preHandler', async (req, reply) => {
-  if (!accessHeaderRequired || req.url.startsWith('/api/health')) return;
+  if (
+    !accessHeaderRequired
+    || req.url.startsWith('/api/health')
+    || req.url.startsWith('/api/internal/telegram-sync')
+  ) return;
   const identity = requestIdentity(req);
   if (!identity.authorized) {
     return reply.code(401).send({ error: 'unauthorized', message: 'Authentication is required.' });
@@ -74,6 +87,33 @@ const num = (v: unknown) => (v == null || v === '' ? undefined : Number(v));
 /* ------------------------------------------------------------------ */
 
 app.get('/api/health', async () => ({ ok: true, mediaAvailable: Boolean(MEDIA_ROOT) }));
+
+app.post('/api/internal/telegram-sync', async (req, reply) => {
+  if (!telegramSyncConfigured()) {
+    return reply.code(503).send({ error: 'sync_not_configured' });
+  }
+  if (!telegramSyncAuthorized(req.headers.authorization)) {
+    return reply.code(401).send({ error: 'unauthorized' });
+  }
+  try {
+    const job = enqueueTelegramSource(req.body as any, 'satoshi');
+    return reply.code(job.status === 'ready' ? 200 : 202).send(job);
+  } catch (error) {
+    if (error instanceof TelegramSyncError) {
+      return reply.code(400).send({ error: error.code, message: error.message });
+    }
+    return reply.code(503).send({ error: 'sync_unavailable' });
+  }
+});
+
+app.get('/api/internal/telegram-sync/:externalId', async (req, reply) => {
+  if (!telegramSyncAuthorized(req.headers.authorization)) {
+    return reply.code(401).send({ error: 'unauthorized' });
+  }
+  const externalId = (req.params as { externalId: string }).externalId;
+  const job = telegramSyncJob(externalId);
+  return job ?? reply.code(404).send({ error: 'not_found' });
+});
 
 app.get('/api/brief', async () => t.brief());
 
@@ -387,6 +427,7 @@ app.put('/api/drafts/:id', async (req, reply) => {
 app.get('/api/ingestion', async () => ({
   ...(await ingestionStatus()),
   receipts: recentIngestionReceipts(),
+  telegram_sync: recentTelegramSyncJobs(),
 }));
 
 app.post('/api/ingestion', async (req, reply) => {
@@ -548,11 +589,13 @@ if (existsSync(WEB_DIST)) {
 
 if (process.env.NODE_ENV !== 'test') {
   await app.listen({ port: PORT, host: HOST });
+  startTelegramSyncWorker();
   startIntelligenceScheduler();
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);
   console.log(`  media archive: ${MEDIA_ROOT ? 'mounted' : 'not mounted (degraded, documented)'}`);
   console.log(`  intelligence plane: ${process.env.HERMES_BASE_URL ? 'configured' : 'not connected (degraded)'}`);
   console.log(`  ingestion plane: ${ingestionConfigured() ? 'configured' : 'not connected (degraded)'}`);
+  console.log(`  Satoshi source sync: ${telegramSyncConfigured() ? 'configured' : 'not connected (degraded)'}`);
   console.log(`  access header: ${accessHeaderRequired ? 'required' : 'local development mode'}`);
 }
 

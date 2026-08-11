@@ -46,17 +46,16 @@ require_private_file() {
 deploy_apps() {
   require_private_file "${SECRETS_ROOT:?}/hermes-dashboard-password"
   require_private_file "${SECRETS_ROOT:?}/openviking-dashboard-key"
-  require_private_file "${DATA_ROOT:?}/forkedbrain/crypto-intelligence.db"
+  require_private_file "${SECRETS_ROOT:?}/satoshi-dashboard-sync-key"
   require_private_file "${DATA_ROOT:?}/crypto-dashboard/crypto-intelligence.db"
 
   chmod 0600 \
     "${SECRETS_ROOT}/hermes-dashboard-password" \
-    "${SECRETS_ROOT}/openviking-dashboard-key"
+    "${SECRETS_ROOT}/openviking-dashboard-key" \
+    "${SECRETS_ROOT}/satoshi-dashboard-sync-key"
   chown 1001:1001 \
-    "${DATA_ROOT}/forkedbrain/crypto-intelligence.db" \
     "${DATA_ROOT}/crypto-dashboard" \
     "${DATA_ROOT}/crypto-dashboard/crypto-intelligence.db"
-  chmod 0440 "${DATA_ROOT}/forkedbrain/crypto-intelligence.db"
   chmod 0640 "${DATA_ROOT}/crypto-dashboard/crypto-intelligence.db"
 
   "${compose[@]}" --profile apps build --pull forkedbrain crypto-dashboard

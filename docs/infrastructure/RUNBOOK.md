@@ -429,12 +429,12 @@ The governing architecture rule remains: **Hermes first; build only verified gap
 
 ## ForkedBrain command center operations
 
-Current accepted release: `20260805T152846Z`
+Current accepted release: `20260811T132229Z`
 
 Runtime contract:
 
 - container: `forkedbrain`
-- image: `mark-forkedbrain:20260805T152846Z`
+- image: `mark-forkedbrain:20260811T132229Z`
 - loopback origin: `http://127.0.0.1:9320`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - release link: `/srv/mark-v2/forkedbrain/current`
@@ -518,12 +518,12 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260811T132229Z`
+Current accepted release: `20260902T073200Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260811T132229Z`
+- image: `mark-crypto-dashboard:20260902T073200Z`
 - loopback origin: `http://127.0.0.1:9330`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`

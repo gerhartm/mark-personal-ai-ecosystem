@@ -1,7 +1,7 @@
-# Option 1 — Current Status and Acceptance Matrix
+# Option 1: Current Status and Acceptance Matrix
 
-**Checkpoint date:** 2026-08-11
-**Accepted Crypto release:** `20260811T132229Z`
+**Checkpoint date:** 2026-09-02
+**Accepted Crypto release:** `20260902T073200Z`
 **Accepted ForkedBrain release:** `20260811T132229Z`
 
 ## Status definitions
@@ -17,12 +17,14 @@
 | Capability | Status | Evidence or remaining condition |
 |---|---|---|
 | Protected Crypto dashboard | Accepted | Production health, identity, edge redirect, and origin checks passed |
-| Daily intelligence Brief | Accepted | Real sourced review, cadence controls, and fallback preservation passed |
-| Source-grounded Ask | Accepted | Real Hermes answer and canonical citation resolution passed |
-| Timeline and Library | Accepted | Migrated sources, events, media, filtering, and detail views passed |
-| Connections | Accepted | Relationship views and unresolved-reference behavior passed |
-| Quiz | Accepted | Evidence-linked generation, grading, feedback, and atomic history passed |
-| Studio | Accepted | Cited generation, Creator Reference lens, revision history, and validation passed |
+| Evidence-first Topics home | Accepted | 65 real topics built from stored tags, events, sources, and claims; no generated watchlist or dummy totals |
+| Legacy daily Brief home | Deliberately excluded | Removed from the primary workflow because Mark requested source-led research rather than generated command-center interpretation |
+| Source-grounded Ask | Accepted | Real Hermes evidence, canonical citation links, source-scoped questions, Markdown rendering, and searchable history passed |
+| Historical Timeline | Accepted | All stored years, 112 visible 2026 reference rows, 42 unique events, 564 references, evidence dialogs, and source links passed |
+| Sources | Accepted | 54 real sources, exact four requested source groups, retained text, extracted claims, search, and detail views passed |
+| Connections primary view | Deliberately excluded | Removed from primary navigation after Mark rejected the unclear relationship view; the compatibility route remains for preserved links |
+| Quiz | Accepted | Evidence-linked generation, grading, feedback, atomic history, and model-answer reveals passed |
+| Studio | Accepted | Selected-source X posts, X threads, LinkedIn, review briefs, Creator Reference lens, revision history, and citation validation passed |
 | Speaking Preparation | Accepted | Supported through Studio with bounded evidence and citations |
 | Dashboard Capture | Accepted | URL, pasted text, YouTube transcript, duplicate, unsafe URL, and failure behavior passed |
 | Semantic memory migration | Accepted | 197 identities reconciled; replay skipped 197 with no duplicate creates or failures |
@@ -43,8 +45,8 @@
 | SQLite integrity | `ok` |
 | Foreign-key violations | `0` |
 | Canonical events | `66` |
-| Canonical sources at accepted release | `49` |
-| Persistent Telegram sync jobs | `2 ready`, `2 unique external identities`, `1 maximum attempt` |
+| Canonical sources at accepted release | `54` |
+| Persistent Telegram sync jobs | `7 ready`, `1 maximum attempt` |
 | Media assets | `89` |
 | Semantic identities | `197` |
 | Independent semantic replay | `197 skipped`, `0 created`, `0 failed` |
@@ -120,7 +122,7 @@ The release passed these production checks without a paid model call:
 - [ ] Remove the temporary tester after explicit approval.
 - [x] Refresh production counts and this matrix.
 - [x] Refresh the non-secret server documentation mirror and verify hashes.
-- [x] Push the final documentation and release checkpoint to the private repo.
+- [x] Push the `20260902T073200Z` release documentation and checkpoint to the private repo.
 - [ ] Deliver the client handbook, access guide, and any requested restore
       demonstration.
 

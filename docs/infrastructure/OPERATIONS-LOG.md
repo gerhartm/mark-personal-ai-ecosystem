@@ -960,12 +960,18 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Recovery mirror: replaced `/root/mark-v2-docs/` with a clean archive of the tracked repository, compared all 216 file hashes against the local checkpoint, found no AppleDouble or `.DS_Store` artifacts, and retained the prior generated mirror as a dated recovery copy.
 - Runtime: no production container, database, memory record, provider, Cloudflare configuration, or legacy service changed during this archival step.
 
-## 2026-09-02 07:32 UTC - Mark Lovable frontend release pending
+## 2026-09-02 07:32-08:43 UTC - Mark Lovable frontend release accepted
 
 - Operator: Codex implementing Darshan's approved replacement of the Crypto Intelligence frontend with Mark's Lovable design direction.
-- Status: pending canary, guarded promotion, and public acceptance.
-- Planned release: `20260902T073200Z` built from branch `feature/lovable-frontend-integration`.
+- Status: completed and promoted as Crypto Intelligence release `20260902T073200Z`.
+- Release source: branch `feature/lovable-frontend-integration`, initial implementation commit `781573b`.
 - Product scope: make Topics the evidence-first home, add topic detail, rebuild Timeline around all stored years and real reference counts, rebuild Sources and source-scoped Ask, add searchable Ask history, add selected-source Prep and Studio workflows, add a generic Creator Reference workspace, and add revealable Quiz model answers.
 - Data boundary: Lovable sample records, demo bots, generated counts, and seeded timeline content are excluded. The existing production database, source identities, OpenViking memory, Hermes brain, Telegram synchronization, and retained client content remain authoritative.
-- Safety plan: create an isolated SQLite canary backup, apply forward migration `007 ask_history` only to the canary first, run identity, integrity, feature, and browser checks, create a fresh pre-promotion backup, retain the current `20260811T132229Z` image and container for rollback, then promote only the Crypto dashboard service.
-- Unchanged scope: no DNS, Cloudflare Access, tunnel, provider, model, Hermes source, OpenViking source, ForkedBrain, legacy VPS, or `intel.forkedbrain.fyi` change is authorized or planned.
+- Automated verification: web and server type checks passed, both production builds passed, all 86 server tests passed, production dependency audits reported zero vulnerabilities, `git diff --check` passed, and both deployment scripts passed shell syntax validation.
+- Canary: isolated release `20260902T073200Z` passed identity rejection and acceptance, SQLite integrity, migrations `006` and `007`, Hermes, OpenViking, Studio, Quiz, media range serving, and internal sync authentication. It used the live 54-source database copy and made zero paid model calls.
+- Browser acceptance: the exact production image passed desktop and mobile checks for 65 real Topics, Aave topic detail with 39 extracted claims, 12 historical years, 112 visible 2026 timeline rows, 42 unique events, 564 dated references, Timeline evidence links, 54 Sources, exact Transcript, Tweet, Blog post and Your notes filters, retained source text, source-scoped Ask, searchable Ask history, 30 Studio source choices, Creator Reference without demo creators, eight model-answer reveals, responsive navigation, no horizontal overflow, and zero page or console errors.
+- Promotion: the live container is `mark-crypto-dashboard:20260902T073200Z` on `127.0.0.1:9330`. SQLite quick check returned `ok`, foreign-key violations were zero, all seven Telegram synchronization jobs were `ready` with a maximum of one attempt, and the production container was healthy with zero restarts.
+- Security: production runs as non-root user `dashboard` with a read-only root filesystem, all capabilities dropped, `no-new-privileges`, and loopback-only publication. Missing identity returned HTTP `401` and an approved identity returned HTTP `200` at the origin.
+- Recovery: copied the prior deployment definition to `/srv/mark-v2/crypto-dashboard/deploy.pre-20260902T073200Z`, created `/srv/mark-v2/crypto-dashboard/backups/pre-20260902T073200Z/crypto-intelligence.db` with mode `0640`, and retained the stopped predecessor as `crypto-dashboard-rollback-20260811T132229Z` with restart disabled.
+- Public regression: unauthenticated `https://crypto.forkedbrain.fyi/` redirects to Cloudflare Access, plain HTTP redirects to HTTPS, `https://intel.forkedbrain.fyi/` remains HTTP `200`, and the protected root site remains unchanged.
+- Unchanged scope: no DNS, Cloudflare Access, tunnel, provider, model, Hermes source, OpenViking source, ForkedBrain, legacy VPS, or `intel.forkedbrain.fyi` change occurred.

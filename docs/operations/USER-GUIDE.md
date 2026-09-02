@@ -62,7 +62,7 @@ one clarification.
 Wait for Satoshi to confirm that native memory accepted the item and that the
 Crypto source registration reached `ready`. A conversational acknowledgement
 without those results is not proof of ingestion. Once ready, the source appears
-under **Library → Sources**, participates in dashboard full-text search, and is
+under **Sources**, participates in dashboard full-text search, and is
 eligible for the bounded ForkedBrain graph. Re-sending the same source returns
 the existing record instead of duplicating it.
 
@@ -71,12 +71,12 @@ the existing record instead of duplicating it.
 Use Capture when you want the item to be visible and auditable in the dashboard:
 
 1. Open `https://crypto.forkedbrain.fyi/`.
-2. Select **Capture**.
+2. Select **Add source**.
 3. Choose **URL** or **Pasted text**.
 4. Add a clear title.
 5. Paste the source and submit.
 6. Wait for an accepted or duplicate receipt.
-7. Open **Library → Sources** and search for the title.
+7. Open **Sources** and search for the title.
 
 Capture rejects local/private addresses and unsafe URLs. When a social platform
 blocks automated reading, paste the original text or transcript instead.

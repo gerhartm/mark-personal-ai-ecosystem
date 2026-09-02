@@ -4,7 +4,7 @@
 
 **Product:** Crypto Intelligence
 
-**Status:** implementation complete, production release pending
+**Status:** accepted in production as release `20260902T073200Z`
 
 ## Purpose
 
@@ -131,3 +131,13 @@ The release follows the existing guarded process:
 9. Confirm that `intel.forkedbrain.fyi` remains unchanged.
 
 Rollback restores the retained previous container and its matching database backup. No DNS, tunnel, Access policy, Hermes source, OpenViking source, or legacy Intel service change is required for this frontend release.
+
+## Production acceptance
+
+Release `20260902T073200Z` passed the isolated canary and guarded production promotion on 2026-09-02. Production contains 65 real topics, 54 real sources, 66 canonical events, 89 media assets, and seven ready Telegram synchronization records. The default 2026 timeline renders 42 unique events across 564 dated references and 112 readable rows.
+
+The production browser pass confirmed the complete evidence workflow on desktop and mobile: Topics, Aave topic detail with 39 extracted claims, historical Timeline, Timeline evidence dialog, all four requested source filters, retained source text, source-scoped Ask, searchable Ask history, 30 available Studio source choices, Creator Reference without demo creators, eight preserved quiz questions with eight model-answer reveals, and responsive navigation without horizontal overflow. It produced zero page or console errors.
+
+The live container is `mark-crypto-dashboard:20260902T073200Z`, runs as the non-root `dashboard` user, has a read-only root filesystem, drops all Linux capabilities, uses `no-new-privileges`, publishes only `127.0.0.1:9330`, and had zero restarts at acceptance. The previous release remains stopped as `crypto-dashboard-rollback-20260811T132229Z`. The verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260902T073200Z/crypto-intelligence.db`.
+
+Public acceptance also passed: unauthenticated Crypto requests redirect to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200` and unchanged. No paid model call was used during deployment acceptance.

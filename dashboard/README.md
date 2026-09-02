@@ -61,7 +61,7 @@ Environment, all optional, all by name only:
 
 ## Production deployment
 
-The accepted V2 release is `20260811T132229Z`. Its reproducible runtime contract
+The accepted V2 release is `20260902T073200Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a

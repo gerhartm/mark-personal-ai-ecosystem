@@ -989,3 +989,11 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Recovery: retained stopped predecessor `crypto-dashboard-rollback-20260902T073200Z`, copied the previous deployment definition to `/srv/mark-v2/crypto-dashboard/deploy.pre-20260902T084905Z`, and created `/srv/mark-v2/crypto-dashboard/backups/pre-20260902T084905Z/crypto-intelligence.db`.
 - Public regression: unauthenticated Crypto HTTPS redirects to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200` and unchanged.
 - Cost: release acceptance made zero paid model calls.
+
+## 2026-09-02 09:08-09:16 UTC - Release source and recovery mirror archived
+
+- Operator: Codex closing the evidence and dark-mode release.
+- Repository: fast-forwarded the tested feature branch into the private `main` branch and pushed the application, tests, deployment definition, runbook, acceptance matrix, handbook, and redacted release snapshot. The implementation commit contains no AI co-author trailer.
+- Verification: the pushed `main` branch matched the tested local checkpoint, the worktree was clean, and the committed diff passed whitespace and credential-pattern checks.
+- Recovery mirror: streamed a clean `git archive` into a new owner-only server directory, compared all 231 tracked file hashes with the local checkpoint, found an exact match, found no `.DS_Store` or AppleDouble artifacts, and promoted it to `/root/mark-v2-docs/`.
+- Recovery: retained the previous documentation mirror as `/root/mark-v2-docs.pre-20260902T084905Z`. No application container, database, memory record, provider, Cloudflare setting, or legacy service changed during this archival step.

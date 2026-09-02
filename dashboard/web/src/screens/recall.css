@@ -183,6 +183,30 @@
   resize: vertical;
 }
 
+.quiz-reveal-button {
+  align-self: flex-start;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  padding: 0 0 2px;
+  background: transparent;
+  color: var(--accent-strong);
+  font: 600 0.75rem/1.2 var(--font-sans);
+  cursor: pointer;
+}
+
+.quiz-model-answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 76ch;
+  padding: var(--sp-4) var(--sp-5);
+  border-left: 2px solid var(--accent-deep);
+  background: var(--surface-sunken);
+  color: var(--ink-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
 .answer-block {
   display: flex;
   flex-direction: column;

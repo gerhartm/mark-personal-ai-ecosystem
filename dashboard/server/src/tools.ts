@@ -111,7 +111,9 @@ export function findEvents(f: EventFilters = {}) {
     `SELECT e.id, e.origin, e.timestamp, e.primary_category, e.significance,
             e.summary, e.business_signal, e.source_id, e.source_type, e.source_channel,
             ${SUBJECT_DATE} AS subject_date,
-            s.title AS source_title, s.source_label,
+            s.title AS source_title, s.source_label, s.source_url,
+            1 + (SELECT count(*) FROM event_connections c
+                   WHERE c.resolved=1 AND (c.from_event_id=e.id OR c.to_event_id=e.id)) AS reference_count,
             (SELECT count(*) FROM event_insights i WHERE i.event_id = e.id) AS insight_count,
             (SELECT count(*) FROM event_entities x WHERE x.event_id = e.id) AS entity_count,
             (SELECT count(*) FROM event_dates d WHERE d.event_id = e.id) AS date_count,
@@ -237,7 +239,9 @@ export function getSource(id: string) {
   if (!source) return null;
   const events = all(
     `SELECT e.id, e.summary, e.primary_category, e.significance, e.timestamp,
-            ${SUBJECT_DATE} AS subject_date
+            e.detailed_content, e.detailed_notes, e.raw_text,
+            ${SUBJECT_DATE} AS subject_date,
+            (SELECT group_concat(i.text, char(10)) FROM event_insights i WHERE i.event_id=e.id) AS insight_text
        FROM events e WHERE e.source_id = ? ORDER BY subject_date DESC`,
     id,
   );
@@ -247,7 +251,10 @@ export function getSource(id: string) {
 export function listSources() {
   return all(
     `SELECT s.*, count(e.id) AS event_count,
-            max(e.significance) AS max_significance
+            max(e.significance) AS max_significance,
+            max(${SUBJECT_DATE}) AS latest_subject_date,
+            (SELECT count(*) FROM event_insights i JOIN events ie ON ie.id=i.event_id WHERE ie.source_id=s.source_id) AS insight_count,
+            (SELECT group_concat(DISTINCT t.tag) FROM event_tags t JOIN events te ON te.id=t.event_id WHERE te.source_id=s.source_id) AS tags
        FROM sources s LEFT JOIN events e ON e.source_id = s.source_id
       GROUP BY s.source_id ORDER BY event_count DESC, s.captured_at DESC`,
   );
@@ -274,8 +281,13 @@ export function timeline(from?: string, to?: string) {
   }
   const pins = all(
     `SELECT d.event_id, d.position, d.date, d.precision, d.label, d.category,
-            d.sort_key, d.span_end, e.primary_category, e.significance, e.summary
+            d.sort_key, d.span_end, e.primary_category, e.significance, e.summary,
+            e.business_signal, e.detailed_content, e.source_id, s.title AS source_title,
+            s.source_label, s.source_url,
+            1 + (SELECT count(*) FROM event_connections c
+                   WHERE c.resolved=1 AND (c.from_event_id=e.id OR c.to_event_id=e.id)) AS reference_count
        FROM event_dates d JOIN events e ON e.id = d.event_id
+       JOIN sources s ON s.source_id=e.source_id
        ${clause} ORDER BY d.sort_key`,
     ...p,
   );
@@ -448,7 +460,66 @@ export function brief() {
     'SELECT min(sort_key) AS min, max(span_end) AS max FROM event_dates',
   )!;
 
-  return { counts, theme, themeCoverage, gaps, highSignal, categories, captureByMonth, subjectByYear, recentDrafts, lastRead, range };
+  const recentSources = all(
+    `SELECT s.*, count(e.id) AS event_count,
+            (SELECT count(*) FROM event_insights i JOIN events ie ON ie.id=i.event_id WHERE ie.source_id=s.source_id) AS insight_count
+       FROM sources s LEFT JOIN events e ON e.source_id=s.source_id
+      GROUP BY s.source_id ORDER BY s.captured_at DESC LIMIT 8`,
+  );
+  const recentQuestions = listAskHistory('', 5);
+  const topics = listTopics(8);
+
+  return { counts, theme, themeCoverage, gaps, highSignal, categories, captureByMonth, subjectByYear, recentDrafts, lastRead, range, recentSources, recentQuestions, topics };
+}
+
+export function listTopics(limit = 80, selected?: string) {
+  const topics = all<any>(
+    `SELECT t.tag, count(DISTINCT t.event_id) AS event_count,
+            count(DISTINCT e.source_id) AS source_count,
+            max(${SUBJECT_DATE}) AS latest_subject_date,
+            max(e.significance) AS max_significance
+       FROM event_tags t JOIN events e ON e.id=t.event_id
+      GROUP BY t.tag HAVING event_count >= 2
+      ORDER BY event_count DESC, source_count DESC, t.tag LIMIT ?`,
+    limit,
+  );
+  if (!selected) return topics;
+  const events = findEvents({ tag: selected, sort: 'subject', limit: 100 }).events;
+  const sources = all(
+    `SELECT DISTINCT s.*, count(e2.id) AS event_count
+       FROM event_tags t JOIN events e ON e.id=t.event_id
+       JOIN sources s ON s.source_id=e.source_id
+       LEFT JOIN events e2 ON e2.source_id=s.source_id
+      WHERE t.tag=? GROUP BY s.source_id ORDER BY s.captured_at DESC`,
+    selected,
+  );
+  const claims = all(
+    `SELECT i.event_id, i.position, i.text, e.primary_category, e.significance,
+            ${SUBJECT_DATE} AS subject_date, e.source_id,
+            s.title AS source_title, s.source_label, s.source_channel, s.source_type, s.source_url
+       FROM event_tags t JOIN events e ON e.id=t.event_id
+       JOIN event_insights i ON i.event_id=e.id
+       JOIN sources s ON s.source_id=e.source_id
+      WHERE t.tag=? ORDER BY e.significance DESC, subject_date DESC, i.position`,
+    selected,
+  );
+  return { topics, selected, events, sources, claims };
+}
+
+export function listAskHistory(query = '', limit = 40) {
+  const safeLimit = Math.max(1, Math.min(limit, 100));
+  const rows = query.trim()
+    ? all<any>(
+        `SELECT * FROM ask_history WHERE lower(question) LIKE lower(?) OR lower(answer) LIKE lower(?)
+          ORDER BY asked_at DESC LIMIT ?`,
+        `%${query.trim()}%`, `%${query.trim()}%`, safeLimit,
+      )
+    : all<any>('SELECT * FROM ask_history ORDER BY asked_at DESC LIMIT ?', safeLimit);
+  return rows.map((row) => ({
+    ...row,
+    source_ids: JSON.parse(row.source_ids_json || '[]'),
+    evidence: JSON.parse(row.evidence_json || '[]'),
+  }));
 }
 
 export function listDrafts() {

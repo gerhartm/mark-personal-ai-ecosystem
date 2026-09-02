@@ -1,89 +1,91 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '../lib/api';
-import { formatDate, plural, truncate } from '../lib/format';
-import {
-  CategoryChip,
-  ErrorState,
-  Panel,
-  SignificanceMeter,
-  Skeleton,
-} from '../components/primitives';
-import { SOURCE_TYPE_LABEL } from '../lib/taxonomy';
-import { IconBack } from '../components/icons';
+import { FormEvent, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import { api, useQuery } from '../lib/api';
+import { EmptyState, ErrorState, Eyebrow, LoadingRows, Provenance, ViewHead } from '../components/Desk';
+import { compact, formatDate, sourceKind, titleCase } from '../lib/desk';
+import './library.css';
 
 export function SourceDetail() {
   const { id = '' } = useParams();
-  const { data, error, refetch } = useQuery(`/sources/${id}`, [id]);
-  const navigate = useNavigate();
+  const sourceId = decodeURIComponent(id);
+  const result = useQuery<any>(`/sources/${encodeURIComponent(sourceId)}`, [sourceId]);
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [askError, setAskError] = useState('');
 
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
-  if (!data) return <Skeleton rows={5} height={64} />;
+  const usefulSummary = useMemo(() => {
+    const events = result.data?.events ?? [];
+    return events.map((event: any) => event.detailed_content || event.summary).filter(Boolean).join('\n\n');
+  }, [result.data]);
+
+  const ask = async (event: FormEvent) => {
+    event.preventDefault();
+    if (question.trim().length < 3 || asking) return;
+    setAsking(true);
+    setAskError('');
+    try {
+      const response = await api<any>('/ask', { method: 'POST', body: JSON.stringify({ question: question.trim(), source_ids: [sourceId] }) });
+      setAnswer(response.answer || response.message || 'No answer was returned.');
+    } catch (error) {
+      setAskError(error instanceof Error ? error.message : 'The question could not be answered.');
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  if (result.loading && !result.data) return <LoadingRows rows={7} />;
+  if (result.error) return <ErrorState error={result.error} retry={result.refetch} />;
+  const source = result.data;
+  if (!source) return <EmptyState title="Source not found">The source may have been removed or is not available in this workspace.</EmptyState>;
 
   return (
-    <div className="page detail">
-      <nav className="crumbs" aria-label="Breadcrumb">
-        <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
-          <IconBack /> Back
-        </button>
-        <Link to="/library?scope=sources">Sources</Link>
-        <span className="faint">/</span>
-        <span className="mono faint">{truncate(data.source_id, 28)}</span>
-      </nav>
+    <section>
+      <Link className="topic-back" to="/library">Back to sources</Link>
+      <ViewHead title={source.title || source.source_label || 'Untitled source'} actions={source.source_url ? <a className="desk-button secondary" href={source.source_url} target="_blank" rel="noreferrer">Open original</a> : undefined}>
+        {sourceKind(source.source_type)} from {source.source_channel || source.source_label || 'the private corpus'}, captured {formatDate(source.captured_at)}.
+      </ViewHead>
 
-      <header className="detail-head">
-        <div className="detail-head-marks">
-          <span className="chip chip-sm">{SOURCE_TYPE_LABEL[data.source_type] ?? data.source_type}</span>
-          <span className="faint">{plural(data.events.length, 'derived event')}</span>
-        </div>
-        <h1 className="detail-title">{data.title}</h1>
-        <p className="detail-dates">
-          <span>
-            <span className="label">Captured</span> <span className="mono">{formatDate(data.captured_at)}</span>
-          </span>
-          <span>
-            <span className="label">Channel</span> {data.source_channel ?? 'none recorded'}
-          </span>
-        </p>
-        {data.source_url && (
-          <a className="external" href={data.source_url} target="_blank" rel="noreferrer noopener">
-            Open the original, leaves this workspace
-          </a>
-        )}
-      </header>
+      <div className="source-detail-layout">
+        <article>
+          <Eyebrow>Useful summary</Eyebrow>
+          {usefulSummary ? <div className="source-summary desk-markdown"><ReactMarkdown>{usefulSummary}</ReactMarkdown></div> : <EmptyState title="No extracted summary">The source is stored, but it does not yet have an extracted summary.</EmptyState>}
 
-      <Panel title={`Events from this source (${data.events.length})`}>
-        <ul className="signal-list">
-          {data.events.map((e: any) => (
-            <li key={e.id}>
-              <Link to={`/event/${e.id}`} className="signal-row">
-                <span className="signal-meta">
-                  <SignificanceMeter value={e.significance} />
-                  <span className="mono signal-date">{e.subject_date?.slice(0, 10)}</span>
-                </span>
-                <span className="signal-body">
-                  <span className="signal-summary">{truncate(e.summary ?? '', 180)}</span>
-                  <span className="signal-tail">
-                    <CategoryChip category={e.primary_category} size="sm" />
-                  </span>
-                </span>
+          {source.content ? (
+            <details className="source-body">
+              <summary>Read stored source text</summary>
+              <pre>{source.content}</pre>
+            </details>
+          ) : null}
+
+          <Eyebrow>Extracted events and claims</Eyebrow>
+          <div className="source-event-list">
+            {(source.events ?? []).map((event: any) => (
+              <Link to={`/event/${event.id}`} className="source-event" key={event.id}>
+                <div>
+                  <span className="desk-tag">{titleCase(event.primary_category)}</span>
+                  <h2>{compact(event.summary, 220)}</h2>
+                  {event.insight_text ? <p>{compact(event.insight_text, 260)}</p> : null}
+                  <Provenance when={formatDate(event.subject_date)} kind={`signal ${event.significance}/5`} />
+                </div>
+                <span>Open</span>
               </Link>
-            </li>
-          ))}
-        </ul>
-      </Panel>
+            ))}
+          </div>
+        </article>
 
-      <Panel title="Provenance">
-        <dl className="kv rail-block">
-          <dt>Source ID</dt>
-          <dd className="mono">{data.source_id}</dd>
-          <dt>Identity basis</dt>
-          <dd className="mono">{data.identity_basis}</dd>
-          <dt>Origin</dt>
-          <dd>{data.origin}</dd>
-          <dt>Label</dt>
-          <dd>{data.source_label ?? 'none'}</dd>
-        </dl>
-      </Panel>
-    </div>
+        <aside className="desk-aside source-ask-panel desk-card">
+          <Eyebrow>Ask this source</Eyebrow>
+          <p>Hermes will answer from this source only and cite the supporting record.</p>
+          <form className="desk-form" onSubmit={ask}>
+            <textarea className="desk-textarea" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="What argument is the speaker making here?" />
+            <button className="desk-button" type="submit" disabled={asking || question.trim().length < 3}>{asking ? 'Reading source' : 'Ask'}</button>
+          </form>
+          {askError ? <p className="source-ask-error" role="alert">{askError}</p> : null}
+          {answer ? <div className="desk-markdown source-answer"><ReactMarkdown>{answer}</ReactMarkdown></div> : null}
+        </aside>
+      </div>
+    </section>
   );
 }

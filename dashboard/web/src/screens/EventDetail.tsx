@@ -98,8 +98,7 @@ export function EventDetail() {
               </div>
             ) : (
               <p className="absent">
-                No detailed content was captured for this event. 19 of the 66 migrated events are in this state, which
-                is a fact about the source rather than a gap in the record.
+                No detailed content was captured for this event. The original source record remains available for review.
               </p>
             )}
           </section>

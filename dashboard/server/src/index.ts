@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { createReadStream, existsSync, statSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MEDIA_ROOT, audit, all, one, run } from './db.js';
@@ -57,7 +58,7 @@ app.addHook('onSend', async (req, reply) => {
   reply.header('X-Frame-Options', 'DENY');
   reply.header(
     'Content-Security-Policy',
-    "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:",
+    "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:",
   );
   if (req.url.startsWith('/api/')) reply.header('Cache-Control', 'private, no-store');
 });
@@ -156,7 +157,23 @@ app.get('/api/events/:id', async (req, reply) => {
 app.get('/api/sources', async () => ({ sources: t.listSources() }));
 app.get('/api/sources/:id', async (req, reply) => {
   const source = t.getSource((req.params as { id: string }).id);
-  return source ?? reply.code(404).send({ error: 'not_found' });
+  if (!source) return reply.code(404).send({ error: 'not_found' });
+  let content = '';
+  try {
+    const { sourceContent } = await import('./ingestion.js');
+    content = await sourceContent((source as any).source_id, 40_000);
+  } catch {}
+  return { ...source, content };
+});
+
+app.get('/api/topics', async (req) => {
+  const q = req.query as Record<string, string>;
+  return q.tag ? t.listTopics(80, q.tag) : { topics: t.listTopics(80) };
+});
+
+app.get('/api/ask/history', async (req) => {
+  const q = req.query as Record<string, string>;
+  return { history: t.listAskHistory(q.q ?? '', num(q.limit) ?? 40) };
 });
 
 app.get('/api/timeline', async (req) => {
@@ -455,7 +472,7 @@ app.post('/api/ingestion', async (req, reply) => {
 });
 
 app.post('/api/ask', async (req, reply) => {
-  const body = req.body as { question?: string };
+  const body = req.body as { question?: string; source_ids?: unknown };
   const question = (body?.question ?? '').trim();
   if (question.length < 3 || question.length > 2_000) {
     return reply.code(400).send({
@@ -468,7 +485,10 @@ app.post('/api/ask', async (req, reply) => {
   if (isAskRateLimited(`${actor}:${remote}`)) {
     return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before asking again.' });
   }
-  audit(actor, 'ask', undefined, { length: question.length });
+  const sourceIds = Array.isArray(body.source_ids)
+    ? [...new Set(body.source_ids.map(String).filter((id) => Boolean(t.getSource(id))))].slice(0, 12)
+    : [];
+  audit(actor, 'ask', undefined, { length: question.length, source_count: sourceIds.length });
 
   const connected = Boolean(process.env.HERMES_BASE_URL);
   if (!connected) {
@@ -482,13 +502,20 @@ app.post('/api/ask', async (req, reply) => {
       results,
     };
   }
-  const context = await buildAskContext(question);
+  const context = await buildAskContext(question, sourceIds);
   try {
     const answer = (await runHermesAgent(context.input, {
       title: 'Crypto Intelligence question',
       reasoningEffort: 'low',
       timeoutMs: 180_000,
     })).text;
+    const askedAt = new Date().toISOString();
+    const id = randomUUID();
+    run(
+      `INSERT INTO ask_history (id, asked_at, actor, question, answer, source_ids_json, evidence_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id, askedAt, actor, question, answer, JSON.stringify(sourceIds), JSON.stringify(context.hits),
+    );
     return {
       mode: 'hermes',
       state: 'connected',
@@ -497,6 +524,9 @@ app.post('/api/ask', async (req, reply) => {
       question,
       results: context.hits,
       evidence_count: context.records,
+      history_id: id,
+      asked_at: askedAt,
+      source_ids: sourceIds,
     };
   } catch (error) {
     return reply.code(503).send({

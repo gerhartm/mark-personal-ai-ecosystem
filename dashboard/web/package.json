@@ -9,11 +9,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fontsource-variable/ibm-plex-sans": "^5.2.7",
-    "@fontsource/ibm-plex-mono": "^5.2.6",
-    "@fontsource/ibm-plex-serif": "^5.2.6",
+    "@fontsource-variable/newsreader": "^5.2.8",
+    "@fontsource-variable/space-grotesk": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "7.18.2",
     "three": "^0.181.0"
   },

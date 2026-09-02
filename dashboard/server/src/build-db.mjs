@@ -561,6 +561,21 @@ migration('006', 'telegram_source_sync', () => {
   `);
 });
 
+migration('007', 'ask_history', () => {
+  db.exec(`
+    CREATE TABLE ask_history (
+      id TEXT PRIMARY KEY,
+      asked_at TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      source_ids_json TEXT NOT NULL DEFAULT '[]',
+      evidence_json TEXT NOT NULL DEFAULT '[]'
+    );
+    CREATE INDEX idx_ask_history_asked_at ON ask_history(asked_at DESC);
+  `);
+});
+
 /* ------------------------------------------------------------------ *
  * Apply
  * ------------------------------------------------------------------ */

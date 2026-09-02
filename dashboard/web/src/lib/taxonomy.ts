@@ -83,6 +83,7 @@ export const SOURCE_TYPE_LABEL: Record<string, string> = {
 };
 
 export const TEMPLATE_LABEL: Record<string, string> = {
+  x_post: 'X post',
   twitter_thread: 'Thread',
   month_in_review: 'Month in review',
   speaking_prep: 'Speaking prep',

@@ -1,288 +1,162 @@
 import { useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { Chip, EmptyState, ErrorState, LoadingRows, ViewHead } from '../components/Desk';
 import { useQuery } from '../lib/api';
-import { formatPin, plural, precisionNote, truncate } from '../lib/format';
-import { CategoryChip, EmptyState, ErrorState, Panel, SignificanceMeter, Skeleton } from '../components/primitives';
-import { FAMILIES, familyOf, hueOf } from '../lib/taxonomy';
-import { FilterBar } from '../components/FilterBar';
+import { categoryColor, compact, formatDate, titleCase } from '../lib/desk';
 import './timeline.css';
 
-const CONTEXT_START = 2000;
-const FOCUS_START = 2026;
-
-interface Pin {
+type Pin = {
   event_id: string;
   position: number;
   date: string;
   precision: string;
-  label: string | null;
-  category: string | null;
+  label: string;
+  category: string;
   sort_key: string;
   span_end: string;
   primary_category: string;
   significance: number;
   summary: string;
-}
+  business_signal?: string;
+  detailed_content?: string;
+  source_id: string;
+  source_title?: string;
+  source_label?: string;
+  source_url?: string;
+  reference_count: number;
+};
+
+const monthName = (month: number) => new Intl.DateTimeFormat('en', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, month - 1, 1)));
 
 export function Timeline() {
-  const [params, setParams] = useSearchParams();
-  const { data, error, loading, refetch } = useQuery('/timeline');
-  const [focusFrom, setFocusFrom] = useState('2026-01-01');
-  const [focusTo, setFocusTo] = useState('2026-12-31');
-  const [hovered, setHovered] = useState<Pin | null>(null);
+  const result = useQuery<{ pins: Pin[]; bounds: { min: string; max: string } }>('/timeline');
+  const pins = result.data?.pins ?? [];
+  const years = useMemo(() => [...new Set(pins.map((pin) => Number(pin.sort_key.slice(0, 4))).filter(Boolean))].sort((a, b) => b - a), [pins]);
+  const defaultYear = years.includes(new Date().getUTCFullYear()) ? new Date().getUTCFullYear() : (years[0] ?? new Date().getUTCFullYear());
+  const [chosenYear, setChosenYear] = useState<number | null>(null);
+  const [category, setCategory] = useState('All');
+  const [selected, setSelected] = useState<Pin | null>(null);
+  const activeYear = chosenYear && years.includes(chosenYear) ? chosenYear : defaultYear;
 
-  const activeFamilies = params.get('family')?.split(',').filter(Boolean) ?? [];
-  const categories = useMemo(() => {
-    if (!activeFamilies.length) return null;
-    return new Set(FAMILIES.filter((f) => activeFamilies.includes(f.key)).flatMap((f) => f.categories));
-  }, [activeFamilies.join(',')]);
+  const yearPins = pins.filter((pin) => Number(pin.sort_key.slice(0, 4)) === activeYear);
+  const categories = useMemo(() => ['All', ...new Set(yearPins.map((pin) => pin.primary_category))], [yearPins]);
+  const visible = yearPins.filter((pin) => category === 'All' || pin.primary_category === category);
+  const uniqueEventCount = new Set(visible.map((pin) => pin.event_id)).size;
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const month = index + 1;
+    const rows = visible.filter((pin) => Number(pin.sort_key.slice(5, 7)) === month).sort((a, b) => Number(b.reference_count) - Number(a.reference_count) || b.significance - a.significance);
+    return { month, rows };
+  }).filter((group) => group.rows.length);
+  const totalReferences = visible.reduce((sum, pin) => sum + Number(pin.reference_count || 1), 0);
 
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
-  if (!data) return <Skeleton rows={4} height={120} />;
-
-  const pins: Pin[] = data.pins.filter((p: Pin) => !categories || categories.has(p.primary_category));
-  const captures = data.captures;
-
-  const focusPins = pins.filter((p) => p.span_end >= focusFrom && p.sort_key <= focusTo);
-  const contextPins = pins;
-
-  return (
-    <div className="page">
-      <header className="page-head">
-        <div className="page-title">
-          <h1>Timeline</h1>
-          <p className="page-sub">
-            Subject time is the primary axis: {plural(pins.length, 'dated reference')} across{' '}
-            {data.bounds.min?.slice(0, 4)} to {data.bounds.max?.slice(0, 7)}. Capture time sits below it because 59 of
-            66 events were ingested in a single month, which would otherwise read as a spike rather than a history.
-          </p>
-        </div>
-      </header>
-
-      <FilterBar
-        value={params}
-        onChange={setParams}
-        show={['family', 'significance', 'q']}
-      />
-
-      <Panel
-        title="Subject time"
-        action={
-          <span className="timeline-legend">
-            {(['day', 'month', 'quarter', 'year'] as const).map((p) => (
-              <span key={p} className="legend-item">
-                <span className={`legend-mark legend-${p}`} aria-hidden="true" />
-                <span className="label">{p}</span>
-              </span>
-            ))}
-          </span>
-        }
-      >
-        <div className="timeline-body">
-          <ContextBand
-            pins={contextPins}
-            from={focusFrom}
-            to={focusTo}
-            onBrush={(f, t) => {
-              setFocusFrom(f);
-              setFocusTo(t);
-            }}
-          />
-
-          <div className="focus-band">
-            <p className="label focus-label">
-              Focus window: {focusFrom.slice(0, 7)} to {focusTo.slice(0, 7)}, {plural(focusPins.length, 'reference')}
-            </p>
-            <FocusLanes pins={focusPins} from={focusFrom} to={focusTo} onHover={setHovered} />
-          </div>
-
-          <CaptureRail captures={captures} />
-
-          {hovered && (
-            <div className="timeline-readout" role="status">
-              <span className="mono">{formatPin(hovered.date, hovered.precision)}</span>
-              <span className="faint">{precisionNote[hovered.precision]}</span>
-              <span className="timeline-readout-label">{hovered.label ?? hovered.summary?.slice(0, 90)}</span>
-            </div>
-          )}
-        </div>
-      </Panel>
-
-      <Panel title={`References in window (${focusPins.length})`}>
-        {focusPins.length === 0 ? (
-          <EmptyState title="No references in this window">
-            The brush above selects {focusFrom.slice(0, 7)} to {focusTo.slice(0, 7)}. Widen it, or clear the family
-            filter, to see references again.
-          </EmptyState>
-        ) : (
-          <ul className="pin-list">
-            {focusPins.slice(0, 120).map((p) => (
-              <li key={`${p.event_id}-${p.position}`}>
-                <Link to={`/event/${p.event_id}`} className="pin-row">
-                  <span className="pin-row-date">
-                    <span className="mono">{formatPin(p.date, p.precision)}</span>
-                    {p.precision !== 'day' && <span className="label pin-row-precision">{p.precision}</span>}
-                  </span>
-                  <span className="pin-row-body">
-                    <span className="pin-row-label">{p.label ?? truncate(p.summary ?? '', 120)}</span>
-                    <span className="pin-row-meta">
-                      <CategoryChip category={p.primary_category} size="sm" />
-                      <SignificanceMeter value={p.significance} showValue={false} />
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-    </div>
-  );
-}
-
-/** Compressed 2000 to 2025, so the long tail is visible without dominating. */
-function ContextBand({
-  pins,
-  from,
-  to,
-  onBrush,
-}: {
-  pins: Pin[];
-  from: string;
-  to: string;
-  onBrush: (from: string, to: string) => void;
-}) {
-  const thisYear = 2026;
-  const years = Array.from({ length: thisYear - CONTEXT_START + 1 }, (_, i) => CONTEXT_START + i);
-  const counts = new Map<number, number>();
-  for (const p of pins) {
-    const y = Number(p.sort_key.slice(0, 4));
-    counts.set(y, (counts.get(y) ?? 0) + 1);
-  }
-  const max = Math.max(1, ...counts.values());
-  const focusYear = Number(from.slice(0, 4));
+  if (result.loading && !result.data) return <LoadingRows rows={8} />;
+  if (result.error) return <ErrorState error={result.error} retry={result.refetch} />;
 
   return (
-    <div className="context-band">
-      <p className="label context-label">Full span, compressed</p>
-      <div className="context-years" role="group" aria-label="Select a year to focus">
-        {years.map((y) => {
-          const c = counts.get(y) ?? 0;
-          const active = y === focusYear;
-          return (
-            <button
-              key={y}
-              type="button"
-              className={`context-year ${active ? 'is-active' : ''}`}
-              onClick={() => onBrush(`${y}-01-01`, `${y}-12-31`)}
-              title={`${y}: ${plural(c, 'reference')}`}
-            >
-              <span className="context-bar" style={{ height: `${Math.max(3, (c / max) * 100)}%` }} />
-              {(y === thisYear || (y % 5 === 0 && thisYear - y > 2)) && (
-                <span className="context-tick mono">{`'${String(y).slice(2)}`}</span>
-              )}
-            </button>
-          );
-        })}
+    <section>
+      <ViewHead title="Timeline" actions={<div className="timeline-totals"><strong>{uniqueEventCount}</strong><span>events</span><strong>{totalReferences}</strong><span>references</span></div>}>
+        Historical moments mentioned across Mark's sources. Rows remain readable even when a month contains many events.
+      </ViewHead>
+
+      <div className="timeline-year-row" aria-label="Choose year">
+        {years.map((year) => <Chip key={year} active={year === activeYear} onClick={() => { setChosenYear(year); setCategory('All'); }}>{year}</Chip>)}
       </div>
-    </div>
-  );
-}
 
-/**
- * Precision is encoded in geometry: a day is a point, a month, quarter, or
- * year is a band of its real width. Precision is also stated in text.
- */
-function FocusLanes({
-  pins,
-  from,
-  to,
-  onHover,
-}: {
-  pins: Pin[];
-  from: string;
-  to: string;
-  onHover: (p: Pin | null) => void;
-}) {
-  const start = Date.parse(from);
-  const end = Date.parse(to);
-  const range = Math.max(1, end - start);
-  const pct = (iso: string) => ((Date.parse(iso) - start) / range) * 100;
+      <DensityStrip pins={yearPins} categories={categories.filter((item) => item !== 'All')} />
 
-  return (
-    <div className="lanes">
-      {FAMILIES.map((family) => {
-        const lanePins = pins.filter((p) => family.categories.includes(p.primary_category));
-        return (
-          <div className="lane" key={family.key}>
-            <div className="lane-head">
-              <span className="lane-dot" style={{ background: family.hue }} aria-hidden="true" />
-              <span className="lane-name">{family.label}</span>
-              <span className="mono lane-count">{lanePins.length}</span>
-            </div>
-            <div className="lane-track">
-              {lanePins.map((p) => {
-                const left = Math.max(0, Math.min(100, pct(p.sort_key)));
-                const right = Math.max(0, Math.min(100, pct(p.span_end)));
-                const width = Math.max(p.precision === 'day' ? 0 : 0.6, right - left);
+      <div className="desk-chip-row timeline-category-row" aria-label="Filter event category">
+        {categories.map((item) => <Chip key={item} active={category === item} onClick={() => setCategory(item)}>{titleCase(item)}</Chip>)}
+      </div>
+
+      {visible.length === 0 ? <EmptyState title="No dated events in this view">Choose another year or category.</EmptyState> : null}
+
+      <div className="timeline-ledger">
+        {months.map((group) => (
+          <section className="timeline-month" key={group.month}>
+            <header>
+              <h2>{monthName(group.month)}</h2>
+              <span />
+              <small>{new Set(group.rows.map((pin) => pin.event_id)).size} events · {group.rows.length} dated references</small>
+            </header>
+            <div>
+              {group.rows.map((pin) => {
+                const references = Math.max(1, Number(pin.reference_count || 1));
+                const size = Math.min(28, 8 + Math.sqrt(references) * 4);
                 return (
-                  <Link
-                    key={`${p.event_id}-${p.position}`}
-                    to={`/event/${p.event_id}`}
-                    className={`mark mark-${p.precision}`}
-                    style={{
-                      left: `${left}%`,
-                      width: p.precision === 'day' ? undefined : `${width}%`,
-                      background: hueOf(p.primary_category),
-                    }}
-                    onMouseEnter={() => onHover(p)}
-                    onMouseLeave={() => onHover(null)}
-                    onFocus={() => onHover(p)}
-                    onBlur={() => onHover(null)}
-                    title={`${formatPin(p.date, p.precision)} (${precisionNote[p.precision]}): ${p.label ?? ''}`}
-                  >
-                    <span className="sr-only">
-                      {formatPin(p.date, p.precision)}, {precisionNote[p.precision]}, {p.label ?? p.summary}
+                  <button className="timeline-event-row" type="button" key={`${pin.event_id}-${pin.position}`} onClick={() => setSelected(pin)}>
+                    <time>{pin.sort_key.slice(8, 10)}</time>
+                    <span className="timeline-dot" style={{ width: size, height: size, background: categoryColor(pin.primary_category) }} aria-hidden="true" />
+                    <span className="timeline-event-copy">
+                      <strong>{pin.label || compact(pin.summary, 100)}</strong>
+                      <small>{titleCase(pin.primary_category)} · {pin.precision} precision</small>
                     </span>
-                  </Link>
+                    <span className="timeline-reference-count">{references} ref.</span>
+                  </button>
                 );
               })}
             </div>
+          </section>
+        ))}
+      </div>
+
+      {selected ? <TimelineDialog pin={selected} close={() => setSelected(null)} /> : null}
+    </section>
+  );
+}
+
+function DensityStrip({ pins, categories }: { pins: Pin[]; categories: string[] }) {
+  const countEvents = (rows: Pin[]) => new Set(rows.map((pin) => pin.event_id)).size;
+  const peak = Math.max(1, ...Array.from({ length: 12 }, (_, index) => countEvents(pins.filter((pin) => Number(pin.sort_key.slice(5, 7)) === index + 1))));
+  return (
+    <div className="timeline-density" aria-label="Event density by month">
+      {Array.from({ length: 12 }, (_, index) => {
+        const month = index + 1;
+        const rows = pins.filter((pin) => Number(pin.sort_key.slice(5, 7)) === month);
+        return (
+          <div className="timeline-density-month" key={month} title={`${monthName(month)}: ${countEvents(rows)} events`}>
+            <div className="timeline-density-stack" style={{ height: `${Math.max(4, countEvents(rows) / peak * 52)}px` }}>
+              {categories.map((category) => {
+                const count = rows.filter((row) => row.primary_category === category).length;
+                return count ? <span key={category} style={{ flex: count, background: categoryColor(category) }} /> : null;
+              })}
+            </div>
+            <small>{monthName(month).slice(0, 1)}</small>
           </div>
         );
       })}
-      <div className="lane-axis">
-        <span className="mono">{from.slice(0, 7)}</span>
-        <span className="mono">{to.slice(0, 7)}</span>
-      </div>
     </div>
   );
 }
 
-/** The capture axis is shown, not hidden: the May cluster is a fact about the migration. */
-function CaptureRail({ captures }: { captures: { id: string; date: string; primary_category: string }[] }) {
-  const byMonth = new Map<string, number>();
-  for (const c of captures) {
-    const m = c.date?.slice(0, 7);
-    if (m) byMonth.set(m, (byMonth.get(m) ?? 0) + 1);
-  }
-  const months = [...byMonth.keys()].sort();
-  const max = Math.max(1, ...byMonth.values());
-
+function TimelineDialog({ pin, close }: { pin: Pin; close: () => void }) {
   return (
-    <div className="capture-rail">
-      <p className="label capture-label">
-        Capture time, when the corpus was ingested
-      </p>
-      <div className="capture-track">
-        {months.map((m) => (
-          <div key={m} className="capture-month" title={`${m}: ${plural(byMonth.get(m) ?? 0, 'event')} captured`}>
-            <span className="capture-bar" style={{ height: `${(byMonth.get(m)! / max) * 100}%` }} />
-            <span className="mono capture-tick">{m.slice(2)}</span>
-            <span className="mono capture-value">{byMonth.get(m)}</span>
+    <div className="desk-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}>
+      <section className="desk-modal" role="dialog" aria-modal="true" aria-labelledby="timeline-dialog-title">
+        <header className="desk-modal-head">
+          <div>
+            <p className="desk-eyebrow">{titleCase(pin.primary_category)} · {formatDate(pin.sort_key)}</p>
+            <h2 id="timeline-dialog-title">{pin.label || compact(pin.summary, 140)}</h2>
           </div>
-        ))}
-      </div>
+          <button className="desk-modal-close" type="button" onClick={close}>Close</button>
+        </header>
+        <div className="desk-modal-body timeline-dialog-body">
+          <section>
+            <p className="desk-eyebrow">What happened</p>
+            <p className="timeline-dialog-prose">{pin.summary}</p>
+          </section>
+          {pin.business_signal ? <section><p className="desk-eyebrow">Why it matters</p><p className="timeline-dialog-prose">{pin.business_signal}</p></section> : null}
+          <section>
+            <p className="desk-eyebrow">Source context</p>
+            <p className="timeline-dialog-prose">{pin.detailed_content || pin.source_title || pin.source_label || 'Stored source'}</p>
+            {pin.detailed_content ? <p className="timeline-dialog-source">From {pin.source_title || pin.source_label || 'the stored source'}</p> : null}
+            <div className="timeline-dialog-links">
+              <Link to={`/event/${pin.event_id}`}>Open full event</Link>
+              <Link to={`/source/${encodeURIComponent(pin.source_id)}`}>Open supporting source</Link>
+              {pin.source_url ? <a href={pin.source_url} target="_blank" rel="noreferrer">Open original</a> : null}
+            </div>
+          </section>
+        </div>
+      </section>
     </div>
   );
 }

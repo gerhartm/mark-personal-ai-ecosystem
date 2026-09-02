@@ -78,7 +78,29 @@ describe('read routes', () => {
     expect(recon.unresolvedConnections).toBe(7);
     expect(recon.orphanEvents).toBe(0);
     expect(recon.foreignKeyErrors).toBe(0);
-    expect(recon.migrations.length).toBe(6);
+    expect(recon.migrations.length).toBe(7);
+  });
+
+  it('builds topics and source detail from the stored corpus', async () => {
+    const topics = await json('/api/topics');
+    expect(topics.topics.length).toBeGreaterThan(0);
+    expect(topics.topics.every((topic: any) => topic.tag && topic.event_count > 0)).toBe(true);
+
+    const detail = await json(`/api/topics?tag=${encodeURIComponent(topics.topics[0].tag)}`);
+    expect(detail.selected).toBe(topics.topics[0].tag);
+    expect(detail.events.length).toBeGreaterThan(0);
+    expect(Array.isArray(detail.sources)).toBe(true);
+    expect(Array.isArray(detail.claims)).toBe(true);
+
+    const source = await json(`/api/sources/${encodeURIComponent(detail.sources[0].source_id)}`);
+    expect(source.source_id).toBe(detail.sources[0].source_id);
+    expect(Array.isArray(source.events)).toBe(true);
+  });
+
+  it('returns preserved Ask history without generating placeholder answers', async () => {
+    const history = await json('/api/ask/history');
+    expect(Array.isArray(history.history)).toBe(true);
+    expect(history.history.every((item: any) => item.question && item.answer)).toBe(true);
   });
 
   it('serves the timeline on both axes', async () => {

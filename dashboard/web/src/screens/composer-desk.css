@@ -1,0 +1,27 @@
+.composer-layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(330px, .95fr); gap: 18px; align-items: start; }
+.composer-form, .composer-output { padding: 18px; border-width: 2px; }
+.composer-form { display: grid; gap: 17px; }
+.composer-form-head { padding-bottom: 14px; border-bottom: 1px solid var(--desk-rule); }
+.composer-form-head h2 { margin: 0 0 6px; color: var(--desk-heading); font-size: 15px; }
+.composer-form-head p { margin: 0; color: var(--desk-muted); font-family: 'Newsreader Variable', Georgia, serif; font-size: 15px; line-height: 1.5; }
+.composer-options { margin: 0; }
+.composer-source-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.composer-source-head span { color: var(--desk-dim); font-family: 'JetBrains Mono', monospace; font-size: 9px; }
+.composer-source-list { display: grid; max-height: 230px; overflow: auto; gap: 4px; margin-top: 8px; padding-right: 3px; }
+.composer-source-list button { display: grid; gap: 4px; border: 1px solid var(--desk-rule); border-radius: 4px; background: var(--desk-panel); padding: 8px 9px; text-align: left; cursor: pointer; }
+.composer-source-list button:hover, .composer-source-list button.is-selected { border-color: var(--desk-accent); background: var(--desk-accent-soft); }
+.composer-source-list span { color: var(--desk-dim); font-family: 'JetBrains Mono', monospace; font-size: 8px; text-transform: uppercase; }
+.composer-source-list strong { color: var(--desk-heading); font-size: 10px; font-weight: 520; line-height: 1.35; }
+.composer-submit { justify-self: end; }
+.composer-output { min-height: 420px; }
+.composer-busy { display: flex; align-items: center; gap: 10px; color: var(--desk-muted); }
+.composer-busy span { width: 8px; height: 8px; border-radius: 50%; background: var(--desk-accent); animation: ask-pulse 1s ease-in-out infinite alternate; }
+.composer-output-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--desk-rule); }
+.composer-output-actions a { display: inline-flex; align-items: center; text-decoration: none; }
+.composer-citations { display: grid; gap: 6px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--desk-rule); }
+.composer-citations a { color: var(--desk-accent); font-size: 11px; line-height: 1.4; text-decoration: none; }
+
+@media (max-width: 980px) {
+  .composer-layout { grid-template-columns: 1fr; }
+  .composer-output { min-height: 0; }
+}

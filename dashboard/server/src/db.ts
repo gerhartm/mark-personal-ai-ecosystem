@@ -29,7 +29,9 @@ db.pragma('busy_timeout = 5000');
  * ingestion into the existing dashboard corpus. The queue stores references
  * and safe metadata only; complete source bodies remain in OpenViking.
  */
-db.transaction(() => {
+const hasMigration = (id: string) => Boolean(db.prepare('SELECT 1 FROM schema_migrations WHERE id=?').get(id));
+
+if (!hasMigration('006')) db.transaction(() => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS source_sync_jobs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,11 +58,32 @@ db.transaction(() => {
     `INSERT OR IGNORE INTO schema_migrations (id, name, applied_at)
      VALUES ('006', 'telegram_source_sync', ?)`,
   ).run(new Date().toISOString());
+})();
+if (process.env.NODE_ENV !== 'test') db.prepare(
+  `UPDATE source_sync_jobs
+      SET status='queued', updated_at=?, not_before=?, last_error='recovered_after_restart'
+    WHERE status='processing'`,
+).run(new Date().toISOString(), new Date().toISOString());
+
+/** Runtime migration 007: searchable, durable Ask history. */
+if (!hasMigration('007')) db.transaction(() => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ask_history (
+      id TEXT PRIMARY KEY,
+      asked_at TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      source_ids_json TEXT NOT NULL DEFAULT '[]',
+      evidence_json TEXT NOT NULL DEFAULT '[]'
+    );
+    CREATE INDEX IF NOT EXISTS idx_ask_history_asked_at
+      ON ask_history(asked_at DESC);
+  `);
   db.prepare(
-    `UPDATE source_sync_jobs
-        SET status='queued', updated_at=?, not_before=?, last_error='recovered_after_restart'
-      WHERE status='processing'`,
-  ).run(new Date().toISOString(), new Date().toISOString());
+    `INSERT OR IGNORE INTO schema_migrations (id, name, applied_at)
+     VALUES ('007', 'ask_history', ?)`,
+  ).run(new Date().toISOString());
 })();
 
 /** The private media archive. Unset means media is unavailable in this environment. */

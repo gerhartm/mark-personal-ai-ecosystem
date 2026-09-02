@@ -135,7 +135,7 @@ describe('application-owned state', () => {
 
   it('records every applied migration', () => {
     const ids = db.prepare('select id from schema_migrations order by id').all().map((r: any) => r.id);
-    expect(ids).toEqual(['001', '002', '003', '004', '005', '006']);
+    expect(ids).toEqual(['001', '002', '003', '004', '005', '006', '007']);
   });
 
   it('tags every row with an origin so migrated and new stay separable', () => {

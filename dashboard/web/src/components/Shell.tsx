@@ -1,133 +1,98 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import {
-  IconArchive,
-  IconAsk,
-  IconBrief,
-  IconCapture,
-  IconConnections,
-  IconLibrary,
-  IconRecall,
-  IconSearch,
-  IconSettings,
-  IconStudio,
-  IconTimeline,
-} from './icons';
+import { useQuery } from '../lib/api';
 import { CommandSurface } from './CommandSurface';
 import './shell.css';
 
-const GROUPS = [
-  {
-    label: 'Work',
-    items: [
-      { to: '/', label: 'Brief', icon: IconBrief, end: true },
-      { to: '/ask', label: 'Ask', icon: IconAsk },
-      { to: '/timeline', label: 'Timeline', icon: IconTimeline },
-      { to: '/library', label: 'Library', icon: IconLibrary },
-      { to: '/capture', label: 'Capture', icon: IconCapture },
-      { to: '/connections', label: 'Connections', icon: IconConnections },
-    ],
-  },
-  {
-    label: 'Produce',
-    items: [
-      { to: '/studio', label: 'Studio', icon: IconStudio },
-      { to: '/quiz', label: 'Quiz', icon: IconRecall },
-    ],
-  },
-  {
-    label: 'History',
-    items: [
-      { to: '/archive', label: 'Archive', icon: IconArchive },
-      { to: '/settings', label: 'Settings', icon: IconSettings },
-    ],
-  },
+const NAV = [
+  { idx: '01', label: 'Topics', to: '/', end: true },
+  { idx: '02', label: 'Timeline', to: '/timeline' },
+  { idx: '03', label: 'Sources', to: '/library' },
+  { idx: '04', label: 'Ask', to: '/ask' },
+  { idx: '05', label: 'Prep', to: '/prep' },
+  { idx: '06', label: 'Studio', to: '/studio' },
+  { idx: '07', label: 'Creator reference', to: '/creator-reference' },
+  { idx: '08', label: 'Quiz', to: '/quiz' },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const [commandOpen, setCommandOpen] = useState(false);
   const location = useLocation();
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const brief = useQuery<any>('/brief');
+  const ingestion = useQuery<any>('/ingestion');
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
         setCommandOpen(true);
       }
-      if (e.key === 'Escape') setCommandOpen(false);
+      if (event.key === 'Escape') {
+        setCommandOpen(false);
+        setMenuOpen(false);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   useEffect(() => {
-    document.querySelector('main')?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
+    setMenuOpen(false);
   }, [location.pathname]);
 
+  const counts = brief.data?.counts;
+  const pipelineReady = Boolean(ingestion.data?.configured && ingestion.data?.connected);
+
   return (
-    <div className="shell">
-      <a className="skip-link" href="#main">
-        Skip to content
-      </a>
+    <div className="desk-shell">
+      <a className="skip-link" href="#main">Skip to content</a>
 
-      <nav className="rail" aria-label="Primary">
-        <Link className="rail-brand" to="/" aria-label="Open Crypto Intelligence home">
-          <span className="rail-brand-mark" aria-hidden="true">
-            <span className="rail-brand-lobe rail-brand-lobe-left" />
-            <span className="rail-brand-lobe rail-brand-lobe-right" />
-            <span className="rail-brand-branch" />
-          </span>
-          <span className="rail-brand-text">
-            <span className="rail-brand-name">Crypto Intelligence</span>
-            <span className="rail-brand-scope label">Mark Gerhart</span>
-          </span>
-        </Link>
-
-        <div className="rail-groups">
-          {GROUPS.map((group) => (
-            <div className="rail-group" key={group.label}>
-              <p className="rail-group-label label">{group.label}</p>
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={(item as any).end}
-                  className={({ isActive }) => `rail-item ${isActive ? 'is-active' : ''}`}
-                >
-                  <span className="rail-icon">
-                    <item.icon />
-                  </span>
-                  <span className="rail-label">{item.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          ))}
+      <aside className={`desk-rail ${menuOpen ? 'is-open' : ''}`}>
+        <div className="desk-brand-row">
+          <Link className="desk-brand" to="/" aria-label="Open Crypto Intelligence topics">
+            <strong>Crypto Intelligence</strong>
+            <span>Private workspace</span>
+          </Link>
+          <button className="desk-menu-button" type="button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-label="Toggle navigation">
+            <span />
+            <span />
+          </button>
         </div>
 
-        <div className="rail-foot">
-          <p className="label">Workspace</p>
-          <div className="rail-workspace" title="This is the active intelligence branch">
-            <span className="rail-workspace-active">Crypto Intelligence</span>
-            <span className="faint">Future branches remain reserved</span>
+        <nav className="desk-nav" aria-label="Primary">
+          {NAV.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `desk-nav-link ${isActive ? 'is-active' : ''}`}>
+              <span>{item.idx}</span>
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="desk-rail-foot">
+          <button type="button" className="desk-search-trigger" onClick={() => setCommandOpen(true)}>
+            Search or jump anywhere
+            <kbd>⌘K</kbd>
+          </button>
+          <div className="desk-system-state">
+            <span className={`desk-state-dot ${pipelineReady ? 'is-live' : ''}`} />
+            <strong>{pipelineReady ? 'Ingestion connected' : 'Corpus online'}</strong>
+            <small>{counts ? `${counts.sources} sources · ${counts.events} events` : 'Reading current workspace'}</small>
+          </div>
+          <div className="desk-utility-links">
+            <Link to="/capture">Add source</Link>
+            <Link to="/archive">History</Link>
+            <Link to="/settings">Settings</Link>
           </div>
         </div>
-      </nav>
+      </aside>
 
-      <div className="frame">
-        <header className="topbar">
-          <button type="button" className="omni" onClick={() => setCommandOpen(true)}>
-            <IconSearch />
-            <span className="omni-text">Search the corpus or jump anywhere</span>
-            <kbd className="omni-key mono">⌘K</kbd>
-          </button>
-        </header>
+      <main id="main" className="desk-main" tabIndex={-1}>
+        <div className="desk-page">{children}</div>
+      </main>
 
-        <main id="main" className="main" tabIndex={-1}>
-          {children}
-        </main>
-      </div>
-
-      {commandOpen && <CommandSurface onClose={() => setCommandOpen(false)} />}
+      {commandOpen ? <CommandSurface onClose={() => setCommandOpen(false)} /> : null}
     </div>
   );
 }

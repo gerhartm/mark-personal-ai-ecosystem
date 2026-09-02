@@ -7,12 +7,15 @@ boundary. It does not modify Hermes, OpenViking, or the legacy platform.
 
 Primary workflows:
 
-- **Daily Intelligence:** one sourced Hermes market review that compares live
-  changes with the private corpus and proposes useful work inside the product.
+- **Topics:** the evidence-first home view, built only from real stored tags,
+  events, sources, and extracted claims.
+- **Sources:** the material Mark supplied, grouped as Transcripts, Tweets, Blog
+  posts, and Your notes, with retained text and source-scoped Ask.
 - **Ask:** grounded answers with the exact corpus records Hermes reviewed.
 - **Quiz:** evidence-linked questions, one bounded Hermes grading pass,
-  feedback, scores, and preserved session history.
-- **Studio:** X threads, LinkedIn posts, review briefs, source-cited drafts, and an explicit Mark or Creator Reference writing lens.
+  model-answer reveals, feedback, scores, and preserved session history.
+- **Studio:** selected-source X posts, X threads, LinkedIn posts, review briefs,
+  source-cited drafts, and an explicit Mark or Creator Reference writing lens.
 - **Speaking Prep:** theses, talking points, likely questions,
   counterarguments, and closing takeaways from a selected date range.
 - **Capture:** native OpenViking URL or text ingestion with deterministic
@@ -115,7 +118,7 @@ npm start &               # the API tests exercise the running server
 npx vitest run
 ```
 
-84 tests: reconciliation against the handoff manifest, canonical identity
+86 tests: reconciliation against the handoff manifest, canonical identity
 preservation, facet derivation, precision spans, taxonomy verbatim, append-only
 notes, the identity register, unified search determinism, media authorisation
 and traversal, the Access identity boundary, bounded Hermes evidence assembly,

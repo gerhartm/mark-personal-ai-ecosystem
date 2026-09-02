@@ -6,6 +6,7 @@ import * as tools from './tools.js';
 
 export const STUDIO_TEMPLATES = [
   'speaking_prep',
+  'x_post',
   'twitter_thread',
   'linkedin_post',
   'month_in_review',
@@ -23,6 +24,7 @@ export interface StudioDraftInput {
   date_from?: string | null;
   date_to?: string | null;
   writing_lens?: string;
+  source_ids?: unknown;
 }
 
 export interface StudioCitation {
@@ -70,7 +72,13 @@ export function validateStudioInput(value: StudioDraftInput) {
   if (!STUDIO_WRITING_LENSES.includes(writingLens)) {
     throw new StudioInputError('invalid_writing_lens', 'Choose one of the available writing lenses.');
   }
-  return { template, focus, dateFrom, dateTo, writingLens };
+  if ((template === 'month_in_review' || template === 'year_in_review') && (!dateFrom || !dateTo)) {
+    throw new StudioInputError('period_required', 'Choose a start and end date for a review brief.');
+  }
+  const sourceIds = Array.isArray(value?.source_ids)
+    ? [...new Set(value.source_ids.map(String).filter((id) => Boolean(tools.getSource(id))))].slice(0, 12)
+    : [];
+  return { template, focus, dateFrom, dateTo, writingLens, sourceIds };
 }
 
 function eventRecord(id: string) {
@@ -115,8 +123,10 @@ async function sourceRecord(id: string) {
 const templateContract: Record<StudioTemplate, string> = {
   speaking_prep:
     'Create a practical speaking brief with a clear thesis, key talking points, evidence, likely questions, concise answers, counterarguments, and a closing takeaway.',
+  x_post:
+    'Create one publishable X post of no more than 280 characters, excluding evidence citations. It must sound like a real post, make one clear point, avoid headings and generic hashtags, and use only the strongest supporting evidence.',
   twitter_thread:
-    'Create an 8 to 10 post X thread. Number every post, keep each post concise, open with a strong factual hook, and end with a useful synthesis. Do not add generic hashtags.',
+    'Create a publishable 5 to 7 post X thread. Number every post, keep each post within 280 characters excluding evidence citations, open with a strong factual hook, and end with a useful synthesis. Do not add generic hashtags or article-style headings.',
   linkedin_post:
     'Create a thoughtful LinkedIn post with a clear opening, evidence-led argument, practical implication, and concise closing. Avoid hype and generic hashtags.',
   month_in_review:
@@ -127,7 +137,9 @@ const templateContract: Record<StudioTemplate, string> = {
 
 export async function buildStudioContext(value: StudioDraftInput) {
   const input = validateStudioInput(value);
-  const hits = tools.search(input.focus, 16).results as any[];
+  const hits = input.sourceIds.length
+    ? input.sourceIds.map((id) => ({ kind: 'source', canonical_id: id }))
+    : tools.search(input.focus, 16).results as any[];
   const records: any[] = [];
   const seen = new Set<string>();
 
@@ -145,7 +157,7 @@ export async function buildStudioContext(value: StudioDraftInput) {
     if (records.length >= 14) break;
   }
 
-  const periodEvents = tools.findEvents({
+  const periodEvents = input.sourceIds.length ? [] : tools.findEvents({
     from: input.dateFrom ?? undefined,
     to: input.dateTo ?? undefined,
     sort: 'significance',
@@ -189,6 +201,7 @@ export async function buildStudioContext(value: StudioDraftInput) {
     `FOCUS\n${input.focus}`,
     `DATE WINDOW\n${period}`,
     `WRITING LENS\n${input.writingLens === 'creator_reference' ? 'Creator Reference' : 'Mark'}`,
+    `SOURCE SELECTION\n${input.sourceIds.length ? input.sourceIds.join('\n') : 'Automatically selected from the corpus'}`,
     `OUTPUT CONTRACT\n${templateContract[input.template]}`,
     input.writingLens === 'creator_reference'
       ? 'CREATOR REFERENCE CONTRACT\nUse the shared Creator Reference corpus only for tone, phrasing, argument structure, and supported opinion patterns. Keep all factual claims grounded in the supplied crypto evidence. Search and read the unified OpenViking memory for the Creator Reference profile and sources before deciding they are unavailable. If no usable Creator Reference material exists after that native retrieval, return exactly CREATOR_REFERENCE_UNAVAILABLE.'
@@ -297,6 +310,7 @@ export async function createStudioDraft(value: StudioDraftInput, actor: string) 
       writing_lens: context.writingLens,
       evidence_count: context.evidenceCount,
       citation_count: citations.length,
+      source_count: context.sourceIds.length,
     });
   })();
   return { id, body, citations, revision: 0, writing_lens: context.writingLens };

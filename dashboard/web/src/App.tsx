@@ -2,7 +2,8 @@ import { Suspense, lazy, useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Shell } from './components/Shell';
 import { Skeleton } from './components/primitives';
-import { Brief } from './screens/Brief';
+import { Topics } from './screens/Topics';
+import { TopicDetail } from './screens/TopicDetail';
 import { Timeline } from './screens/Timeline';
 import { Library } from './screens/Library';
 import { EventDetail } from './screens/EventDetail';
@@ -15,6 +16,8 @@ import { Archive } from './screens/Archive';
 import { Settings } from './screens/Settings';
 import { Capture } from './screens/Capture';
 import { Ask } from './screens/Ask';
+import { Prep } from './screens/Prep';
+import { CreatorReference } from './screens/CreatorReference';
 
 export default function App() {
   // Appearance preferences are applied before first paint of any screen.
@@ -28,7 +31,8 @@ export default function App() {
     <Shell>
       <Suspense fallback={<Skeleton rows={5} height={72} />}>
         <Routes>
-          <Route path="/" element={<Brief />} />
+          <Route path="/" element={<Topics />} />
+          <Route path="/topics/:tag" element={<TopicDetail />} />
           <Route path="/ask" element={<Ask />} />
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/library" element={<Library />} />
@@ -37,6 +41,8 @@ export default function App() {
           <Route path="/source/:id" element={<SourceDetail />} />
           <Route path="/theme/:id" element={<ThemeDetail />} />
           <Route path="/connections" element={<Connections />} />
+          <Route path="/prep" element={<Prep />} />
+          <Route path="/creator-reference" element={<CreatorReference />} />
           <Route path="/studio" element={<Studio />} />
           <Route path="/studio/:id" element={<Studio />} />
           <Route path="/quiz" element={<Quiz />} />

@@ -1,4 +1,4 @@
-# Satoshi and Crypto Intelligence — User Guide
+# Satoshi and Crypto Intelligence User Guide
 
 **Audience:** Mark and approved staff
 **Reviewed:** 2026-08-10
@@ -83,52 +83,57 @@ blocks automated reading, paste the original text or transcript instead.
 
 ## 4. Dashboard guide
 
-### Brief
+### Topics
 
-Start here for the daily overview. Review current changes, watch items,
-suggested actions, stored signals, and recent system activity. Follow a card
-into Ask, Studio, Speaking Preparation, Quiz, Capture, or Library.
+Topics is the home screen. It shows themes already present in Mark's supplied
+material. Search for a topic, filter for high-signal or recently discussed
+topics, and open one to review its extracted claims and supporting sources.
+This page does not invent watchlists, ratings, actions, or recommendations.
 
 ### Ask
 
 Ask a focused question. Good questions include a topic, time range, comparison,
-or decision. Review the evidence shown with the answer. If the interface says
+or decision. Every successful answer is saved in searchable question history.
+Review the evidence shown with the answer. If the interface says
 the intelligence plane is unavailable, treat the displayed corpus matches as
 search results, not as a completed answer.
 
 ### Timeline
 
 Use Timeline to understand when the underlying subject events occurred. The
-system distinguishes precise dates from month-, quarter-, and year-level dates.
+year selector includes every year available in the corpus. The system
+distinguishes unique events from dated references and identifies date
+precision. Open an event to review what happened, why it matters, its source
+context, and the original supporting record.
 
 ### Library
 
-Use Library to inspect structured sources, events, and media. Search is based on
-records registered in the Crypto database. Open a record to review its details,
-provenance, connections, and notes.
-
-### Connections
-
-Use Connections to explore relationships between important events and evidence.
-Unresolved legacy references are shown honestly rather than silently removed.
+Use Sources to inspect material registered in the Crypto database. The visible
+source types are Transcripts, Tweets, Blog posts, and Your notes. Open a source
+to read its useful extracted summary, retained text when available, provenance,
+events, and claims. The Ask this source panel limits the initial evidence scope
+to that source.
 
 ### Quiz
 
 1. Choose a topic or date range.
 2. Generate a question set.
 3. Answer in your own words.
-4. Review the score, explanation, and supporting evidence.
-5. Use weak areas as follow-up questions in Ask.
+4. Reveal a model answer when you want a comparison.
+5. Review the score, explanation, and supporting evidence.
+6. Use weak areas as follow-up questions in Ask.
 
 ### Studio
 
-1. Choose the output: X thread, LinkedIn post, review brief, or speaking prep.
+1. Choose the output: X post, X thread, LinkedIn post, review brief, or speaking prep.
 2. Choose **Mark** or **Creator Reference** as the writing lens.
 3. Enter a precise focus and optional date window.
-4. Generate the draft.
-5. Review every citation and factual claim.
-6. Edit and save; revisions are preserved instead of overwriting the original.
-7. Ask Satoshi to humanize the final draft only if desired.
+4. Search and select up to 12 evidence sources, or leave the selection empty
+   for bounded automatic selection.
+5. Generate the draft.
+6. Review every citation and factual claim.
+7. Edit and save; revisions are preserved instead of overwriting the original.
+8. Ask Satoshi to humanize the final draft only if desired.
 
 Creator Reference changes expression, not evidence. If the reference corpus is
 not available, the system should refuse to invent the creator's style.
@@ -142,7 +147,7 @@ chat message.
 
 ## 5. Recommended daily workflow
 
-1. Read Brief.
+1. Browse Topics or open the newest Sources.
 2. Forward or Capture important new sources.
 3. Ask Satoshi what changed and why it matters.
 4. Save durable conclusions, not casual chat.

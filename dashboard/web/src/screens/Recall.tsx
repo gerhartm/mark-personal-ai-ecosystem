@@ -190,11 +190,13 @@ function SessionView({ id, onCompleted }: { id: string; onCompleted: () => void 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [state, setState] = useState<'idle' | 'grading' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const [revealedAnswers, setRevealedAnswers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setAnswers({});
     setState('idle');
     setMessage('');
+    setRevealedAnswers(new Set());
   }, [id]);
 
   if (error) return <ErrorState error={error} onRetry={refetch} />;
@@ -252,20 +254,41 @@ function SessionView({ id, onCompleted }: { id: string; onCompleted: () => void 
             {complete || question.answer ? (
               <AnswerResult question={question} />
             ) : (
-              <label className="field quiz-answer-field">
-                <span className="field-label">Your answer</span>
-                <textarea
-                  className="field-control quiz-answer"
-                  rows={4}
-                  maxLength={4_000}
-                  value={answers[question.id] ?? ''}
-                  placeholder="Explain it in your own words"
-                  onChange={(event) => {
-                    setAnswers((current) => ({ ...current, [question.id]: event.target.value }));
-                    setState('idle');
-                  }}
-                />
-              </label>
+              <>
+                <label className="field quiz-answer-field">
+                  <span className="field-label">Your answer</span>
+                  <textarea
+                    className="field-control quiz-answer"
+                    rows={4}
+                    maxLength={4_000}
+                    value={answers[question.id] ?? ''}
+                    placeholder="Explain it in your own words"
+                    onChange={(event) => {
+                      setAnswers((current) => ({ ...current, [question.id]: event.target.value }));
+                      setState('idle');
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="quiz-reveal-button"
+                  aria-expanded={revealedAnswers.has(question.id)}
+                  onClick={() => setRevealedAnswers((current) => {
+                    const next = new Set(current);
+                    if (next.has(question.id)) next.delete(question.id);
+                    else next.add(question.id);
+                    return next;
+                  })}
+                >
+                  {revealedAnswers.has(question.id) ? 'Hide model answer' : 'Reveal model answer'}
+                </button>
+                {revealedAnswers.has(question.id) ? (
+                  <div className="quiz-model-answer">
+                    <p className="label">Model answer</p>
+                    <p>{question.answer_guidance}</p>
+                  </div>
+                ) : null}
+              </>
             )}
 
             {question.events?.length > 0 && (
@@ -325,6 +348,12 @@ function AnswerResult({ question }: { question: any }) {
           <p className="answer-feedback">{question.answer.feedback}</p>
         </div>
       )}
+      {question.answer_guidance ? (
+        <div className="answer-feedback-wrap">
+          <p className="label">Model answer</p>
+          <p className="answer-feedback">{question.answer_guidance}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

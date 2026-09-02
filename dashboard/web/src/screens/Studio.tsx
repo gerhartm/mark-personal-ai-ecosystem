@@ -11,11 +11,13 @@ import {
   StatusChip,
 } from '../components/primitives';
 import { TEMPLATE_LABEL } from '../lib/taxonomy';
+import { sourceKind } from '../lib/desk';
 import { IconArrow } from '../components/icons';
 import './studio.css';
 
 const FALLBACK_TEMPLATES = [
   'speaking_prep',
+  'x_post',
   'twitter_thread',
   'linkedin_post',
   'month_in_review',
@@ -34,9 +36,14 @@ const STUDIO_TASKS = [
     description: 'Build a thesis, talking points, likely questions, counterarguments, and a strong closing takeaway.',
   },
   {
+    template: 'x_post',
+    title: 'Write an X post',
+    description: 'Turn selected intelligence into one concise, evidence-backed post that reads naturally on X.',
+  },
+  {
     template: 'twitter_thread',
-    title: 'Create for X',
-    description: 'Turn a topic and date window into a concise evidence-backed thread that is ready to refine.',
+    title: 'Build an X thread',
+    description: 'Develop a topic into a short evidence-backed thread with a clear argument and progression.',
   },
   {
     template: 'linkedin_post',
@@ -211,8 +218,16 @@ function DraftComposer({
   const [writingLens, setWritingLens] = useState('mark');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const sourcesQuery = useQuery('/sources');
+  const [sourceSearch, setSourceSearch] = useState('');
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [state, setState] = useState<'idle' | 'generating' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const evidenceSources = (sourcesQuery.data?.sources ?? []).filter((source: any) => {
+    const needle = sourceSearch.trim().toLowerCase();
+    return !needle || [source.title, source.source_label, source.source_type, source.tags]
+      .some((value) => String(value ?? '').toLowerCase().includes(needle));
+  }).slice(0, 30);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -228,6 +243,7 @@ function DraftComposer({
           date_from: dateFrom || null,
           date_to: dateTo || null,
           writing_lens: writingLens,
+          source_ids: selectedSources,
         }),
       });
       onCreated(result.id);
@@ -286,6 +302,42 @@ function DraftComposer({
             <input className="field-control mono" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
           </label>
         </div>
+
+        <section className="studio-evidence-picker">
+          <div className="studio-evidence-head">
+            <div>
+              <span className="field-label">Evidence sources</span>
+              <span className="field-help">Choose up to 12 sources, or leave this empty for automatic evidence selection.</span>
+            </div>
+            <Link to="/" className="desk-link">Browse topics</Link>
+          </div>
+          <input
+            className="field-control"
+            type="search"
+            value={sourceSearch}
+            onChange={(event) => setSourceSearch(event.target.value)}
+            placeholder="Search source titles, channels, or tags"
+          />
+          <div className="studio-evidence-list">
+            {evidenceSources.map((source: any) => {
+              const active = selectedSources.includes(source.source_id);
+              return (
+                <button
+                  key={source.source_id}
+                  type="button"
+                  className={active ? 'is-selected' : ''}
+                  onClick={() => setSelectedSources((current) => active
+                    ? current.filter((id) => id !== source.source_id)
+                    : current.length < 12 ? [...current, source.source_id] : current)}
+                >
+                  <span>{active ? 'Selected' : sourceKind(source.source_type)}</span>
+                  <strong>{truncate(source.title || source.source_label || 'Untitled source', 92)}</strong>
+                </button>
+              );
+            })}
+          </div>
+          {selectedSources.length ? <span className="field-help">{selectedSources.length} sources selected</span> : null}
+        </section>
 
         <div className="studio-compose-actions">
           <button className="btn btn-primary" type="submit" disabled={focus.trim().length < 3 || state === 'generating'}>

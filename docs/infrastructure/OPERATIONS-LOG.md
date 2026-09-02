@@ -959,3 +959,13 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Repository: committed the implementation, tests, deployment definitions, and client-safe documentation to the private `main` branch with no credentials or private content.
 - Recovery mirror: replaced `/root/mark-v2-docs/` with a clean archive of the tracked repository, compared all 216 file hashes against the local checkpoint, found no AppleDouble or `.DS_Store` artifacts, and retained the prior generated mirror as a dated recovery copy.
 - Runtime: no production container, database, memory record, provider, Cloudflare configuration, or legacy service changed during this archival step.
+
+## 2026-09-02 07:32 UTC - Mark Lovable frontend release pending
+
+- Operator: Codex implementing Darshan's approved replacement of the Crypto Intelligence frontend with Mark's Lovable design direction.
+- Status: pending canary, guarded promotion, and public acceptance.
+- Planned release: `20260902T073200Z` built from branch `feature/lovable-frontend-integration`.
+- Product scope: make Topics the evidence-first home, add topic detail, rebuild Timeline around all stored years and real reference counts, rebuild Sources and source-scoped Ask, add searchable Ask history, add selected-source Prep and Studio workflows, add a generic Creator Reference workspace, and add revealable Quiz model answers.
+- Data boundary: Lovable sample records, demo bots, generated counts, and seeded timeline content are excluded. The existing production database, source identities, OpenViking memory, Hermes brain, Telegram synchronization, and retained client content remain authoritative.
+- Safety plan: create an isolated SQLite canary backup, apply forward migration `007 ask_history` only to the canary first, run identity, integrity, feature, and browser checks, create a fresh pre-promotion backup, retain the current `20260811T132229Z` image and container for rollback, then promote only the Crypto dashboard service.
+- Unchanged scope: no DNS, Cloudflare Access, tunnel, provider, model, Hermes source, OpenViking source, ForkedBrain, legacy VPS, or `intel.forkedbrain.fyi` change is authorized or planned.

@@ -142,6 +142,13 @@
   border: 1px solid var(--hairline);
 }
 
+.studio-topic-picker { display: grid; gap: var(--sp-3); }
+.studio-topic-picker > div { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.studio-topic-picker button { border: 1px solid var(--hairline); border-radius: var(--radius-flat); background: transparent; color: var(--ink-muted); padding: 6px 9px; font-size: .7rem; cursor: pointer; }
+.studio-topic-picker button:hover,
+.studio-topic-picker button.is-selected { border-color: var(--accent-deep); background: var(--accent-wash); color: var(--ink-primary); }
+.studio-topic-picker button span { margin-left: 4px; color: var(--ink-faint); font-family: var(--font-mono); font-size: .62rem; }
+
 .studio-evidence-list button {
   display: grid;
   min-width: 0;

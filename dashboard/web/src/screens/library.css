@@ -10,6 +10,11 @@
 .source-open { align-self: center; color: var(--desk-accent); font-family: 'JetBrains Mono', monospace; font-size: 9px; }
 .source-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 32px; align-items: start; }
 .source-summary { margin-bottom: 26px; padding-left: 17px; border-left: 2px solid var(--desk-accent); }
+.source-summary > p { margin: 0 0 12px; color: var(--desk-ink); font-family: 'Newsreader Variable', Georgia, serif; font-size: 18px; line-height: 1.65; }
+.source-key-points { margin-bottom: 28px; }
+.source-key-points ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.source-key-points li { position: relative; padding: 0 0 10px 18px; border-bottom: 1px solid var(--desk-rule); color: var(--desk-ink); font-family: 'Newsreader Variable', Georgia, serif; font-size: 16px; line-height: 1.55; }
+.source-key-points li::before { position: absolute; left: 2px; color: var(--desk-accent); content: '•'; }
 .source-body { margin: 0 0 30px; border: 1px solid var(--desk-rule); border-radius: 7px; background: var(--desk-panel); }
 .source-body summary { padding: 12px 14px; color: var(--desk-muted); font-family: 'JetBrains Mono', monospace; font-size: 10px; cursor: pointer; }
 .source-body pre { max-height: 520px; overflow: auto; margin: 0; padding: 14px; border-top: 1px solid var(--desk-rule); color: var(--desk-muted); font-family: 'JetBrains Mono', monospace; font-size: 10px; line-height: 1.6; white-space: pre-wrap; }

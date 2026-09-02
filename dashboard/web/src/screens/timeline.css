@@ -9,7 +9,7 @@
 .timeline-category-row { margin-bottom: 4px; }
 .timeline-ledger { border-top: 1px solid var(--desk-rule); }
 .timeline-month { padding: 19px 0 10px; border-bottom: 1px solid var(--desk-rule); }
-.timeline-month > header { position: sticky; z-index: 5; top: 0; display: flex; align-items: baseline; gap: 12px; padding: 6px 0; background: rgba(255,255,255,.94); backdrop-filter: blur(8px); }
+.timeline-month > header { position: sticky; z-index: 5; top: 0; display: flex; align-items: baseline; gap: 12px; padding: 6px 0; background: color-mix(in srgb, var(--desk-bg) 94%, transparent); backdrop-filter: blur(8px); }
 .timeline-month h2 { margin: 0; color: var(--desk-heading); font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; }
 .timeline-month header > span { height: 1px; flex: 1; background: var(--desk-rule); }
 .timeline-month header small { color: var(--desk-dim); font-family: 'JetBrains Mono', monospace; font-size: 9px; }

@@ -518,12 +518,12 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260902T073200Z`
+Current accepted release: `20260902T084905Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260902T073200Z`
+- image: `mark-crypto-dashboard:20260902T084905Z`
 - loopback origin: `http://127.0.0.1:9330`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`
@@ -548,7 +548,7 @@ Expected state is healthy, `127.0.0.1:9330->5183/tcp`, read-only root filesystem
 
 The static interface must be protected by Cloudflare Access. Every data endpoint also requires the verified Access identity header and rejects missing or unknown identities with HTTP `401`. With an approved identity, require:
 
-- brief reports 66 events, 49 sources, and 89 media files
+- brief reports 66 events, 54 sources, and 89 media files
 - `GET /api/intelligence` reports `connected=true`, a 24-hour refresh interval,
   and the latest accepted briefing
 - a disposable-canary `POST /api/intelligence/refresh` returns a non-empty
@@ -558,7 +558,7 @@ The static interface must be protected by Cloudflare Access. Every data endpoint
 - `GET /api/ingestion` reports `configured=true` and `connected=true`
 - Capture accepts URL and pasted-text requests only after OpenViking accepts them, skips exact duplicates, and records no local source on provider failure
 - Satoshi Crypto registration reports two persistent `ready` proof jobs, rejects missing or invalid service credentials, keeps one canonical source on replay, and remains available after dashboard and ForkedBrain restarts
-- `GET /api/studio/status` reports `connected=true`, exactly the five supported draft formats, and the `mark` and `creator_reference` writing lenses
+- `GET /api/studio/status` reports `connected=true`, exactly the six supported draft formats, and the `mark` and `creator_reference` writing lenses
 - Studio generation is exercised only in the disposable release canary: require a non-empty Hermes draft, the selected writing lens in the immediate and stored responses, at least one resolvable canonical citation, revision `0`, an appended revision `1`, and an unchanged production draft count
 - `GET /api/quiz/status` reports `connected=true`; Quiz generation and grading are exercised only in the disposable release canary and must return exactly three evidence-linked questions, one complete feedback record per answer, and no production quiz write
 - database `PRAGMA integrity_check` is `ok` and `PRAGMA foreign_key_check` returns no rows

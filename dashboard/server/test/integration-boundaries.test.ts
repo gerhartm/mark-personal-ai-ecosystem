@@ -7,6 +7,8 @@ import {
   StudioInputError,
   buildStudioContext,
   resolveStudioCitations,
+  studioFormatIssues,
+  studioPublishableText,
   validateStudioCitations,
   validateStudioInput,
 } from '../src/studio.js';
@@ -55,6 +57,7 @@ describe('Studio intelligence boundary', () => {
     expect(context.evidenceCount).toBeGreaterThan(0);
     expect(context.evidenceCount).toBeLessThanOrEqual(18);
     expect(context.prompt).toContain('OUTPUT CONTRACT');
+    expect(context.prompt).toContain('QUALITY CONTRACT');
     expect(context.prompt).toContain('CITATION CONTRACT');
     expect(context.prompt.length).toBeLessThanOrEqual(36_000);
   });
@@ -78,5 +81,20 @@ describe('Studio intelligence boundary', () => {
       date_from: '2026-07-04',
       date_to: '2026-04-01',
     })).toThrow(/before the end date/i);
+  });
+
+  it('enforces the real publishing formats before a generated draft can be saved', () => {
+    const citation = '[2026-04-01-0001]';
+    expect(studioPublishableText(`A clear point ${citation}.`)).toBe('A clear point.');
+    expect(studioFormatIssues('x_post', `${'x'.repeat(281)} ${citation}`)).toContain(
+      'The X post is 281 characters and must be 280 or fewer.',
+    );
+    expect(studioFormatIssues('speaking_prep', `Thesis\nA view ${citation}`)).toEqual(expect.arrayContaining([
+      'The speaking brief is missing the talking points section.',
+      'The speaking brief is missing the closing takeaway section.',
+    ]));
+    expect(studioFormatIssues('month_in_review', `Window: 2026-04-01 to 2026-04-30 ${citation}`, {
+      dateFrom: '2026-04-01', dateTo: '2026-04-30',
+    })).toEqual([]);
   });
 });

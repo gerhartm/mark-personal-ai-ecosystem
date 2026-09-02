@@ -1,5 +1,5 @@
 .desk-shell { display: grid; min-height: 100vh; grid-template-columns: 220px minmax(0, 1fr); background: var(--desk-bg); }
-.skip-link { position: fixed; z-index: 200; top: 8px; left: 8px; transform: translateY(-160%); border-radius: 4px; background: var(--desk-heading); color: white; padding: 8px 12px; }
+.skip-link { position: fixed; z-index: 200; top: 8px; left: 8px; transform: translateY(-160%); border-radius: 4px; background: var(--desk-heading); color: var(--desk-bg); padding: 8px 12px; }
 .skip-link:focus { transform: none; }
 .desk-rail { position: sticky; top: 0; display: flex; height: 100vh; flex-direction: column; border-right: 1px solid var(--desk-rule); background: var(--desk-bg); padding: 23px 11px 18px; }
 .desk-brand-row { padding: 0 10px 24px; }
@@ -24,6 +24,14 @@
 .desk-utility-links { display: flex; flex-wrap: wrap; gap: 6px 10px; }
 .desk-utility-links a { color: var(--desk-dim); font-family: 'JetBrains Mono', monospace; font-size: 9px; text-decoration: none; }
 .desk-utility-links a:hover { color: var(--desk-accent); }
+.desk-theme-toggle { display: flex; align-items: center; gap: 7px; width: max-content; border: 0; background: transparent; color: var(--desk-dim); padding: 0; font-family: 'JetBrains Mono', monospace; font-size: 9px; cursor: pointer; }
+.desk-theme-toggle:hover, .desk-theme-toggle:focus-visible { color: var(--desk-accent); outline: none; }
+.desk-theme-toggle:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+.desk-theme-toggle > span { width: 16px; height: 9px; border: 1px solid var(--desk-rule-strong); border-radius: 999px; background: var(--desk-panel-2); box-shadow: inset 7px 0 0 0 var(--desk-accent); }
+:root[data-theme='dark'] .desk-theme-toggle > span { box-shadow: inset -7px 0 0 0 var(--desk-accent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .desk-theme-toggle > span { box-shadow: inset -7px 0 0 0 var(--desk-accent); }
+}
 .desk-main { width: min(1180px, 100%); min-width: 0; padding: 34px 42px 90px; outline: none; }
 
 @media (min-width: 1500px) {

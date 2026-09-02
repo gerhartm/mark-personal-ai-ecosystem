@@ -2,7 +2,7 @@
 
 **Document status:** Authoritative, client-safe operational overview
 **System covered:** Personal AI Ecosystem V2 and Crypto Intelligence Option 1
-**Production checkpoint:** Crypto Intelligence and ForkedBrain release `20260811T132229Z`
+**Production checkpoint:** Crypto Intelligence release `20260902T084905Z` and ForkedBrain release `20260811T132229Z`
 **Last reviewed:** 2026-08-11
 
 This handbook explains what the system is, how its components work together,
@@ -317,13 +317,14 @@ At the accepted production checkpoint:
 
 - Database integrity check: `ok`.
 - Foreign-key violations: zero.
-- Canonical structured corpus: 66 events, 49 sources, and 89 media assets.
+- Canonical structured corpus: 66 events, 54 sources, and 89 media assets.
 - Semantic migration: 197 deterministic identities accepted and independently
   replayed with 197 skips, zero duplicate creates, and zero failures.
 - Representative semantic reads and production citations resolved.
-- Source-grounded Ask, Studio generation/revision, Quiz generation/grading,
-  native Capture, private media, daily intelligence, Creator Reference,
-  Satoshi persona, and humanization passed acceptance.
+- Source-grounded Ask with inline evidence, bounded source briefs, historical
+  Timeline, Studio generation and format validation, Quiz generation/grading,
+  native Capture, private media, Creator Reference, Satoshi persona,
+  humanization, and the persistent light/dark theme passed acceptance.
 - Two existing Satoshi/OpenViking Crypto sources registered through the live
   queue, became searchable in the dashboard and ForkedBrain graph, remained
   deduplicated on replay, and survived both application restarts.
@@ -345,7 +346,7 @@ work is client acceptance rather than another ingestion or memory component.
 2. Complete Mark and Mari real-account acceptance of Satoshi.
 3. Remove the temporary implementation tester only after explicit approval.
 4. Capture any client-requested restore demonstration or screen recording.
-5. Deliver the refreshed client handoff pack for release `20260811T132229Z`.
+5. Deliver the refreshed client handoff pack for release `20260902T084905Z`.
 
 ## 13. Change-management rules
 

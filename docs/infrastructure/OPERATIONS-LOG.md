@@ -975,3 +975,17 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Recovery: copied the prior deployment definition to `/srv/mark-v2/crypto-dashboard/deploy.pre-20260902T073200Z`, created `/srv/mark-v2/crypto-dashboard/backups/pre-20260902T073200Z/crypto-intelligence.db` with mode `0640`, and retained the stopped predecessor as `crypto-dashboard-rollback-20260811T132229Z` with restart disabled.
 - Public regression: unauthenticated `https://crypto.forkedbrain.fyi/` redirects to Cloudflare Access, plain HTTP redirects to HTTPS, `https://intel.forkedbrain.fyi/` remains HTTP `200`, and the protected root site remains unchanged.
 - Unchanged scope: no DNS, Cloudflare Access, tunnel, provider, model, Hermes source, OpenViking source, ForkedBrain, legacy VPS, or `intel.forkedbrain.fyi` change occurred.
+
+## 2026-09-02 08:49-09:08 UTC - Evidence and dark-mode completion accepted
+
+- Operator: Codex completing Darshan's approved product-quality pass while preserving Mark's Lovable frontend structure.
+- Status: completed and promoted as Crypto Intelligence release `20260902T084905Z`.
+- Product scope: added bounded source briefs, clear event explanations, plain-language Ask and inline evidence contracts, clickable citations, real-topic Studio filtering, publishable-format validation, and persistent light and dark themes.
+- Architecture boundary: retained the existing React application, Fastify backend, single SQLite database, Hermes brain, OpenViking memory, Telegram synchronization, Cloudflare boundary, and identity model. Added no second database, vector store, agent, provider, scraper, or reasoning layer.
+- Automated verification: server and web type checks and production builds passed, all 87 server tests passed, production dependency audits reported zero known vulnerabilities, deployment scripts passed syntax validation, application source contained no Lovable sample data, and `git diff --check` passed.
+- Canary: image `mark-crypto-dashboard:20260902T084905Z` passed an isolated canary on `127.0.0.1:9331` against a live database copy. Identity, data counts, SQLite, migrations, Hermes, OpenViking, intelligence, ingestion, Studio, Quiz, synchronization, source briefs, event presentation, timeline takeaways, theme assets, and container hardening passed with zero paid model calls.
+- Promotion: production moved to image `mark-crypto-dashboard:20260902T084905Z` on `127.0.0.1:9330`. Mark and Mari identity checks passed. Production contained 66 events, 54 sources, 89 media assets, and seven ready synchronization jobs. SQLite quick and integrity checks returned `ok`, foreign-key violations were zero, and the container was healthy with zero restarts.
+- Security: production runs as non-root user `dashboard`, with a read-only root filesystem, all capabilities dropped, `no-new-privileges`, and loopback-only publication. Missing identity returned HTTP `401`.
+- Recovery: retained stopped predecessor `crypto-dashboard-rollback-20260902T073200Z`, copied the previous deployment definition to `/srv/mark-v2/crypto-dashboard/deploy.pre-20260902T084905Z`, and created `/srv/mark-v2/crypto-dashboard/backups/pre-20260902T084905Z/crypto-intelligence.db`.
+- Public regression: unauthenticated Crypto HTTPS redirects to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200` and unchanged.
+- Cost: release acceptance made zero paid model calls.

@@ -71,6 +71,8 @@ describe('read routes', () => {
     expect(e.notes.every((n: any) => typeof n.revision === 'number')).toBe(true);
     expect(e.connections.every((c: any) => c.resolved === 0 || c.resolved === 1)).toBe(true);
     expect(typeof e.entities).toBe('object');
+    expect(e.presentation.what_happened).toBeTruthy();
+    expect(Array.isArray(e.presentation.key_takeaways)).toBe(true);
   });
 
   it('surfaces unresolved connections as data rather than dropping them', async () => {
@@ -95,6 +97,9 @@ describe('read routes', () => {
     const source = await json(`/api/sources/${encodeURIComponent(detail.sources[0].source_id)}`);
     expect(source.source_id).toBe(detail.sources[0].source_id);
     expect(Array.isArray(source.events)).toBe(true);
+    expect(source.research_brief.overview).toBeTruthy();
+    expect(source.research_brief.key_points.length).toBeGreaterThan(0);
+    expect(source.research_brief.key_points.length).toBeLessThanOrEqual(6);
   });
 
   it('returns preserved Ask history without generating placeholder answers', async () => {
@@ -109,6 +114,7 @@ describe('read routes', () => {
     expect(t.captures.length).toBe(66);
     expect(t.bounds.min.startsWith('2000')).toBe(true);
     expect(t.pins.every((p: any) => p.span_end >= p.sort_key)).toBe(true);
+    expect(t.pins.some((p: any) => p.key_takeaway)).toBe(true);
   });
 
   it('builds a graph whose every edge points at a node it returned', async () => {

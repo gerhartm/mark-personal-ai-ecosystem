@@ -19,6 +19,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [commandOpen, setCommandOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const explicit = document.documentElement.dataset.theme;
+    if (explicit === 'light' || explicit === 'dark') return explicit;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
   const brief = useQuery<any>('/brief');
   const ingestion = useQuery<any>('/ingestion');
 
@@ -41,6 +46,23 @@ export function Shell({ children }: { children: React.ReactNode }) {
     window.scrollTo({ top: 0 });
     setMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const explicit = localStorage.getItem('theme');
+    if (explicit === 'light' || explicit === 'dark') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const followSystem = (event: MediaQueryListEvent) => setTheme(event.matches ? 'dark' : 'light');
+    media.addEventListener('change', followSystem);
+    return () => media.removeEventListener('change', followSystem);
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+    document.documentElement.style.colorScheme = next;
+    localStorage.setItem('theme', next);
+  };
 
   const counts = brief.data?.counts;
   const pipelineReady = Boolean(ingestion.data?.configured && ingestion.data?.connected);
@@ -85,6 +107,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Link to="/archive">History</Link>
             <Link to="/settings">Settings</Link>
           </div>
+          <button className="desk-theme-toggle" type="button" onClick={toggleTheme} aria-pressed={theme === 'dark'}>
+            <span aria-hidden="true" />
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
         </div>
       </aside>
 

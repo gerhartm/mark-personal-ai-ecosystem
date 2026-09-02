@@ -17,7 +17,7 @@ type Pin = {
   primary_category: string;
   significance: number;
   summary: string;
-  business_signal?: string;
+  key_takeaway?: string;
   detailed_content?: string;
   source_id: string;
   source_title?: string;
@@ -144,7 +144,7 @@ function TimelineDialog({ pin, close }: { pin: Pin; close: () => void }) {
             <p className="desk-eyebrow">What happened</p>
             <p className="timeline-dialog-prose">{pin.summary}</p>
           </section>
-          {pin.business_signal ? <section><p className="desk-eyebrow">Why it matters</p><p className="timeline-dialog-prose">{pin.business_signal}</p></section> : null}
+          {pin.key_takeaway ? <section><p className="desk-eyebrow">Key takeaway from the source</p><p className="timeline-dialog-prose">{pin.key_takeaway}</p></section> : null}
           <section>
             <p className="desk-eyebrow">Source context</p>
             <p className="timeline-dialog-prose">{pin.detailed_content || pin.source_title || pin.source_label || 'Stored source'}</p>

@@ -9,6 +9,14 @@ import './styles/base.css';
 import './styles/desk.css';
 import App from './App';
 
+try {
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'light' || savedTheme === 'dark') {
+    document.documentElement.dataset.theme = savedTheme;
+    document.documentElement.style.colorScheme = savedTheme;
+  }
+} catch {}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>

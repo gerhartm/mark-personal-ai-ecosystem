@@ -13,6 +13,7 @@ import {
 import { TEMPLATE_LABEL } from '../lib/taxonomy';
 import { sourceKind } from '../lib/desk';
 import { IconArrow } from '../components/icons';
+import { stripEvidenceIds } from '../components/EvidenceMarkdown';
 import './studio.css';
 
 const FALLBACK_TEMPLATES = [
@@ -219,15 +220,20 @@ function DraftComposer({
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const sourcesQuery = useQuery('/sources');
+  const topicsQuery = useQuery('/topics');
   const [sourceSearch, setSourceSearch] = useState('');
+  const [selectedTopic, setSelectedTopic] = useState('All');
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [state, setState] = useState<'idle' | 'generating' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const evidenceSources = (sourcesQuery.data?.sources ?? []).filter((source: any) => {
     const needle = sourceSearch.trim().toLowerCase();
-    return !needle || [source.title, source.source_label, source.source_type, source.tags]
+    const matchesTopic = selectedTopic === 'All' || String(source.tags ?? '').split(',').includes(selectedTopic);
+    const matchesSearch = !needle || [source.title, source.source_label, source.source_type, source.tags]
       .some((value) => String(value ?? '').toLowerCase().includes(needle));
+    return matchesTopic && matchesSearch;
   }).slice(0, 30);
+  const topics = (topicsQuery.data?.topics ?? []).slice(0, 16);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -318,6 +324,22 @@ function DraftComposer({
             onChange={(event) => setSourceSearch(event.target.value)}
             placeholder="Search source titles, channels, or tags"
           />
+          <div className="studio-topic-picker" aria-label="Filter evidence sources by topic">
+            <span className="field-label">Browse by topic</span>
+            <div>
+              <button type="button" className={selectedTopic === 'All' ? 'is-selected' : ''} onClick={() => setSelectedTopic('All')}>All sources</button>
+              {topics.map((topic: any) => (
+                <button
+                  type="button"
+                  key={topic.tag}
+                  className={selectedTopic === topic.tag ? 'is-selected' : ''}
+                  onClick={() => setSelectedTopic(topic.tag)}
+                >
+                  {topic.tag} <span>{topic.source_count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="studio-evidence-list">
             {evidenceSources.map((source: any) => {
               const active = selectedSources.includes(source.source_id);
@@ -336,6 +358,7 @@ function DraftComposer({
               );
             })}
           </div>
+          {!evidenceSources.length ? <span className="field-help">No sources match this topic and search.</span> : null}
           {selectedSources.length ? <span className="field-help">{selectedSources.length} sources selected</span> : null}
         </section>
 
@@ -382,6 +405,7 @@ function DraftView({ id }: { id: string }) {
 
   const current = data.edited_output || data.raw_output || '';
   const body = mode === 'edited' ? current : data.raw_output;
+  const publishableBody = stripEvidenceIds(body ?? '');
   const hasEdit = Boolean(data.edited_output && data.edited_output !== data.raw_output);
   const dirty = text.trim() !== current.trim();
 
@@ -461,14 +485,14 @@ function DraftView({ id }: { id: string }) {
                 {mode === 'raw' ? 'First generation' : hasEdit ? 'Current revision' : 'Original draft'}
               </div>
               <div className="draft-text">
-                {paragraphs(body).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+                {paragraphs(publishableBody).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
               </div>
             </div>
 
             {mode === 'edited' && data.citations?.length > 0 && <EvidenceList citations={data.citations} />}
 
             <div className="draft-actions">
-              <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(body ?? '')}>
+              <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(publishableBody)}>
                 Copy as plain text
               </button>
               <button type="button" className="btn" onClick={() => { setText(current); setEditing(true); setMode('edited'); }}>

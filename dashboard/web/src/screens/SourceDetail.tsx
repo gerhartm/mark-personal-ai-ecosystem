@@ -1,8 +1,8 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
 import { api, useQuery } from '../lib/api';
 import { EmptyState, ErrorState, Eyebrow, LoadingRows, Provenance, ViewHead } from '../components/Desk';
+import { EvidenceMarkdown } from '../components/EvidenceMarkdown';
 import { compact, formatDate, sourceKind, titleCase } from '../lib/desk';
 import './library.css';
 
@@ -14,11 +14,6 @@ export function SourceDetail() {
   const [answer, setAnswer] = useState('');
   const [asking, setAsking] = useState(false);
   const [askError, setAskError] = useState('');
-
-  const usefulSummary = useMemo(() => {
-    const events = result.data?.events ?? [];
-    return events.map((event: any) => event.detailed_content || event.summary).filter(Boolean).join('\n\n');
-  }, [result.data]);
 
   const ask = async (event: FormEvent) => {
     event.preventDefault();
@@ -38,6 +33,7 @@ export function SourceDetail() {
   if (result.loading && !result.data) return <LoadingRows rows={7} />;
   if (result.error) return <ErrorState error={result.error} retry={result.refetch} />;
   const source = result.data;
+  const brief = source?.research_brief;
   if (!source) return <EmptyState title="Source not found">The source may have been removed or is not available in this workspace.</EmptyState>;
 
   return (
@@ -49,8 +45,23 @@ export function SourceDetail() {
 
       <div className="source-detail-layout">
         <article>
-          <Eyebrow>Useful summary</Eyebrow>
-          {usefulSummary ? <div className="source-summary desk-markdown"><ReactMarkdown>{usefulSummary}</ReactMarkdown></div> : <EmptyState title="No extracted summary">The source is stored, but it does not yet have an extracted summary.</EmptyState>}
+          <Eyebrow>Source overview</Eyebrow>
+          {brief?.overview ? (
+            <div className="source-summary">
+              <p>{brief.overview}</p>
+              <Provenance
+                when={brief.date_from && brief.date_to ? `${formatDate(brief.date_from)} to ${formatDate(brief.date_to)}` : undefined}
+                kind={`${brief.event_count ?? source.events?.length ?? 0} linked records`}
+              />
+            </div>
+          ) : <EmptyState title="No extracted summary">The source is stored, but it does not yet have a readable overview.</EmptyState>}
+
+          {brief?.key_points?.length ? (
+            <section className="source-key-points">
+              <Eyebrow>Key arguments and evidence</Eyebrow>
+              <ul>{brief.key_points.map((point: string) => <li key={point}>{point}</li>)}</ul>
+            </section>
+          ) : null}
 
           {source.content ? (
             <details className="source-body">
@@ -83,7 +94,7 @@ export function SourceDetail() {
             <button className="desk-button" type="submit" disabled={asking || question.trim().length < 3}>{asking ? 'Reading source' : 'Ask'}</button>
           </form>
           {askError ? <p className="source-ask-error" role="alert">{askError}</p> : null}
-          {answer ? <div className="desk-markdown source-answer"><ReactMarkdown>{answer}</ReactMarkdown></div> : null}
+          {answer ? <div className="desk-markdown source-answer"><EvidenceMarkdown>{answer}</EvidenceMarkdown></div> : null}
         </aside>
       </div>
     </section>

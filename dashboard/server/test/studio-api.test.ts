@@ -24,6 +24,21 @@ let knownEvent = '';
 let lastPrompt = '';
 let requestSequence = 1;
 
+const speakingDraft = (claim: string, eventId: string) => [
+  '## Thesis',
+  `${claim} [${eventId}]`,
+  '## Talking points',
+  `One grounded point [${eventId}]`,
+  '## Evidence to cite',
+  `Use the preserved record [${eventId}]`,
+  '## Likely questions and concise answers',
+  `What supports this? The preserved record [${eventId}]`,
+  '## Counterarguments',
+  `Keep uncertainty explicit [${eventId}]`,
+  '## Closing takeaway',
+  `Return to the verified thesis [${eventId}]`,
+].join('\n\n');
+
 async function freePort() {
   return new Promise<number>((resolvePort, reject) => {
     const server = createNetServer();
@@ -70,7 +85,7 @@ beforeAll(async () => {
   const fixture = new Database(TEMP_DB, { readonly: true });
   knownEvent = (fixture.prepare('SELECT id FROM events ORDER BY id LIMIT 1').get() as any).id;
   fixture.close();
-  generated = `Verified briefing based on the preserved record [${knownEvent}].`;
+  generated = speakingDraft('Verified briefing based on the preserved record', knownEvent);
 
   const sockets = new WebSocketServer({ noServer: true });
   sockets.on('connection', (socket) => {
@@ -180,7 +195,7 @@ describe('Hermes-powered Studio boundary', () => {
   });
 
   it('routes Creator Reference through the native context skill and records the lens', async () => {
-    generated = `Creator-lens draft grounded in the preserved record [${knownEvent}].`;
+    generated = speakingDraft('Creator-lens draft grounded in the preserved record', knownEvent);
     const result = await postDraft('creator_reference');
     expect(result.response.status).toBe(200);
     expect(result.body.writing_lens).toBe('creator_reference');
@@ -199,7 +214,7 @@ describe('Hermes-powered Studio boundary', () => {
   });
 
   it('rejects unknown writing lenses before generation', async () => {
-    generated = `Safe fallback [${knownEvent}].`;
+    generated = speakingDraft('Safe fallback', knownEvent);
     const result = await postDraft('unknown');
     expect(result.response.status).toBe(400);
     expect(result.body.error).toBe('invalid_writing_lens');
@@ -209,7 +224,7 @@ describe('Hermes-powered Studio boundary', () => {
     const db = new Database(TEMP_DB, { readonly: true });
     const before = (db.prepare('SELECT count(*) count FROM content_drafts').get() as any).count;
     db.close();
-    generated = 'Unsupported claim [2099-01-01-9999].';
+    generated = speakingDraft('Unsupported claim', '2099-01-01-9999');
 
     const result = await postDraft();
     expect(result.response.status).toBe(503);

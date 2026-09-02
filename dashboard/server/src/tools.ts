@@ -6,6 +6,7 @@
  * same surface that would be exposed to Hermes as read-only MCP tools.
  */
 import { all, one, db } from './db.js';
+import { buildSourceBrief, eventPresentation } from './presentation.js';
 
 /* ------------------------------------------------------------------ */
 /* filters                                                             */
@@ -214,7 +215,8 @@ export function getEvent(id: string) {
 
   const related = relatedEvents(id);
 
-  return { ...event, source, insights, tags, secondary, entities, dates, connections, notes, pins, quiz, themes, media, related };
+  const presentation = eventPresentation({ ...event, insights });
+  return { ...event, source, insights, tags, secondary, entities, dates, connections, notes, pins, quiz, themes, media, related, presentation };
 }
 
 /** The preserved relatedness rule: two or more shared entities. */
@@ -245,7 +247,7 @@ export function getSource(id: string) {
        FROM events e WHERE e.source_id = ? ORDER BY subject_date DESC`,
     id,
   );
-  return { ...source, events };
+  return { ...source, events, research_brief: buildSourceBrief(source, events) };
 }
 
 export function listSources() {
@@ -282,8 +284,9 @@ export function timeline(from?: string, to?: string) {
   const pins = all(
     `SELECT d.event_id, d.position, d.date, d.precision, d.label, d.category,
             d.sort_key, d.span_end, e.primary_category, e.significance, e.summary,
-            e.business_signal, e.detailed_content, e.source_id, s.title AS source_title,
+            e.detailed_content, e.source_id, s.title AS source_title,
             s.source_label, s.source_url,
+            (SELECT i.text FROM event_insights i WHERE i.event_id=e.id ORDER BY i.position LIMIT 1) AS key_takeaway,
             1 + (SELECT count(*) FROM event_connections c
                    WHERE c.resolved=1 AND (c.from_event_id=e.id OR c.to_event_id=e.id)) AS reference_count
        FROM event_dates d JOIN events e ON e.id = d.event_id

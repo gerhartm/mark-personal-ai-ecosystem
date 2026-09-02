@@ -92,8 +92,9 @@ function eventRecord(id: string) {
     significance: event.significance,
     summary: compact(event.summary, 800),
     detailed_content: compact(event.detailed_content, 1400),
-    business_signal: compact(event.business_signal, 700),
-    underlying_principle: compact(event.underlying_principle, 700),
+    key_takeaways: Array.isArray(event.insights)
+      ? event.insights.slice(0, 6).map((item: any) => compact(item.text, 500))
+      : [],
     source_id: event.source_id,
     source_title: compact(event.source?.title ?? event.source?.source_label, 240),
   };
@@ -122,18 +123,72 @@ async function sourceRecord(id: string) {
 
 const templateContract: Record<StudioTemplate, string> = {
   speaking_prep:
-    'Create a practical speaking brief with a clear thesis, key talking points, evidence, likely questions, concise answers, counterarguments, and a closing takeaway.',
+    'Create a practical speaking brief using these exact sections: Thesis, Talking points, Evidence to cite, Likely questions and concise answers, Counterarguments, Closing takeaway. Make it easy to speak from, not essay-like.',
   x_post:
     'Create one publishable X post of no more than 280 characters, excluding evidence citations. It must sound like a real post, make one clear point, avoid headings and generic hashtags, and use only the strongest supporting evidence.',
   twitter_thread:
     'Create a publishable 5 to 7 post X thread. Number every post, keep each post within 280 characters excluding evidence citations, open with a strong factual hook, and end with a useful synthesis. Do not add generic hashtags or article-style headings.',
   linkedin_post:
-    'Create a thoughtful LinkedIn post with a clear opening, evidence-led argument, practical implication, and concise closing. Avoid hype and generic hashtags.',
+    'Create a thoughtful LinkedIn post under 2,000 characters with a clear opening, evidence-led argument, practical implication, and concise closing. Avoid hype and generic hashtags.',
   month_in_review:
-    'Create a month-in-review briefing that separates what happened, why it matters, recurring signals, risks, and what to watch next.',
+    'Create a month-in-review briefing. Begin with the exact date window, then separate What happened, Why it matters, Recurring themes, Risks, and What to watch next.',
   year_in_review:
-    'Create a year-in-review briefing that identifies major shifts, durable patterns, turning points, risks, and forward implications.',
+    'Create a year-in-review briefing. Begin with the exact date window, then separate Major shifts, Durable patterns, Turning points, Risks, and Forward implications.',
 };
+
+const anyCitation = /\[(?:\d{4}-\d{2}-\d{2}-\d{4}|sha256:[a-f0-9]{64})\]/gi;
+
+export function studioPublishableText(body: string) {
+  return body
+    .replace(anyCitation, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*/g, '')
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .trim();
+}
+
+export function studioFormatIssues(
+  template: StudioTemplate,
+  body: string,
+  window: { dateFrom?: string | null; dateTo?: string | null } = {},
+) {
+  const clean = studioPublishableText(body);
+  const issues: string[] = [];
+  if (!clean) return ['The draft is empty after evidence markers are removed.'];
+
+  if (template === 'x_post') {
+    if (clean.length > 280) issues.push(`The X post is ${clean.length} characters and must be 280 or fewer.`);
+    if (/^#{1,6}\s/m.test(body)) issues.push('The X post must not use an article heading.');
+    if (clean.split(/\n\s*\n/).filter(Boolean).length > 2) issues.push('The X post must read as one concise post.');
+  }
+
+  if (template === 'twitter_thread') {
+    const markers = [...clean.matchAll(/(?:^|\n)\s*(\d+)[.)]\s+/g)];
+    if (markers.length < 5 || markers.length > 7) issues.push('The X thread must contain 5 to 7 numbered posts.');
+    markers.forEach((marker, index) => {
+      const start = (marker.index ?? 0) + marker[0].length;
+      const end = markers[index + 1]?.index ?? clean.length;
+      const post = clean.slice(start, end).trim();
+      if (post.length > 280) issues.push(`Thread post ${marker[1]} is ${post.length} characters and must be 280 or fewer.`);
+    });
+  }
+
+  if (template === 'linkedin_post' && clean.length > 2_000) {
+    issues.push(`The LinkedIn post is ${clean.length} characters and must be 2,000 or fewer.`);
+  }
+
+  if (template === 'speaking_prep') {
+    for (const heading of ['thesis', 'talking points', 'evidence to cite', 'likely questions', 'counterarguments', 'closing takeaway']) {
+      if (!clean.toLowerCase().includes(heading)) issues.push(`The speaking brief is missing the ${heading} section.`);
+    }
+  }
+
+  if (template === 'month_in_review' || template === 'year_in_review') {
+    if (window.dateFrom && !clean.includes(window.dateFrom)) issues.push('The review must show its start date.');
+    if (window.dateTo && !clean.includes(window.dateTo)) issues.push('The review must show its end date.');
+  }
+  return issues;
+}
 
 export async function buildStudioContext(value: StudioDraftInput) {
   const input = validateStudioInput(value);
@@ -206,6 +261,7 @@ export async function buildStudioContext(value: StudioDraftInput) {
     input.writingLens === 'creator_reference'
       ? 'CREATOR REFERENCE CONTRACT\nUse the shared Creator Reference corpus only for tone, phrasing, argument structure, and supported opinion patterns. Keep all factual claims grounded in the supplied crypto evidence. Search and read the unified OpenViking memory for the Creator Reference profile and sources before deciding they are unavailable. If no usable Creator Reference material exists after that native retrieval, return exactly CREATOR_REFERENCE_UNAVAILABLE.'
       : 'VOICE CONTRACT\nWrite for Mark without applying the Creator Reference lens.',
+    'QUALITY CONTRACT\nLead with the point, use plain language, and remove filler. Make every paragraph do one job. Do not invent certainty, predictions, or quotations. Match the requested platform instead of writing an article in every format. Use the writing lens only for expression and structure.',
     'CITATION CONTRACT\nEvery factual claim must cite one or more supplied records using the exact canonical ID in square brackets. Event citations look like [2026-04-01-0001]. Source citations look like [sha256: followed by 64 hexadecimal characters]. Do not cite any ID that is not present below. Preserve citation IDs through the final writing pass. Return only the finished draft.',
     `CORPUS EVIDENCE\n${evidence.join('\n')}`,
   ].join('\n\n').slice(0, 36_000);
@@ -289,6 +345,31 @@ export async function createStudioDraft(value: StudioDraftInput, actor: string) 
   }
   if (!body || body.length > 40_000) {
     throw new StudioInputError('invalid_generation', 'Hermes returned an invalid draft, so it was not saved.', 503);
+  }
+  let formatIssues = studioFormatIssues(context.template, body, context);
+  let citationIssue = '';
+  try {
+    validateStudioCitations(body);
+  } catch (error) {
+    citationIssue = error instanceof Error ? error.message : 'The draft does not contain verifiable citations.';
+  }
+  if (formatIssues.length || citationIssue) {
+    const requirements = [...formatIssues, citationIssue].filter(Boolean).map((issue) => `- ${issue}`).join('\n');
+    body = (await generate([
+      context.prompt,
+      'REVISION REQUIREMENT',
+      'Rewrite the draft once so it passes every requirement below. Keep only verified claims and preserve valid evidence IDs. Return only the corrected draft.',
+      requirements,
+      `PRIOR DRAFT\n${body}`,
+    ].join('\n\n').slice(0, 40_000))).text.trim();
+    formatIssues = studioFormatIssues(context.template, body, context);
+  }
+  if (!body || body.length > 40_000 || formatIssues.length) {
+    throw new StudioInputError(
+      'format_validation_failed',
+      `Hermes could not produce a publishable ${context.template.replaceAll('_', ' ')} draft, so it was not saved.`,
+      503,
+    );
   }
   const citations = validateStudioCitations(body);
   const id = `draft_${randomUUID()}`;

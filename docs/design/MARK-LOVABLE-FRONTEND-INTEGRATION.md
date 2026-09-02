@@ -4,7 +4,7 @@
 
 **Product:** Crypto Intelligence
 
-**Status:** accepted in production as release `20260902T073200Z`
+**Status:** accepted in production, with the evidence and theme completion in release `20260902T084905Z`
 
 ## Purpose
 
@@ -51,23 +51,27 @@ Topics is now the first view. It contains no generated watchlist, rating, action
 
 ### Useful source reading
 
-Source detail shows extracted summary material, the retained source text when available, linked events and claims, original provenance, and a source-scoped Ask panel. A source-scoped question sends only the selected source record as the initial evidence boundary.
+Source detail shows a bounded overview, up to six distinct key arguments, the retained source text when available, linked events and claims, original provenance, and a source-scoped Ask panel. A source-scoped question sends only the selected source record as the initial evidence boundary.
 
 ### Historical timeline
 
-Timeline is not restricted to the current year. The year control is generated from every stored date. Each event row identifies its category, precision, unique event identity, and real reference count. Opening a row shows what happened, why it matters when that field exists, source context, the full event, the supporting source, and the original link when available.
+Timeline is not restricted to the current year. The year control is generated from every stored date. Each event row identifies its category, precision, unique event identity, real reference count, and a key takeaway drawn from stored source material. Opening a row shows what happened, the source context, key evidence, the full event, the supporting source, and the original link when available.
 
 ### Grounded Ask
 
-Ask renders Markdown, preserves successful questions and answers in searchable history, shows the exact evidence records, and links each record back to the underlying event or source. Failed provider calls are shown as failures and are never converted into invented answers.
+Ask renders Markdown, preserves successful questions and answers in searchable history, shows clickable inline canonical citations, and links each record back to the underlying event or source. Its response contract requires a direct answer first, plain language, named sources, evidence immediately after meaningful claims, and explicit labels for interpretation or uncertainty. Failed provider calls are shown as failures and are never converted into invented answers.
 
 ### Source-led creation
 
-Prep, Studio, and Creator Reference allow Mark to search and select up to 12 real sources before generation. Leaving the selection empty keeps bounded automatic evidence selection. Review formats require an explicit date range.
+Prep, Studio, and Creator Reference allow Mark to browse real corpus topics, search, and select up to 12 real sources before generation. Leaving the selection empty keeps bounded automatic evidence selection. Review formats require an explicit date range.
 
 ### Publishable output formats
 
-Studio separates a single X post from an X thread. The X post contract limits output to one publishable post of at most 280 characters excluding citations. The thread contract produces 5 to 7 numbered posts with the same per-post limit. LinkedIn, speaking preparation, month review, and year review retain their own contracts.
+Studio separates a single X post from an X thread. The X post contract limits output to one publishable post of at most 280 characters excluding citations. The thread contract produces 5 to 7 numbered posts with the same per-post limit. LinkedIn, speaking preparation, month review, and year review retain their own contracts. The server checks format and citation requirements before saving and performs at most one bounded correction pass when needed.
+
+### Light and dark themes
+
+Mark's visual hierarchy, routes, typography, spacing, and interaction model remain unchanged. A persistent switch in the navigation rail selects light or dark mode. With no saved choice, the interface follows the operating system preference. Both themes use the same semantic color tokens, accessible focus indicators, and restrained accent behavior.
 
 ### Quiz comparison
 
@@ -94,11 +98,11 @@ All visible totals are read from production APIs. The only fixed values are inte
 |---|---|
 | `GET /api/topics` | Returns real topics with event counts, source counts, latest dates, and signal values |
 | `GET /api/topics?tag=<tag>` | Returns the selected topic, its events, sources, and extracted claims |
-| `GET /api/sources/:id` | Returns structured source detail and retained OpenViking text when available |
+| `GET /api/sources/:id` | Returns structured source detail, a bounded research brief, and retained OpenViking text when available |
 | `POST /api/ask` | Accepts optional `source_ids` and stores successful cited answers |
 | `GET /api/ask/history` | Returns searchable successful Ask history |
 | `POST /api/studio/drafts` | Accepts optional `source_ids`, supports `x_post`, and requires periods for review formats |
-| `GET /api/timeline` | Returns source provenance, real reference counts, business signal, and source context |
+| `GET /api/timeline` | Returns source provenance, real reference counts, key source takeaways, and source context |
 
 Migration `007 ask_history` adds the successful Ask history table. It is forward only and runs against the existing single database.
 
@@ -108,7 +112,7 @@ Migration `007 ask_history` adds the successful Ask history table. It is forward
 - Server TypeScript check passed.
 - Web production build passed.
 - Server production build passed.
-- All 86 automated server tests passed.
+- All 87 automated server tests passed.
 - Desktop routes at 1440 by 1000 passed visual and interaction checks.
 - Mobile routes at 390 by 844 passed navigation and horizontal overflow checks.
 - Topic search, topic detail, timeline modal, source detail, evidence selection, Creator Reference, quiz model answers, and mobile navigation passed browser interaction checks.
@@ -141,3 +145,11 @@ The production browser pass confirmed the complete evidence workflow on desktop 
 The live container is `mark-crypto-dashboard:20260902T073200Z`, runs as the non-root `dashboard` user, has a read-only root filesystem, drops all Linux capabilities, uses `no-new-privileges`, publishes only `127.0.0.1:9330`, and had zero restarts at acceptance. The previous release remains stopped as `crypto-dashboard-rollback-20260811T132229Z`. The verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260902T073200Z/crypto-intelligence.db`.
 
 Public acceptance also passed: unauthenticated Crypto requests redirect to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200` and unchanged. No paid model call was used during deployment acceptance.
+
+## Evidence and theme completion release
+
+Release `20260902T084905Z` completed the product behavior behind Mark's accepted frontend without changing its information architecture. It added bounded source briefs, clear event presentation fields, inline evidence links in Ask and source-scoped Ask, topic-guided Studio source selection, publishable-format enforcement, and the persistent light and dark theme switch.
+
+The immutable image passed 87 automated server tests, server and web type checks, both production builds, dependency audits with zero production vulnerabilities, shell syntax checks, and an isolated canary against a copied production database. Production acceptance verified Mark and Mari identity access, 54 sources, 66 events, 89 media assets, source and event presentation contracts, timeline coverage from 2000 through 2026, theme assets, seven ready synchronization jobs, SQLite quick and integrity checks, zero foreign-key violations, non-root and read-only container hardening, loopback-only publication, and zero restarts. No paid model call was used.
+
+The live image is `mark-crypto-dashboard:20260902T084905Z`. The stopped predecessor is `crypto-dashboard-rollback-20260902T073200Z`. The verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260902T084905Z/crypto-intelligence.db`. Cloudflare, Hermes, OpenViking, ForkedBrain, and `intel.forkedbrain.fyi` were not changed.

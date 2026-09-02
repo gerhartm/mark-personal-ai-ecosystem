@@ -5,12 +5,19 @@
   --desk-ink: #171a18;
   --desk-heading: #0b0d0c;
   --desk-muted: #555d58;
-  --desk-dim: #757d78;
+  --desk-dim: #707872;
   --desk-rule: rgba(20, 26, 22, 0.12);
   --desk-rule-strong: rgba(20, 26, 22, 0.23);
   --desk-accent: #557a5b;
   --desk-accent-soft: #edf4ee;
   --desk-danger: #b34538;
+  --desk-input: #ffffff;
+  --desk-modal: #ffffff;
+  --desk-modal-head: rgba(255,255,255,.96);
+  --desk-backdrop: rgba(7, 10, 8, .55);
+  --desk-skeleton: #fafafa;
+  --desk-on-accent: #ffffff;
+  --desk-focus-ring: rgba(85, 122, 91, .09);
   --cat-red: #e74c3c;
   --cat-orange: #e67e22;
   --cat-gold: #f39c12;
@@ -19,6 +26,10 @@
   --cat-teal: #168f82;
   --cat-blue: #347fb5;
   --cat-deep-blue: #275f8a;
+  --status-good: #2b7d3b;
+  --status-warning: #856300;
+  --status-serious: #a34c2a;
+  --status-critical: #b34538;
   /* Compatibility aliases keep the existing functional screens inside the
      same Intel Desk visual system while they are progressively simplified. */
   --surface-void: #ffffff;
@@ -51,6 +62,90 @@
   --font-mono: 'JetBrains Mono', monospace;
   color-scheme: light;
 }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --desk-bg: #101310;
+    --desk-panel: #161a17;
+    --desk-panel-2: #202521;
+    --desk-ink: #dce3dd;
+    --desk-heading: #f4f7f4;
+    --desk-muted: #aab3ac;
+    --desk-dim: #879189;
+    --desk-rule: rgba(232, 240, 234, .12);
+    --desk-rule-strong: rgba(232, 240, 234, .23);
+    --desk-accent: #95bb9c;
+    --desk-accent-soft: rgba(149, 187, 156, .13);
+    --desk-danger: #ee8b7f;
+    --desk-input: #121613;
+    --desk-modal: #171b18;
+    --desk-modal-head: rgba(23,27,24,.96);
+    --desk-backdrop: rgba(0, 0, 0, .68);
+    --desk-skeleton: #282e29;
+    --desk-on-accent: #0e150f;
+    --desk-focus-ring: rgba(149, 187, 156, .18);
+    --status-good: #79c487;
+    --status-warning: #e8bd5d;
+    --status-serious: #ee9770;
+    --status-critical: #ee8b7f;
+    --surface-void: #0b0e0c;
+    --surface-sunken: #121613;
+    --accent-deep: #7ea785;
+    --accent-ink: #0e150f;
+    --accent-wash: rgba(149, 187, 156, .11);
+    --accent-wash-strong: rgba(149, 187, 156, .19);
+    --glass-frame: rgba(22,26,23,.92);
+    --glass-frame-solid: #161a17;
+    --glass-overlay: rgba(23,27,24,.97);
+    --glass-highlight: rgba(255,255,255,.055);
+    --elev-1: 0 1px 2px rgba(0,0,0,.22);
+    --elev-2: 0 10px 30px -22px rgba(0,0,0,.72);
+    --elev-3: 0 20px 60px -28px rgba(0,0,0,.82);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --desk-bg: #101310;
+  --desk-panel: #161a17;
+  --desk-panel-2: #202521;
+  --desk-ink: #dce3dd;
+  --desk-heading: #f4f7f4;
+  --desk-muted: #aab3ac;
+  --desk-dim: #879189;
+  --desk-rule: rgba(232, 240, 234, .12);
+  --desk-rule-strong: rgba(232, 240, 234, .23);
+  --desk-accent: #95bb9c;
+  --desk-accent-soft: rgba(149, 187, 156, .13);
+  --desk-danger: #ee8b7f;
+  --desk-input: #121613;
+  --desk-modal: #171b18;
+  --desk-modal-head: rgba(23,27,24,.96);
+  --desk-backdrop: rgba(0, 0, 0, .68);
+  --desk-skeleton: #282e29;
+  --desk-on-accent: #0e150f;
+  --desk-focus-ring: rgba(149, 187, 156, .18);
+  --status-good: #79c487;
+  --status-warning: #e8bd5d;
+  --status-serious: #ee9770;
+  --status-critical: #ee8b7f;
+  --surface-void: #0b0e0c;
+  --surface-sunken: #121613;
+  --accent-deep: #7ea785;
+  --accent-ink: #0e150f;
+  --accent-wash: rgba(149, 187, 156, .11);
+  --accent-wash-strong: rgba(149, 187, 156, .19);
+  --glass-frame: rgba(22,26,23,.92);
+  --glass-frame-solid: #161a17;
+  --glass-overlay: rgba(23,27,24,.97);
+  --glass-highlight: rgba(255,255,255,.055);
+  --elev-1: 0 1px 2px rgba(0,0,0,.22);
+  --elev-2: 0 10px 30px -22px rgba(0,0,0,.72);
+  --elev-3: 0 20px 60px -28px rgba(0,0,0,.82);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] { color-scheme: light; }
 
 * { box-sizing: border-box; }
 
@@ -92,7 +187,7 @@ a { color: inherit; }
 .desk-chip:hover, .desk-chip:focus-visible, .desk-chip.is-active { border-color: var(--desk-accent); background: var(--desk-accent-soft); color: var(--desk-heading); outline: none; }
 .desk-chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 20px; }
 
-.desk-button { min-height: 38px; border: 1px solid var(--desk-accent); border-radius: 5px; background: var(--desk-accent); color: white; padding: 8px 13px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .03em; cursor: pointer; }
+.desk-button { min-height: 38px; border: 1px solid var(--desk-accent); border-radius: 5px; background: var(--desk-accent); color: var(--desk-on-accent); padding: 8px 13px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .03em; cursor: pointer; }
 .desk-button.secondary { background: transparent; color: var(--desk-accent); }
 .desk-button:disabled { cursor: not-allowed; opacity: .48; }
 .desk-link { color: var(--desk-accent); text-decoration: none; }
@@ -120,14 +215,14 @@ a { color: inherit; }
 .desk-error .desk-button { margin-top: 14px; }
 
 .desk-loading { display: grid; gap: 10px; }
-.desk-loading span { display: block; height: 88px; border-radius: 8px; background: linear-gradient(90deg, var(--desk-panel-2), #fafafa, var(--desk-panel-2)); background-size: 200% 100%; animation: desk-shimmer 1.2s linear infinite; }
+.desk-loading span { display: block; height: 88px; border-radius: 8px; background: linear-gradient(90deg, var(--desk-panel-2), var(--desk-skeleton), var(--desk-panel-2)); background-size: 200% 100%; animation: desk-shimmer 1.2s linear infinite; }
 @keyframes desk-shimmer { to { background-position: -200% 0; } }
 
 .desk-field { display: grid; gap: 7px; }
 .desk-field label { color: var(--desk-dim); font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
-.desk-input, .desk-textarea, .desk-select { width: 100%; border: 1px solid var(--desk-rule-strong); border-radius: 5px; background: white; color: var(--desk-heading); padding: 10px 12px; outline: none; }
+.desk-input, .desk-textarea, .desk-select { width: 100%; border: 1px solid var(--desk-rule-strong); border-radius: 5px; background: var(--desk-input); color: var(--desk-heading); padding: 10px 12px; outline: none; }
 .desk-textarea { min-height: 120px; resize: vertical; line-height: 1.55; }
-.desk-input:focus, .desk-textarea:focus, .desk-select:focus { border-color: var(--desk-accent); box-shadow: 0 0 0 3px rgba(85, 122, 91, .09); }
+.desk-input:focus, .desk-textarea:focus, .desk-select:focus { border-color: var(--desk-accent); box-shadow: 0 0 0 3px var(--desk-focus-ring); }
 .desk-form { display: grid; gap: 15px; }
 .desk-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
@@ -147,9 +242,9 @@ a { color: inherit; }
 .desk-markdown code { font-family: 'JetBrains Mono', monospace; font-size: .86em; }
 .desk-markdown pre { overflow: auto; border: 1px solid var(--desk-rule); border-radius: 6px; background: var(--desk-panel-2); padding: 12px; }
 
-.desk-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; background: rgba(7, 10, 8, .55); padding: 18px; }
-.desk-modal { width: min(720px, 100%); max-height: 88vh; overflow: auto; border: 1px solid var(--desk-rule-strong); border-radius: 10px; background: white; box-shadow: 0 28px 90px rgba(0,0,0,.25); }
-.desk-modal-head { position: sticky; top: 0; display: flex; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--desk-rule); background: rgba(255,255,255,.96); }
+.desk-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; background: var(--desk-backdrop); padding: 18px; }
+.desk-modal { width: min(720px, 100%); max-height: 88vh; overflow: auto; border: 1px solid var(--desk-rule-strong); border-radius: 10px; background: var(--desk-modal); box-shadow: 0 28px 90px rgba(0,0,0,.25); }
+.desk-modal-head { position: sticky; top: 0; display: flex; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--desk-rule); background: var(--desk-modal-head); }
 .desk-modal-head h2 { margin: 0; font-size: 18px; }
 .desk-modal-close { border: 0; background: transparent; color: var(--desk-muted); cursor: pointer; }
 .desk-modal-body { padding: 18px; }

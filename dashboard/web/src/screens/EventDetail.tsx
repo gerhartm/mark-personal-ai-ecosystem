@@ -64,35 +64,28 @@ export function EventDetail() {
       <div className="detail-columns">
         <article className="detail-reading">
           <section className="block">
-            <h2 className="block-title">Summary</h2>
+            <h2 className="block-title">What happened</h2>
             <div className="read">
-              {paragraphs(e.summary).map((p, i) => (
+              {paragraphs(e.presentation?.what_happened || e.summary).map((p, i) => (
                 <p key={i}>{p}</p>
               ))}
             </div>
           </section>
 
-          <NoteEditor eventId={e.id} notes={e.notes} onSaved={refetch} />
-
-          {e.business_signal && (
+          {e.presentation?.key_takeaways?.length > 0 && (
             <section className="block">
-              <h2 className="block-title">Business signal</h2>
-              <p className="read">{e.business_signal}</p>
-            </section>
-          )}
-
-          {e.underlying_principle && (
-            <section className="block">
-              <h2 className="block-title">Underlying principle</h2>
-              <p className="read">{e.underlying_principle}</p>
+              <h2 className="block-title">Key evidence from the source</h2>
+              <ul className="insights read">
+                {e.presentation.key_takeaways.map((takeaway: string) => <li key={takeaway}>{takeaway}</li>)}
+              </ul>
             </section>
           )}
 
           <section className="block">
-            <h2 className="block-title">Detailed content</h2>
-            {e.detailed_content ? (
+            <h2 className="block-title">Source context</h2>
+            {e.presentation?.source_context || e.detailed_content ? (
               <div className="read">
-                {paragraphs(e.detailed_content).map((p, i) => (
+                {paragraphs(e.presentation?.source_context || e.detailed_content).map((p, i) => (
                   <p key={i}>{p}</p>
                 ))}
               </div>
@@ -103,9 +96,11 @@ export function EventDetail() {
             )}
           </section>
 
+          <NoteEditor eventId={e.id} notes={e.notes} onSaved={refetch} />
+
           {e.detailed_notes && (
             <section className="block">
-              <h2 className="block-title">Detailed notes</h2>
+              <h2 className="block-title">Additional source notes</h2>
               <div className="read">
                 {paragraphs(e.detailed_notes).map((p, i) => (
                   <p key={i}>{p}</p>

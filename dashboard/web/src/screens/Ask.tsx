@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
 import { api, invalidate, useQuery } from '../lib/api';
 import { EmptyState, ErrorState, Eyebrow, LoadingRows, ViewHead } from '../components/Desk';
+import { EvidenceMarkdown } from '../components/EvidenceMarkdown';
 import { compact, formatDate } from '../lib/desk';
 import './ask.css';
 
@@ -62,7 +62,7 @@ export function Ask() {
                 <div><Eyebrow>Answer</Eyebrow><span>{response.evidence_count ?? evidence.length} evidence records</span></div>
                 <button type="button" onClick={() => navigator.clipboard?.writeText(response.answer || response.message || '')}>Copy</button>
               </div>
-              <div className="desk-markdown"><ReactMarkdown>{response.answer || response.message || ''}</ReactMarkdown></div>
+              <div className="desk-markdown"><EvidenceMarkdown>{response.answer || response.message || ''}</EvidenceMarkdown></div>
               {evidence.length ? (
                 <div className="ask-evidence">
                   <Eyebrow>Evidence used</Eyebrow>

@@ -10,12 +10,15 @@ Primary workflows:
 - **Topics:** the evidence-first home view, built only from real stored tags,
   events, sources, and extracted claims.
 - **Sources:** the material Mark supplied, grouped as Transcripts, Tweets, Blog
-  posts, and Your notes, with retained text and source-scoped Ask.
-- **Ask:** grounded answers with the exact corpus records Hermes reviewed.
+  posts, and Your notes, with a useful overview, key arguments, retained text,
+  and source-scoped Ask.
+- **Ask:** plain-language grounded answers with clickable inline evidence and
+  the exact corpus records Hermes reviewed.
 - **Quiz:** evidence-linked questions, one bounded Hermes grading pass,
   model-answer reveals, feedback, scores, and preserved session history.
-- **Studio:** selected-source X posts, X threads, LinkedIn posts, review briefs,
-  source-cited drafts, and an explicit Mark or Creator Reference writing lens.
+- **Studio:** topic-guided, selected-source X posts, X threads, LinkedIn posts,
+  review briefs, source-cited drafts, and an explicit Mark or Creator Reference
+  writing lens. Format limits are validated before a draft is saved.
 - **Speaking Prep:** theses, talking points, likely questions,
   counterarguments, and closing takeaways from a selected date range.
 - **Capture:** native OpenViking URL or text ingestion with deterministic
@@ -61,7 +64,7 @@ Environment, all optional, all by name only:
 
 ## Production deployment
 
-The accepted V2 release is `20260902T073200Z`. Its reproducible runtime contract
+The accepted V2 release is `20260902T084905Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
@@ -118,7 +121,7 @@ npm start &               # the API tests exercise the running server
 npx vitest run
 ```
 
-86 tests: reconciliation against the handoff manifest, canonical identity
+87 tests: reconciliation against the handoff manifest, canonical identity
 preservation, facet derivation, precision spans, taxonomy verbatim, append-only
 notes, the identity register, unified search determinism, media authorisation
 and traversal, the Access identity boundary, bounded Hermes evidence assembly,

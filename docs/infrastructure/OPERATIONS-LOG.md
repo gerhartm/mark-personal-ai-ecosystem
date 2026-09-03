@@ -1021,5 +1021,6 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Runtime: image `mark-crypto-dashboard:20260903T163620Z` is healthy with zero restarts, runs as user `dashboard`, uses a read-only root filesystem, drops all Linux capabilities, enables `no-new-privileges`, and publishes only on `127.0.0.1:9330`.
 - Public boundary: unauthenticated Crypto HTTPS redirects to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200` and unchanged.
 - Recovery: verified database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260903T163620Z/crypto-intelligence.db` and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260903T163620Z`. The preferred known-good application rollback is retained as `crypto-dashboard-rollback-20260903T131714Z`.
+- Recovery mirror: refreshed `/root/mark-v2-docs/` from the final tracked Git checkpoint, verified every tracked file hash, and retained the previous mirror as `/root/mark-v2-docs.pre-20260903T163620Z`.
 - Scope safety: Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.
 - Cost: release acceptance made zero paid model calls.

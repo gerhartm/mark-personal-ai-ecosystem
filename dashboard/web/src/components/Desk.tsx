@@ -28,7 +28,7 @@ export function Chip({
   type?: 'button' | 'submit';
 }) {
   return (
-    <button type={type} className={`cursor-pointer rounded-[3px] border px-2 py-1 font-mono text-[10px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--brass)] ${active?'border-[var(--line)] text-muted-foreground':'border-[var(--line)] text-muted-foreground opacity-35'}`} onClick={onClick}>
+    <button type={type} className={`cursor-pointer rounded-[3px] border border-[var(--line)] px-2 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:border-[var(--brass)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--brass)] ${active?'':'opacity-35'}`} onClick={onClick}>
       {children}
     </button>
   );

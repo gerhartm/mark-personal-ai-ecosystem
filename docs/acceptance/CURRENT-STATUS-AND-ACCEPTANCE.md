@@ -1,7 +1,7 @@
 # Option 1: Current Status and Acceptance Matrix
 
 **Checkpoint date:** 2026-09-03
-**Accepted Crypto release:** `20260903T131714Z`
+**Accepted Crypto release:** `20260903T163620Z`
 **Accepted ForkedBrain release:** `20260811T132229Z`
 
 ## Status definitions
@@ -19,14 +19,14 @@
 | Protected Crypto dashboard | Accepted | Production health, identity, edge redirect, and origin checks passed |
 | Evidence-first Topics home | Accepted | 65 real topics built from stored tags, events, sources, and claims; no generated watchlist or dummy totals |
 | Legacy daily Brief home | Deliberately excluded | Removed from the primary workflow because Mark requested source-led research rather than generated command-center interpretation |
-| Source-grounded Ask | Accepted | Real Hermes evidence, clickable inline canonical citations, source-scoped questions, plain-language response contract, Markdown rendering, and searchable history passed |
+| Source-grounded Ask | Accepted backend capability | Real Hermes evidence, clickable inline canonical citations, source-scoped questions, plain-language response contract, Markdown rendering, and searchable history passed; it is not exposed as a separate tab in Mark's five-screen interface |
 | Historical Timeline | Accepted | All stored years from 2000 through 2026, real reference counts, clear source takeaways, evidence dialogs, and source links passed |
-| Sources | Accepted | 54 real sources, exact four requested source groups, bounded source overview, key arguments, retained text, extracted claims, search, and detail views passed |
+| Sources | Accepted backend capability | 54 real sources, requested source groups, retained text, extracted claims, search, and detail contracts passed; it is not exposed as a separate tab in Mark's five-screen interface |
 | Connections primary view | Deliberately excluded | Removed from primary navigation after Mark rejected the unclear relationship view; the compatibility route remains for preserved links |
-| Quiz | Accepted | Evidence-linked generation, grading, feedback, atomic history, and model-answer reveals passed |
-| Studio | Accepted | Topic-guided source selection, X posts, X threads, LinkedIn, review briefs, Creator Reference lens, revision history, citation validation, and publishable-format validation passed |
-| Speaking Preparation | Accepted | Supported through Studio with bounded evidence and citations |
-| Light and dark themes | Accepted | Mark's information architecture is unchanged; the persistent theme switch and system dark preference are present in the accepted production assets |
+| Quiz | Accepted backend capability | Evidence-linked generation, grading, feedback, atomic history, and model-answer reveals passed; it is not exposed as a separate tab in Mark's five-screen interface |
+| Studio | Accepted backend capability | Topic-guided source selection, X posts, X threads, LinkedIn, review briefs, Creator Reference lens, revision history, citation validation, and publishable-format validation passed; the visible creator workflows are Haseeb bot and Tarun bot |
+| Speaking Preparation | Accepted | Exposed as Prep with bounded evidence and citations |
+| Light and dark themes | Accepted | Light is the default; the only addition to Mark's mock is a persistent dark-mode switch |
 | Dashboard Capture | Accepted | URL, pasted text, YouTube transcript, duplicate, unsafe URL, and failure behavior passed |
 | Semantic memory migration | Accepted | 197 identities reconciled; replay skipped 197 with no duplicate creates or failures |
 | Satoshi Telegram gateway | Working | Gateway and Mark allowlist are active; Mark/Mari interactive acceptance remains |
@@ -35,7 +35,7 @@
 | Telegram → OpenViking ingestion | Accepted | Native Satoshi memory ingestion and later recall observed |
 | Telegram → Dashboard Library registration | Accepted | Two live Satoshi/OpenViking sources reached `ready`, entered the Library, and remained deduplicated on replay and restart |
 | Telegram source visibility in graph | Accepted | Both registered sources were found through body/title graph search while the 20-node cap remained enforced |
-| Creator Reference | Accepted | Manual corpus boundary, retrieval, generation lens, and no-fabrication behavior passed |
+| Creator Reference | Accepted backend capability | Manual corpus boundary, retrieval, generation lens, and no-fabrication behavior passed; Haseeb bot and Tarun bot are the only visible creator-reference screens |
 | Humanized Content | Accepted | Opt-in final pass preserved evidence and citations in acceptance checks |
 | ForkedBrain command center | Accepted | Protected overview, navigation, search, details, and bounded graph passed |
 
@@ -123,7 +123,7 @@ The release passed these production checks without a paid model call:
 - [ ] Remove the temporary tester after explicit approval.
 - [x] Refresh production counts and this matrix.
 - [x] Refresh the non-secret server documentation mirror and verify hashes.
-- [x] Push the `20260903T131714Z` release documentation and checkpoint to the private repo.
+- [x] Push the `20260903T163620Z` release documentation and checkpoint to the private repo.
 - [ ] Deliver the client handbook, access guide, and any requested restore
       demonstration.
 

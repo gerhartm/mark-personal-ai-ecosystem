@@ -4,8 +4,6 @@ import { BrowserRouter } from 'react-router-dom';
 import '@fontsource-variable/space-grotesk';
 import '@fontsource-variable/newsreader';
 import '@fontsource/jetbrains-mono/400.css';
-import './styles/tokens.css';
-import './styles/base.css';
 import './styles/desk.css';
 import './styles/lovable.css';
 import App from './App';
@@ -15,8 +13,14 @@ try {
   if (savedTheme === 'light' || savedTheme === 'dark') {
     document.documentElement.dataset.theme = savedTheme;
     document.documentElement.style.colorScheme = savedTheme;
+  } else {
+    document.documentElement.dataset.theme = 'light';
+    document.documentElement.style.colorScheme = 'light';
   }
-} catch {}
+} catch {
+  document.documentElement.dataset.theme = 'light';
+  document.documentElement.style.colorScheme = 'light';
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

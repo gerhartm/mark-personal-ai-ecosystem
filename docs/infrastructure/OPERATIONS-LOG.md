@@ -1008,3 +1008,18 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Runtime: image `mark-crypto-dashboard:20260903T131714Z` is healthy with zero restarts, runs as user `dashboard`, uses a read-only root filesystem, drops all Linux capabilities, and uses `no-new-privileges`.
 - Recovery: retained stopped predecessor `crypto-dashboard-rollback-20260903T131101Z` and verified pre-promotion database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260903T131714Z/crypto-intelligence.db`.
 - Cost: release acceptance made zero paid model calls.
+
+## 2026-09-03 16:36 UTC: Exact Lovable final release accepted
+
+- Operator: Codex completing Mark's exact Lovable frontend correction.
+- Status: completed and promoted as Crypto Intelligence release `20260903T163620Z`.
+- Frontend contract: the production UI exposes only Topics, Timeline, Prep, Haseeb bot, and Tarun bot in Mark's exact order and visible structure. The Lovable shell, typography, spacing, controls, charts, output states, feedback controls, citations, and responsive rules are retained. Dark mode is the only intentional visual addition and light remains the default.
+- Data boundary: every seeded record, fake total, mock action, and sample creator response remains excluded. Topics, claims, speakers, dates, sources, counts, and generated outputs use the existing production database and APIs.
+- API correction: Topics now returns real claim counts and related tags. Topic detail uses real claims, speakers, source types, date windows, related tags, and stance values.
+- Candidate handling: browser interaction exposed a React effect cleanup fault in candidate `20260903T162235Z`. That candidate was superseded immediately and is not an accepted rollback target. Final release `20260903T163620Z` passed the same complete click-through sequence without errors.
+- Verification: web production build, server type check, server production build, all 87 server tests, both dependency audits, API contracts, desktop and 390-pixel mobile browser checks, dark-mode switching, horizontal-overflow checks, and credential-pattern checks passed. Browser acceptance produced zero exceptions and zero failed requests.
+- Runtime: image `mark-crypto-dashboard:20260903T163620Z` is healthy with zero restarts, runs as user `dashboard`, uses a read-only root filesystem, drops all Linux capabilities, enables `no-new-privileges`, and publishes only on `127.0.0.1:9330`.
+- Public boundary: unauthenticated Crypto HTTPS redirects to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200` and unchanged.
+- Recovery: verified database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260903T163620Z/crypto-intelligence.db` and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260903T163620Z`. The preferred known-good application rollback is retained as `crypto-dashboard-rollback-20260903T131714Z`.
+- Scope safety: Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.
+- Cost: release acceptance made zero paid model calls.

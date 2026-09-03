@@ -518,12 +518,12 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260903T131714Z`
+Current accepted release: `20260903T163620Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260903T131714Z`
+- image: `mark-crypto-dashboard:20260903T163620Z`
 - loopback origin: `http://127.0.0.1:9330`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`
@@ -533,6 +533,12 @@ Runtime contract:
 - mounted OpenViking tenant key: `/srv/mark-v2/secrets/crypto-dashboard-openviking-key`
 - mounted Satoshi registration secret: `/srv/mark-v2/secrets/satoshi-dashboard-sync-key`
 - versioned deployment definition: `dashboard/deploy/docker-compose.production.yml`
+
+Preferred application rollback: `mark-crypto-dashboard:20260903T131714Z` with
+stopped container `crypto-dashboard-rollback-20260903T131714Z`. Candidate
+`20260903T162235Z` was superseded after browser interaction exposed a navigation
+cleanup defect and must not be treated as an accepted rollback target. Restore a
+database backup only when data rollback is explicitly required.
 
 ### Routine status
 

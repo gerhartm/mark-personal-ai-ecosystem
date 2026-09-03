@@ -479,6 +479,7 @@ export function listTopics(limit = 80, selected?: string) {
   const topics = all<any>(
     `SELECT t.tag, count(DISTINCT t.event_id) AS event_count,
             count(DISTINCT e.source_id) AS source_count,
+            count(DISTINCT e.primary_category) AS position_count,
             max(${SUBJECT_DATE}) AS latest_subject_date,
             max(e.significance) AS max_significance
        FROM event_tags t JOIN events e ON e.id=t.event_id
@@ -506,7 +507,18 @@ export function listTopics(limit = 80, selected?: string) {
       WHERE t.tag=? ORDER BY e.significance DESC, subject_date DESC, i.position`,
     selected,
   );
-  return { topics, selected, events, sources, claims };
+  const relatedTags = all(
+    `SELECT related.tag, count(DISTINCT related.event_id) AS event_count
+       FROM event_tags chosen
+       JOIN event_tags related ON related.event_id = chosen.event_id
+      WHERE chosen.tag = ? AND related.tag <> ?
+      GROUP BY related.tag
+      ORDER BY event_count DESC, related.tag
+      LIMIT 8`,
+    selected,
+    selected,
+  );
+  return { topics, selected, events, sources, claims, related_tags: relatedTags };
 }
 
 export function listAskHistory(query = '', limit = 40) {

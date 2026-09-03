@@ -5,27 +5,23 @@ uses the existing Hermes central brain for answers, the existing unified crypto
 database for evidence, and Cloudflare Access for the public authentication
 boundary. It does not modify Hermes, OpenViking, or the legacy platform.
 
-Primary workflows:
+The visible interface follows Mark's latest Lovable export exactly. Its five
+primary screens are:
 
 - **Topics:** the evidence-first home view, built only from real stored tags,
   events, sources, and extracted claims.
-- **Sources:** the material Mark supplied, grouped as Transcripts, Tweets, Blog
-  posts, and Your notes, with a useful overview, key arguments, retained text,
-  and source-scoped Ask.
-- **Ask:** plain-language grounded answers with clickable inline evidence and
-  the exact corpus records Hermes reviewed.
-- **Quiz:** evidence-linked questions, one bounded Hermes grading pass,
-  model-answer reveals, feedback, scores, and preserved session history.
-- **Studio:** topic-guided, selected-source X posts, X threads, LinkedIn posts,
-  review briefs, source-cited drafts, and an explicit Mark or Creator Reference
-  writing lens. Format limits are validated before a draft is saved.
-- **Speaking Prep:** theses, talking points, likely questions,
+- **Timeline:** the uniform category and date view Mark designed, populated from
+  real stored events and mention counts.
+- **Prep:** theses, talking points, likely questions,
   counterarguments, and closing takeaways from a selected date range.
-- **Capture:** native OpenViking URL or text ingestion with deterministic
-  identity, duplicate protection, and explicit receipts.
-- **Satoshi sync:** completed Telegram Crypto ingestions enter a durable FIFO
-  registration queue and become visible in Library, full-text search, and the
-  bounded ForkedBrain graph without a second ingestion or memory system.
+- **Haseeb bot:** creator-reference generation through the existing Hermes and
+  Studio boundary, using real corpus evidence.
+- **Tarun bot:** the second creator-reference workflow using the same verified
+  evidence and citation boundary.
+
+The existing source, Ask, Quiz, Studio, Capture, and Satoshi synchronization
+capabilities remain in the backend for the dashboard workflows and other
+approved clients. They are intentionally not exposed as extra navigation tabs.
 
 ## Run it
 
@@ -64,7 +60,7 @@ Environment, all optional, all by name only:
 
 ## Production deployment
 
-The accepted V2 release is `20260902T084905Z`. Its reproducible runtime contract
+The accepted V2 release is `20260903T163620Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a

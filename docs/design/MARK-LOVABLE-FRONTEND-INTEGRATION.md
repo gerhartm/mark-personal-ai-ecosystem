@@ -4,7 +4,7 @@
 
 **Product:** Crypto Intelligence
 
-**Status:** accepted in production, with the literal Lovable component port in release `20260903T131714Z`
+**Status:** accepted in production, with the final literal Lovable component port in release `20260903T163620Z`
 
 ## Purpose
 
@@ -17,16 +17,10 @@ The Lovable export is a design and interaction reference. Its sample records are
 The preserved Lovable export lives at:
 
 ```text
-01-Source-Material/lovable/Timeline-Tales/
+01-Source-Material/lovable/Timeline-Tales-20260903T190325/
 ```
 
-The original archive is retained outside the active project workspace at:
-
-```text
-_quarantine/Timeline Tales.zip
-```
-
-Neither location is imported by the production application. The active React application contains only components connected to the existing Crypto Intelligence API.
+The earlier preserved export remains at `01-Source-Material/lovable/Timeline-Tales/` for comparison. Neither reference directory is imported by the production application. The active React application contains only the matching components connected to the existing Crypto Intelligence API.
 
 ## Active information architecture
 
@@ -34,14 +28,11 @@ Neither location is imported by the production application. The active React app
 |---|---|---|---|
 | 01 | Topics | Browse themes already present in the corpus | Stored event tags, events, sources, and claims |
 | 02 | Timeline | Inspect unique events and every dated reference across all available years | Stored event dates and resolved connections |
-| 03 | Sources | Read supplied material by requested source type | Stored sources, OpenViking content, extracted events, and claims |
-| 04 | Ask | Ask Hermes and inspect evidence plus searchable question history | Hermes, bounded structured evidence, OpenViking, and `ask_history` |
-| 05 | Prep | Prepare for speaking from chosen sources and date windows | Studio generation contract with the Mark writing lens |
-| 06 | Studio | Create X posts, X threads, LinkedIn posts, and review briefs from selected evidence | Hermes, selected sources, citations, and append-only drafts |
-| 07 | Creator reference | Generate in a supplied creator reference style without changing evidence | Existing Creator Reference lens and shared memory |
-| 08 | Quiz | Test knowledge and reveal a model answer for comparison | Stored evidence, Hermes generation and grading, quiz history |
+| 03 | Prep | Prepare for speaking from chosen sources and date windows | Studio generation contract with the Mark writing lens |
+| 04 | Haseeb bot | Generate in Haseeb's supplied creator reference | Existing Creator Reference lens, Hermes, stored evidence, and citations |
+| 05 | Tarun bot | Generate in Tarun's supplied creator reference | Existing Creator Reference lens, Hermes, stored evidence, and citations |
 
-Utility routes remain available for Add Source, History, Settings, event detail, source detail, draft detail, and existing saved records.
+Topic detail is the only nested user-facing route. Previous dashboard screens and utility routes remain preserved in source where needed by backend contracts, but are not exposed through routing or navigation.
 
 ## Mark feedback translated into product behavior
 
@@ -49,33 +40,33 @@ Utility routes remain available for Add Source, History, Settings, event detail,
 
 Topics is now the first view. It contains no generated watchlist, rating, action list, or speculative daily summary. Each topic count is computed from the active database.
 
-### Useful source reading
+### Preserved evidence behavior
 
-Source detail shows a bounded overview, up to six distinct key arguments, the retained source text when available, linked events and claims, original provenance, and a source-scoped Ask panel. A source-scoped question sends only the selected source record as the initial evidence boundary.
+Topic detail presents real claims and their speakers, source types, source counts, date windows, related tags, and stance distribution. The source layer still retains the bounded overview, original provenance, full text when available, and canonical identities needed by Prep and creator generation.
 
 ### Historical timeline
 
 Timeline is not restricted to the current year. The year control is generated from every stored date. Each event row identifies its category, precision, unique event identity, real reference count, and a key takeaway drawn from stored source material. Opening a row shows what happened, the source context, key evidence, the full event, the supporting source, and the original link when available.
 
-### Grounded Ask
+### Grounded generation
 
-Ask renders Markdown, preserves successful questions and answers in searchable history, shows clickable inline canonical citations, and links each record back to the underlying event or source. Its response contract requires a direct answer first, plain language, named sources, evidence immediately after meaningful claims, and explicit labels for interpretation or uncertainty. Failed provider calls are shown as failures and are never converted into invented answers.
+The underlying Ask and Studio contracts remain evidence bounded. Responses require plain language, named sources, canonical citations, and explicit labels for interpretation or uncertainty. Failed provider calls are shown as failures and are never converted into invented answers. Ask remains available to approved non-frontend clients but is not a separate screen in Mark's five-screen interface.
 
 ### Source-led creation
 
-Prep, Studio, and Creator Reference allow Mark to browse real corpus topics, search, and select up to 12 real sources before generation. Leaving the selection empty keeps bounded automatic evidence selection. Review formats require an explicit date range.
+Prep follows Mark's Lovable interaction and generates from the real corpus through the existing Studio contract. Haseeb bot and Tarun bot use the Creator Reference lens over the same verified evidence boundary. No separate Studio or Creator Reference tab is exposed.
 
 ### Publishable output formats
 
-Studio separates a single X post from an X thread. The X post contract limits output to one publishable post of at most 280 characters excluding citations. The thread contract produces 5 to 7 numbered posts with the same per-post limit. LinkedIn, speaking preparation, month review, and year review retain their own contracts. The server checks format and citation requirements before saving and performs at most one bounded correction pass when needed.
+The backend retains its validated contracts for X posts, X threads, LinkedIn posts, speaking preparation, month review, and year review. The server checks format and citation requirements before saving and performs at most one bounded correction pass when needed. The visible interface exposes only the controls and output states in Mark's Lovable design.
 
 ### Light and dark themes
 
-Mark's visual hierarchy, routes, typography, spacing, and interaction model remain unchanged. A persistent switch in the navigation rail selects light or dark mode. With no saved choice, the interface follows the operating system preference. Both themes use the same semantic color tokens, accessible focus indicators, and restrained accent behavior.
+Mark's visual hierarchy, routes, typography, spacing, and interaction model remain unchanged. A persistent switch in the navigation rail selects light or dark mode. With no saved choice, the interface starts in light mode to match Mark's design. A saved choice persists across sessions. Both themes use the same semantic color tokens, accessible focus indicators, and restrained accent behavior.
 
-### Quiz comparison
+### Preserved Quiz capability
 
-Every unanswered question has a Reveal model answer control. After grading, the model answer is shown with the submitted answer and Hermes feedback.
+Evidence-linked Quiz generation, grading, model answers, and history remain available in the backend, but Quiz is not exposed as a separate frontend screen.
 
 ## Removal of Lovable sample content
 
@@ -84,7 +75,7 @@ The following are deliberately absent from the active application:
 - seeded event arrays;
 - generated random mention counts;
 - the 64-event Lovable timeline;
-- Haseeb and Tarun demo bots;
+- seeded Haseeb and Tarun demo responses;
 - fabricated creator responses;
 - placeholder dashboards, ratings, watchlists, or recommendations;
 - sample source totals and fake status numbers;
@@ -115,9 +106,9 @@ Migration `007 ask_history` adds the successful Ask history table. It is forward
 - All 87 automated server tests passed.
 - Desktop routes at 1440 by 1000 passed visual and interaction checks.
 - Mobile routes at 390 by 844 passed navigation and horizontal overflow checks.
-- Topic search, topic detail, timeline modal, source detail, evidence selection, Creator Reference, quiz model answers, and mobile navigation passed browser interaction checks.
+- Topics, topic detail, Timeline, Prep, Haseeb bot, Tarun bot, theme switching, and mobile navigation passed browser interaction checks.
 - Browser checks produced zero JavaScript page errors and zero console errors.
-- Source scan found no Lovable demo names, fake totals, seeded timeline text, or em dash characters in active application source.
+- Source scan found no Lovable demo records, fake totals, seeded timeline text, or em dash characters in active application source.
 - Production dependency audit found zero known vulnerabilities.
 
 ## Deployment and rollback
@@ -156,6 +147,6 @@ The live image is `mark-crypto-dashboard:20260902T084905Z`. The stopped predeces
 
 ## Literal Lovable component port
 
-Release `20260903T131714Z` makes the preserved Lovable source the literal frontend specification. The production application exposes the same five primary screens in the same order: Topics, Timeline, Prep, Haseeb bot, and Tarun bot. It preserves the Lovable shell, labels, typography, widths, spacing, borders, controls, charts, output states, feedback controls, citations, and responsive structure. Dark mode is the only intentional visual addition.
+Release `20260903T163620Z` makes the freshest preserved Lovable source the literal frontend specification. The production application exposes the same five primary screens in the same order: Topics, Timeline, Prep, Haseeb bot, and Tarun bot. It preserves the Lovable shell, labels, typography, widths, spacing, borders, controls, charts, output states, feedback controls, citations, and responsive structure. Dark mode is the only intentional visual addition.
 
-Lovable sample content and mock generation remain excluded. Every screen uses the existing production APIs, database, Hermes generation boundary, source identities, and citations. Extra legacy product routes are not exposed in the frontend. The live image is `mark-crypto-dashboard:20260903T131714Z`, the stopped predecessor is `crypto-dashboard-rollback-20260903T131101Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260903T131714Z/crypto-intelligence.db`. No Cloudflare, Hermes, OpenViking, ForkedBrain, or legacy Intel configuration changed.
+Lovable sample content and mock generation remain excluded. Every screen uses the existing production APIs, database, Hermes generation boundary, source identities, and citations. Extra legacy product routes are not exposed in the frontend. The live image is `mark-crypto-dashboard:20260903T163620Z`, the preferred known-good application rollback is `crypto-dashboard-rollback-20260903T131714Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260903T163620Z/crypto-intelligence.db`. Candidate `20260903T162235Z` was superseded after interactive browser testing exposed a navigation cleanup defect and is not an accepted rollback target. No Cloudflare, Hermes, OpenViking, ForkedBrain, or legacy Intel configuration changed.

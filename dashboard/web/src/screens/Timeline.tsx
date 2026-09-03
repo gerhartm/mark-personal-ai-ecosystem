@@ -54,9 +54,7 @@ export function Timeline() {
 
   return (
     <section>
-      <ViewHead title="Timeline" actions={<div className="timeline-totals"><strong>{uniqueEventCount}</strong><span>events</span><strong>{totalReferences}</strong><span>references</span></div>}>
-        Historical moments mentioned across Mark's sources. Rows remain readable even when a month contains many events.
-      </ViewHead>
+      <ViewHead title="Timeline" actions={<div className="timeline-totals"><strong>{uniqueEventCount}</strong><span>events</span><strong>{totalReferences}</strong><span>mentions</span></div>} />
 
       <div className="timeline-year-row" aria-label="Choose year">
         {years.map((year) => <Chip key={year} active={year === activeYear} onClick={() => { setChosenYear(year); setCategory('All'); }}>{year}</Chip>)}
@@ -70,7 +68,7 @@ export function Timeline() {
 
       {visible.length === 0 ? <EmptyState title="No dated events in this view">Choose another year or category.</EmptyState> : null}
 
-      <div className="timeline-ledger">
+      <div className="timeline-exact-layout"><div className="timeline-ledger">
         {months.map((group) => (
           <section className="timeline-month" key={group.month}>
             <header>
@@ -97,7 +95,7 @@ export function Timeline() {
             </div>
           </section>
         ))}
-      </div>
+      </div><aside className="timeline-signal-list"><header><h2>Top signals</h2><span>{visible.length}</span></header>{visible.slice().sort((a,b)=>Number(b.reference_count)-Number(a.reference_count)).map((pin)=><button type="button" key={`signal-${pin.event_id}-${pin.position}`} onClick={()=>setSelected(pin)}><i style={{background:categoryColor(pin.primary_category)}}/><span><strong>{pin.label||compact(pin.summary,70)}</strong><small>{monthName(Number(pin.sort_key.slice(5,7))).slice(0,3)} · {titleCase(pin.primary_category)}</small></span><b>{Math.max(1,Number(pin.reference_count||1))}</b></button>)}</aside></div>
 
       {selected ? <TimelineDialog pin={selected} close={() => setSelected(null)} /> : null}
     </section>

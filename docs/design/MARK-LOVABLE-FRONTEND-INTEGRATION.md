@@ -4,7 +4,7 @@
 
 **Product:** Crypto Intelligence
 
-**Status:** accepted in production, with the evidence and theme completion in release `20260902T084905Z`
+**Status:** accepted in production, with the literal Lovable component port in release `20260903T131714Z`
 
 ## Purpose
 
@@ -153,3 +153,9 @@ Release `20260902T084905Z` completed the product behavior behind Mark's accepted
 The immutable image passed 87 automated server tests, server and web type checks, both production builds, dependency audits with zero production vulnerabilities, shell syntax checks, and an isolated canary against a copied production database. Production acceptance verified Mark and Mari identity access, 54 sources, 66 events, 89 media assets, source and event presentation contracts, timeline coverage from 2000 through 2026, theme assets, seven ready synchronization jobs, SQLite quick and integrity checks, zero foreign-key violations, non-root and read-only container hardening, loopback-only publication, and zero restarts. No paid model call was used.
 
 The live image is `mark-crypto-dashboard:20260902T084905Z`. The stopped predecessor is `crypto-dashboard-rollback-20260902T073200Z`. The verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260902T084905Z/crypto-intelligence.db`. Cloudflare, Hermes, OpenViking, ForkedBrain, and `intel.forkedbrain.fyi` were not changed.
+
+## Literal Lovable component port
+
+Release `20260903T131714Z` makes the preserved Lovable source the literal frontend specification. The production application exposes the same five primary screens in the same order: Topics, Timeline, Prep, Haseeb bot, and Tarun bot. It preserves the Lovable shell, labels, typography, widths, spacing, borders, controls, charts, output states, feedback controls, citations, and responsive structure. Dark mode is the only intentional visual addition.
+
+Lovable sample content and mock generation remain excluded. Every screen uses the existing production APIs, database, Hermes generation boundary, source identities, and citations. Extra legacy product routes are not exposed in the frontend. The live image is `mark-crypto-dashboard:20260903T131714Z`, the stopped predecessor is `crypto-dashboard-rollback-20260903T131101Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260903T131714Z/crypto-intelligence.db`. No Cloudflare, Hermes, OpenViking, ForkedBrain, or legacy Intel configuration changed.

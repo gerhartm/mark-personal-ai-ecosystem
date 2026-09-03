@@ -1,7 +1,7 @@
 # Option 1: Current Status and Acceptance Matrix
 
-**Checkpoint date:** 2026-09-02
-**Accepted Crypto release:** `20260902T084905Z`
+**Checkpoint date:** 2026-09-03
+**Accepted Crypto release:** `20260903T131714Z`
 **Accepted ForkedBrain release:** `20260811T132229Z`
 
 ## Status definitions
@@ -123,7 +123,7 @@ The release passed these production checks without a paid model call:
 - [ ] Remove the temporary tester after explicit approval.
 - [x] Refresh production counts and this matrix.
 - [x] Refresh the non-secret server documentation mirror and verify hashes.
-- [x] Push the `20260902T084905Z` release documentation and checkpoint to the private repo.
+- [x] Push the `20260903T131714Z` release documentation and checkpoint to the private repo.
 - [ ] Deliver the client handbook, access guide, and any requested restore
       demonstration.
 

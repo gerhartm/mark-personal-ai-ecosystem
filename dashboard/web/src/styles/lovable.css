@@ -1,0 +1,50 @@
+@import "tailwindcss" source(none);
+@source "../";
+
+@theme {
+  --font-sans: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Newsreader Variable", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-heading: var(--heading);
+  --color-card: var(--card);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-dim: var(--dim);
+  --color-surface-950: var(--surface-950);
+  --color-surface-900: var(--surface-900);
+  --color-surface-800: var(--surface-800);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-cat-stablecoins: var(--cat-stablecoins);
+  --color-cat-rwas: var(--cat-rwas);
+  --color-cat-security: var(--cat-security);
+  --color-cat-macro: var(--cat-macro);
+  --color-cat-chains: var(--cat-chains);
+  --color-cat-ai-crypto: var(--cat-ai-crypto);
+  --color-cat-payments: var(--cat-payments);
+  --color-cat-tradfi: var(--cat-tradfi);
+  --color-cat-defi: var(--cat-defi);
+}
+
+:root {
+  --surface-950:#fff; --surface-900:#fefefe; --surface-800:#f1f2f1;
+  --background:var(--surface-950); --foreground:#292929; --heading:#111;
+  --card:var(--surface-900); --muted-foreground:#4a4a4a; --dim:#737373;
+  --line:rgba(90,90,90,.12); --line-strong:rgba(90,90,90,.24);
+  --brass:#f39c12; --cyan:#3498db; --sage:#2ecc71; --rose:#e74c3c;
+  --panel:var(--surface-900); --panel-2:var(--surface-800);
+  --shadow-card:0 1px 2px rgba(40,40,40,.05),0 8px 24px -12px rgba(40,40,40,.1);
+}
+:root[data-theme='dark'] {
+  --surface-950:#101310; --surface-900:#161a17; --surface-800:#202521;
+  --background:var(--surface-950); --foreground:#dce3dd; --heading:#f4f7f4;
+  --card:var(--surface-900); --muted-foreground:#aab3ac; --dim:#879189;
+  --line:rgba(232,240,234,.12); --line-strong:rgba(232,240,234,.23);
+}
+.desk-eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-foreground)}
+.desk-rise{animation:lovable-rise .34s cubic-bezier(.2,.7,.3,1)}
+@keyframes lovable-rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}

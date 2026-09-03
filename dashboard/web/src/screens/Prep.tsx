@@ -1,20 +1,20 @@
-import { ComposerDesk } from '../components/ComposerDesk';
-import { ViewHead } from '../components/Desk';
+import { useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { api, useQuery } from '../lib/api';
+import { Eyebrow, ViewHead } from '../components/Desk';
+import { compact, sourceKind } from '../lib/desk';
 
-export function Prep() {
-  return (
-    <section>
-      <ViewHead title="Prep">
-        Build a speaking brief from Mark's material with a thesis, supporting points, counterarguments, likely questions, and source citations.
-      </ViewHead>
-      <ComposerDesk
-        mode="mark"
-        title="Prepare to speak"
-        description="Start with the question, event, panel, or argument Mark needs to address. Select exact sources when the brief must stay tightly scoped."
-        focusLabel="Question or topic"
-        placeholder="What should Mark be ready to explain, defend, or challenge?"
-        templateOptions={[{ value: 'speaking_prep', label: 'Speaking brief' }, { value: 'month_in_review', label: 'Month review' }, { value: 'year_in_review', label: 'Year review' }]}
-      />
-    </section>
-  );
+type Source={source_id:string;title?:string;source_label?:string;source_type?:string};
+const LENS=['Tightest · only the core subject','Tight · the subject and its direct edges','Balanced','Wide · adjacent markets and patterns','Widest · analogies from other fields'];
+export function Prep(){
+ const sourcesQuery=useQuery<{sources:Source[]}>('/sources'); const [topic,setTopic]=useState(''); const [lens,setLens]=useState(3); const [tangents,setTangents]=useState<string[]>([]); const [newTangent,setNewTangent]=useState(''); const [body,setBody]=useState(''); const [busy,setBusy]=useState(false); const [error,setError]=useState('');
+ const sources=useMemo(()=>(sourcesQuery.data?.sources??[]).slice(0,8),[sourcesQuery.data]);
+ const add=()=>{const value=newTangent.trim();if(value&&!tangents.includes(value))setTangents([...tangents,value]);setNewTangent('')};
+ const run=async()=>{if(topic.trim().length<3||busy)return;setBusy(true);setError('');try{const result=await api('/studio/drafts',{method:'POST',body:JSON.stringify({template_type:'speaking_prep',focus:`Lens: ${LENS[lens-1]}. ${tangents.length?`Tangential subjects: ${tangents.join(', ')}. `:''}${topic.trim()}`,writing_lens:'mark',source_ids:[]})});setBody(result.body||'')}catch(requestError){setError(requestError instanceof Error?requestError.message:'Generation failed')}finally{setBusy(false)}};
+ return <section><ViewHead title="Prep"/><div className="mb-[22px] rounded-[7px] border-2 border-[var(--line-strong)] bg-[var(--panel)] px-4 py-[13px]">
+   <label htmlFor="prep-topic" className="mb-2 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Question or topic</label><input id="prep-topic" value={topic} onChange={(event)=>setTopic(event.target.value)} placeholder="e.g. Where does fee capture land in perp DEXs?" className="w-full border-0 border-b border-[var(--line)] bg-transparent pb-2 font-serif text-base text-foreground placeholder:text-dim focus:border-[var(--brass)] focus:outline-none"/>
+   <div className="mt-4 flex flex-wrap items-center gap-3"><span className="font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Lens</span><input type="range" min="1" max="5" value={lens} onChange={(event)=>setLens(Number(event.target.value))} className="h-1 w-52 cursor-pointer accent-[var(--brass)]"/><span className="font-mono text-[10px] text-muted-foreground">{LENS[lens-1]}</span></div>
+   <div className="mt-4 border-t border-[var(--line)] pt-3.5"><span className="mb-2 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Tangential subjects</span><div className="flex flex-wrap items-center gap-1.5">{tangents.map((item)=><button key={item} type="button" onClick={()=>setTangents(tangents.filter((value)=>value!==item))} className="rounded-[3px] border border-[var(--line)] px-2 py-1 font-mono text-[10px] text-muted-foreground">{item}</button>)}<input value={newTangent} onChange={(event)=>setNewTangent(event.target.value)} onKeyDown={(event)=>{if(event.key==='Enter'){event.preventDefault();add()}}} placeholder="add a subject..." className="w-40 rounded-[3px] border border-dashed border-[var(--line)] bg-transparent px-2 py-1 font-mono text-[10px] text-foreground placeholder:text-dim focus:border-[var(--brass)] focus:outline-none"/><button type="button" onClick={run} disabled={busy||topic.trim().length<3} className="ml-auto rounded border border-[var(--brass)] px-3 py-1.5 font-mono text-[10px] text-[var(--brass)] disabled:opacity-40">{busy?'Preparing...':'Generate'}</button></div></div>
+ </div>{error?<p className="font-mono text-[10px] text-[var(--rose)]">{error}</p>:null}<div className="grid items-start gap-[26px] lg:grid-cols-[1fr_292px]"><div><Eyebrow>Overview</Eyebrow><div className="mb-[22px] rounded-[7px] border-l-2 border-[var(--brass)] bg-[var(--panel)] px-4 py-3.5">{body?<div className="desk-markdown"><ReactMarkdown>{body}</ReactMarkdown></div>:<p className="font-serif text-[17px] leading-relaxed text-muted-foreground">Enter a question or topic to build a sourced preparation brief.</p>}</div></div><aside className="lg:sticky lg:top-[34px]"><Eyebrow>Sourced from</Eyebrow>{sources.map((source)=><div key={source.source_id} className="mb-[7px] rounded-[5px] border border-[var(--line)] px-3 py-2.5"><p className="mb-1.5 text-[11.5px] leading-snug text-muted-foreground">{compact(source.title||source.source_label||'Untitled source',90)}</p><div className="font-mono text-[9.5px] text-dim">{sourceKind(source.source_type)}</div></div>)}</aside></div>
+ </section>;
 }

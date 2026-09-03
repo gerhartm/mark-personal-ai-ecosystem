@@ -518,12 +518,12 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260902T084905Z`
+Current accepted release: `20260903T131714Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260902T084905Z`
+- image: `mark-crypto-dashboard:20260903T131714Z`
 - loopback origin: `http://127.0.0.1:9330`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`

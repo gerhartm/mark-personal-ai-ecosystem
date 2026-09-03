@@ -997,3 +997,14 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Verification: the pushed `main` branch matched the tested local checkpoint, the worktree was clean, and the committed diff passed whitespace and credential-pattern checks.
 - Recovery mirror: streamed a clean `git archive` into a new owner-only server directory, compared all 231 tracked file hashes with the local checkpoint, found an exact match, found no `.DS_Store` or AppleDouble artifacts, and promoted it to `/root/mark-v2-docs/`.
 - Recovery: retained the previous documentation mirror as `/root/mark-v2-docs.pre-20260902T084905Z`. No application container, database, memory record, provider, Cloudflare setting, or legacy service changed during this archival step.
+
+## 2026-09-03 13:17 UTC: Literal Lovable component release accepted
+
+- Operator: Codex implementing Mark's explicit requirement that the production frontend match his Lovable build exactly.
+- Status: completed and promoted as Crypto Intelligence release `20260903T131714Z`.
+- Frontend contract: Topics, Timeline, Prep, Haseeb bot, and Tarun bot use the preserved Lovable component structure, navigation order, labels, typography, layout, controls, charts, generated states, feedback controls, citations, and responsive behavior. Dark mode is the only intentional visual addition.
+- Data boundary: all Lovable sample records and mock actions remain excluded. The five screens use the existing production database and API boundaries. Hermes, OpenViking, Telegram synchronization, Cloudflare, ForkedBrain, and the legacy Intel service were not changed.
+- Verification: the web production build and dependency audit passed with zero vulnerabilities. `git diff --check` passed, the active frontend scope contains no em dash or en dash characters, all five authenticated production routes returned HTTP 200, and the public Crypto route returned the expected Cloudflare Access redirect.
+- Runtime: image `mark-crypto-dashboard:20260903T131714Z` is healthy with zero restarts, runs as user `dashboard`, uses a read-only root filesystem, drops all Linux capabilities, and uses `no-new-privileges`.
+- Recovery: retained stopped predecessor `crypto-dashboard-rollback-20260903T131101Z` and verified pre-promotion database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260903T131714Z/crypto-intelligence.db`.
+- Cost: release acceptance made zero paid model calls.

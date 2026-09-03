@@ -7,6 +7,7 @@ import '@fontsource/jetbrains-mono/400.css';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/desk.css';
+import './styles/lovable.css';
 import App from './App';
 
 try {

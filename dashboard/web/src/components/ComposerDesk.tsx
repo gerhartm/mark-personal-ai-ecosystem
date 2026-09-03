@@ -17,6 +17,7 @@ export function ComposerDesk({
   placeholder,
   templateOptions,
   extra,
+  creator,
 }: {
   mode: 'mark' | 'creator_reference';
   title: string;
@@ -25,6 +26,7 @@ export function ComposerDesk({
   placeholder: string;
   templateOptions: { value: string; label: string }[];
   extra?: ReactNode;
+  creator?: 'Haseeb' | 'Tarun';
 }) {
   const sourcesQuery = useQuery<{ sources: Source[] }>('/sources');
   const [focus, setFocus] = useState('');
@@ -53,7 +55,7 @@ export function ComposerDesk({
     try {
       const response = await api('/studio/drafts', {
         method: 'POST',
-        body: JSON.stringify({ template_type: template, focus: focus.trim(), date_from: from || null, date_to: to || null, writing_lens: mode, source_ids: selected }),
+        body: JSON.stringify({ template_type: template, focus: creator ? `Write through the stored ${creator} creator reference. ${focus.trim()}` : focus.trim(), date_from: from || null, date_to: to || null, writing_lens: mode, source_ids: selected }),
       });
       setResult(response);
     } catch (requestError) {

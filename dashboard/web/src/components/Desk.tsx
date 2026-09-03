@@ -2,10 +2,10 @@ import type { ReactNode } from 'react';
 
 export function ViewHead({ title, children, actions }: { title: string; children?: ReactNode; actions?: ReactNode }) {
   return (
-    <header className="desk-view-head">
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-[var(--line)] pb-4">
       <div>
-        <h1>{title}</h1>
-        {children ? <p>{children}</p> : null}
+        <h1 className="mb-1.5 text-[23px] font-medium tracking-tight text-foreground">{title}</h1>
+        {children ? <p className="max-w-[62ch] font-serif text-[15px] leading-relaxed text-pretty text-muted-foreground">{children}</p> : null}
       </div>
       {actions ? <div className="desk-head-actions">{actions}</div> : null}
     </header>
@@ -13,7 +13,7 @@ export function ViewHead({ title, children, actions }: { title: string; children
 }
 
 export function Eyebrow({ children }: { children: ReactNode }) {
-  return <p className="desk-eyebrow">{children}</p>;
+  return <p className="desk-eyebrow mb-3">{children}</p>;
 }
 
 export function Chip({
@@ -28,7 +28,7 @@ export function Chip({
   type?: 'button' | 'submit';
 }) {
   return (
-    <button type={type} className={`desk-chip ${active ? 'is-active' : ''}`} onClick={onClick}>
+    <button type={type} className={`cursor-pointer rounded-[3px] border px-2 py-1 font-mono text-[10px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--brass)] ${active?'border-[var(--line)] text-muted-foreground':'border-[var(--line)] text-muted-foreground opacity-35'}`} onClick={onClick}>
       {children}
     </button>
   );

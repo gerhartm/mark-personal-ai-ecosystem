@@ -186,10 +186,13 @@ async function desktopPass(browser) {
   await checkViewport(page, 'Timeline desktop');
 
   await page.getByRole('link', { name: /Prep/ }).click();
+  const prepAction = page.getByRole('button', { name: 'Generate with Hermes' });
+  await prepAction.waitFor();
+  check(await prepAction.isVisible(), 'Prep exposes its primary generation action');
   await page.locator('#prep-topic').fill('How does distribution shape value capture in lending protocols?');
   const tangent = page.locator('button').filter({ hasText: /^\+ / }).first();
   if (await tangent.count()) await tangent.click();
-  await page.locator('#prep-topic').press('Enter');
+  await prepAction.click();
   await page.getByText('Distribution determines durable value capture', { exact: true }).waitFor();
   check((await page.locator('button').filter({ hasText: /Open ·/ }).count()) === 5, 'Prep returns the requested five source-backed points');
   check(!(await bodyHasRawMarkdown(page.locator('main'))), 'Prep has no raw Markdown');

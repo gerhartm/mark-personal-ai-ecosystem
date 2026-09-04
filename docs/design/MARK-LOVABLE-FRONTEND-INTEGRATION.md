@@ -4,7 +4,7 @@
 
 **Product:** Crypto Intelligence
 
-**Status:** accepted in production, with Mark's literal Lovable component port and response-quality completion in release `20260904T174126Z`
+**Status:** accepted in production, with Mark's literal Lovable component port and response-quality completion in release `20260904T181850Z`
 
 ## Purpose
 
@@ -108,7 +108,7 @@ Migration `007 ask_history` adds the successful Ask history table. It is forward
 - All 92 automated server tests passed.
 - Desktop routes at 1440 by 1000 passed visual and interaction checks.
 - Mobile routes at 390 by 844 passed navigation and horizontal overflow checks.
-- All 72 browser acceptance checks passed for Topics, topic detail, Timeline, expanded evidence dossiers, Prep, Haseeb bot, Tarun bot, creator revision, creator format changes, requested lengths, evidence, settled dark-mode contrast, and mobile navigation.
+- All 73 browser acceptance checks passed for Topics, topic detail, Timeline, expanded evidence dossiers, Prep generation, Haseeb bot, Tarun bot, creator revision, creator format changes, requested lengths, evidence, settled dark-mode contrast, and mobile navigation.
 - Browser checks produced zero JavaScript page errors and zero console errors.
 - Source scan found no Lovable demo records, fake totals, seeded timeline text, or em dash characters in active application source.
 - Production dependency audit found zero known vulnerabilities.
@@ -174,3 +174,11 @@ The Timeline dossier uses only retained database evidence. It presents what happ
 The release passed all 92 server tests and all 72 Chrome checks locally, in an isolated production canary, and after production promotion. The checks covered desktop and mobile layouts, every visible route, clickable Timeline color segments, expanded dossiers, five source-backed Prep points, direct quotes, counterarguments, creator output shape, citations, revision continuity, dark-mode contrast, browser requests, console errors, and horizontal overflow. No paid model call was made for this release.
 
 The live image is `mark-crypto-dashboard:20260904T174126Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260904T150300Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T174126Z/crypto-intelligence.db`. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.
+
+## Prep generation action restoration
+
+Release `20260904T181850Z` restores the visible `Generate with Hermes` action at the bottom right of Mark's Prep input card. The existing Enter-key shortcut remains available. The button is disabled until the question or topic is valid, shows a clear evidence-building state while generation is running, and uses the existing Lovable design tokens without changing the surrounding composition.
+
+The web and server production builds passed, all 92 server tests passed, and all 73 Chrome checks passed locally, in the isolated canary, and after production promotion. The production browser pass clicked the restored button, received the requested five source-backed points, and rechecked direct quotes, limitations, exact sources, raw Markdown, dark mode, mobile layout, request failures, and console errors. No paid model call was made because browser generation used the accepted deterministic evidence fixture.
+
+The live image is `mark-crypto-dashboard:20260904T181850Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260904T174126Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T181850Z/crypto-intelligence.db`. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.

@@ -1063,3 +1063,14 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Security and edge: the container is non-root, read-only, capability-dropped, protected by `no-new-privileges`, and bound only to `127.0.0.1:9330`. Public HTTPS redirects to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200`.
 - Recovery: retained rollback container `crypto-dashboard-rollback-20260904T150300Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T174126Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260904T174126Z`.
 - Cost and scope: no paid model call was made. Cloudflare configuration, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.
+
+## 2026-09-04 18:18-18:24 UTC: Prep generation action restored
+
+- Operator: Codex following Darshan's instruction to restore the missing Prep action while retaining Mark's exact interface.
+- Status: completed and promoted as Crypto Intelligence release `20260904T181850Z`.
+- Change: restored the visible `Generate with Hermes` button at the bottom right of the Prep input card. The existing endpoint, Enter-key shortcut, result structure, and evidence contracts are unchanged.
+- Verification: web and server production builds passed; all 92 server tests passed; both production dependency audits found zero vulnerabilities; all 73 Chrome checks passed locally, in the isolated canary, and after promotion. The browser clicked the restored action and verified five source-backed points, direct quotes, limitations, exact sources, clean formatting, dark mode, and desktop and mobile overflow.
+- Production: image `mark-crypto-dashboard:20260904T181850Z` is healthy with zero restarts, 66 canonical events, 54 canonical sources, and 89 media assets. Mark and Marimar origin identities return HTTP `200`; missing identity returns HTTP `401`.
+- Security and edge: the container remains non-root, read-only, capability-dropped, protected by `no-new-privileges`, and bound only to `127.0.0.1:9330`. Public HTTPS redirects to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200`.
+- Recovery: retained rollback container `crypto-dashboard-rollback-20260904T174126Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T181850Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260904T181850Z`.
+- Cost and scope: no paid model call was made. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.

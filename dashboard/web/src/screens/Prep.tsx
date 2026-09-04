@@ -126,6 +126,11 @@ export function Prep() {
             </div>
           ) : <p className="font-mono text-[10px] text-dim">Type a question or topic above and suggested subjects appear here.</p>}
         </div>
+        <div className="mt-4 flex justify-end border-t border-[var(--line)] pt-3.5">
+          <button type="button" className="desk-button" onClick={run} disabled={busy || topic.trim().length < 3}>
+            {busy ? 'Building from evidence' : 'Generate with Hermes'}
+          </button>
+        </div>
       </div>
 
       {error ? <p className="mb-4 rounded-[5px] border border-[var(--rose)] px-3 py-2 font-mono text-[10px] text-[var(--rose)]" role="alert">{error}</p> : null}

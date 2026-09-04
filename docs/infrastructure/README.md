@@ -49,6 +49,7 @@ The Crypto dashboard now follows Mark's accepted evidence-first Lovable informat
 - [Crypto public acceptance snapshot](./state/2026-08-04T043300Z-crypto-public-acceptance-redacted.md) - final Access cutover, live edge/origin checks, Hermes answer, restart persistence, and rollback points.
 - [Crypto Capture release snapshot](./state/2026-08-04T071800Z-crypto-capture-redacted.md) - native URL/text capture, duplicate and partial-write safety, production release, rollback, and remaining provider gate.
 - [Mark evidence and dark-mode completion](./state/2026-09-02T084905Z-mark-evidence-dark-mode-redacted.md) - source and event presentation, evidence UX, Studio output validation, theme completion, guarded promotion, and rollback state.
+- [Prep generation action release](./state/2026-09-04T181850Z-prep-action-redacted.md) - visible Prep action restoration, browser acceptance, production state, and rollback assets.
 - [Crypto migration review](../migration/CRYPTO-V2-MIGRATION-REVIEW.md) — accepted 197-record import, replay proof, cost record, and recovery point.
 - [Claude Code dashboard handoff](../migration/CLAUDE-CODE-DASHBOARD-HANDOFF.md) — frozen product, data, architecture, security, and acceptance contract for dashboard design.
 

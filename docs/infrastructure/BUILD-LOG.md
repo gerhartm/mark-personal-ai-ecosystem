@@ -622,3 +622,11 @@ The freshest preserved Lovable export was used as the literal visual and interac
 Timeline year and month color bands are interactive, and an event opens the full approved dossier structure with readable significance, a distinct takeaway, sourced reactions, original sources, forward-looking evidence, and next-signal navigation. Prep and creator workflows preserve the accepted plain-language, source, quotation, counterargument, citation, output-length, and revision requirements.
 
 Both production builds passed. The server passed 92 tests across ten files. Chrome passed 72 checks locally, against an isolated canary database copy, and against the promoted production image. The final container is healthy with zero restarts and preserves the prior loopback-only, non-root, read-only, capability-dropped security boundary. The release used no paid model call.
+
+## 32. Prep generation action restored
+
+The Prep screen retained its working generation handler and Enter-key shortcut, but the visible primary action had been omitted during the literal Lovable port. Release `20260904T181850Z` restores `Generate with Hermes` at the bottom right of the existing input card, using the accepted button tokens and preserving the surrounding layout.
+
+The action is disabled until a valid topic exists, changes to `Building from evidence` while the request is active, and calls the same structured Prep endpoint. The browser suite now requires the visible action and clicks it instead of relying on the keyboard shortcut.
+
+Both production builds passed, all 92 server tests passed, dependency audits reported zero production vulnerabilities, and Chrome passed all 73 checks locally, in the isolated canary, and in production. Desktop and mobile renders were visually inspected. Production is healthy with zero restarts, 66 events, 54 sources, and 89 media assets. No paid model call was made.

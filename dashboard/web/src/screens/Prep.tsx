@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api, useQuery } from '../lib/api';
 import { Eyebrow, ViewHead } from '../components/Desk';
+import { ExactDialog } from '../components/ExactDialog';
 import { compact, formatDate, sourceKind } from '../lib/desk';
 
 type Topic = { tag: string; event_count: number };
@@ -32,11 +33,11 @@ type PrepResult = {
 };
 
 const LENS = [
-  'Tightest · only the core subject',
-  'Tight · the subject and its direct edges',
+  'Tightest — only the core subject',
+  'Tight — the subject and its direct edges',
   'Balanced',
-  'Wide · adjacent markets and patterns',
-  'Widest · analogies from other fields',
+  'Wide — adjacent markets and patterns',
+  'Widest — analogies from other fields',
 ];
 
 export function Prep() {
@@ -112,14 +113,16 @@ export function Prep() {
           <span className="font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Lens</span>
           <input type="range" min="1" max="5" value={lens} onChange={(event) => { setLens(Number(event.target.value)); setResult(null); }} aria-label="Lens breadth" className="h-1 w-52 cursor-pointer accent-[var(--brass)]" />
           <span className="font-mono text-[10px] text-muted-foreground">{LENS[lens - 1]}</span>
-          <button type="button" onClick={run} disabled={busy || topic.trim().length < 3} className="ml-auto rounded border border-[var(--brass)] px-[13px] py-1.5 font-mono text-[10px] tracking-[0.05em] text-[var(--brass)] transition-colors disabled:opacity-40">{busy ? 'Preparing...' : 'Prepare'}</button>
         </div>
         <div className="mt-4 border-t border-[var(--line)] pt-3.5">
           <span className="mb-2 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Tangential subjects</span>
           {topic.trim() ? (
             <div className="flex flex-wrap items-center gap-1.5">
-              {tangents.map((item) => <button key={item} type="button" onClick={() => toggle(item)} className={`rounded-[3px] border px-2 py-1 font-mono text-[10px] transition-colors ${picked.includes(item) ? 'border-[var(--brass)] text-foreground' : 'border-[var(--line)] text-muted-foreground opacity-50'}`}>{picked.includes(item) ? '✓ ' : '+ '}{item}</button>)}
-              <input value={newTangent} onChange={(event) => setNewTangent(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addTangent(); } }} placeholder="add a subject..." aria-label="Add a tangential subject" className="w-40 rounded-[3px] border border-dashed border-[var(--line)] bg-transparent px-2 py-1 font-mono text-[10px] text-foreground placeholder:text-dim focus:border-[var(--brass)] focus:outline-none" />
+              {tangents.map((item) => {
+                const active = picked.includes(item);
+                return <button key={item} type="button" onClick={() => toggle(item)} className={`cursor-pointer rounded-[3px] border px-2 py-1 font-mono text-[10px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--brass)] ${active ? 'border-[var(--line)] text-muted-foreground hover:border-[var(--brass)] hover:text-foreground' : 'border-dashed border-[var(--line)] text-dim opacity-35 hover:border-[var(--brass)] hover:text-foreground'}`}>{active ? '✓ ' : '+ '}{item}</button>;
+              })}
+              <input value={newTangent} onChange={(event) => setNewTangent(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addTangent(); } }} placeholder="add a subject…" aria-label="Add a tangential subject" className="w-40 rounded-[3px] border border-dashed border-[var(--line)] bg-transparent px-2 py-1 font-mono text-[10px] text-foreground placeholder:text-dim focus:border-[var(--brass)] focus:outline-none" />
             </div>
           ) : <p className="font-mono text-[10px] text-dim">Type a question or topic above and suggested subjects appear here.</p>}
         </div>
@@ -163,25 +166,18 @@ export function Prep() {
 }
 
 function PointDetailDialog({ point, sources, close }: { point: PrepPoint | null; sources: EvidenceSource[]; close: () => void }) {
-  useEffect(() => {
-    if (!point) return undefined;
-    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [close, point]);
   if (!point) return null;
   return (
-    <div className="desk-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}>
-      <section className="desk-modal" role="dialog" aria-modal="true" aria-labelledby="prep-point-title">
-        <header className="desk-modal-head"><div>{point.tag ? <p className="desk-eyebrow">{point.tag}</p> : null}<h2 id="prep-point-title">{point.title}</h2></div><button className="desk-modal-close" type="button" onClick={close}>Close</button></header>
-        <div className="desk-modal-body">
-          <p className="desk-provenance">{point.sources.length} sources · {compact(point.window, 80)}</p>
+    <ExactDialog open onOpenChange={(next) => { if (!next) close(); }} closeLabel="Close point details" accessibleTitle={point.title} labelledBy="prep-point-title">
+        <div className="p-5 md:p-6">
+          {point.tag ? <span className="mb-2 inline-block rounded-[3px] bg-surface-800 px-[5px] py-[1.5px] font-mono text-[9px] text-[var(--cyan)]">{point.tag}</span> : null}
+          <h2 id="prep-point-title" className="pr-8 text-lg font-medium leading-snug text-heading md:text-xl">{point.title}</h2>
+          <div className="mt-1 flex flex-wrap items-center gap-[7px] font-mono text-[9.5px] text-dim"><span>{point.sources.length} source{point.sources.length === 1 ? '' : 's'}</span><span className="text-[var(--rule)]">/</span><span className="text-[var(--cyan)]">{compact(point.window, 80)}</span></div>
           <div className="mt-4 space-y-3">{point.detail.map((paragraph) => <p key={paragraph.slice(0, 40)} className="max-w-[64ch] font-serif text-[15.5px] leading-relaxed text-pretty text-foreground">{paragraph}</p>)}</div>
           {point.quotes.length ? <div className="mt-6 border-t-2 border-[var(--line)] pt-4"><span className="mb-3 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Direct quotes · {point.quotes.length}</span><div className="space-y-3">{point.quotes.map((quote) => <figure key={quote.quote.slice(0, 40)} className="rounded-[5px] border-l-2 border-[var(--brass)] bg-surface-800/60 px-4 py-3"><blockquote className="font-serif text-[15px] leading-relaxed text-pretty text-foreground">“{quote.quote}”</blockquote><figcaption className="mt-2 font-mono text-[10px] text-muted-foreground">{quote.speaker}{quote.locator ? ` · ${quote.locator}` : ''} · {formatDate(quote.when)}</figcaption><p className="mt-1.5 text-[11.5px] leading-snug text-muted-foreground">{quote.read}</p></figure>)}</div></div> : null}
-          <div className="mt-5 rounded-[5px] border-2 border-dashed border-[var(--line)] px-4 py-3"><span className="mb-1 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Where it's weak</span><p className="text-[12.5px] leading-snug text-foreground">{point.counter}</p></div>
-          <div className="mt-5 border-t-2 border-[var(--line)] pt-4"><span className="mb-2 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Sourced from</span><div className="space-y-1.5">{point.sources.map((id) => { const source = sources.find((item) => item.id === id); if (!source) return null; const body = <><p className="mb-1 text-[11.5px] leading-snug text-foreground">{source.title}</p><p className="font-mono text-[9.5px] text-dim">{source.who} · {sourceKind(source.source_type)}{source.when ? ` · ${formatDate(source.when)}` : ''}</p></>; return source.url ? <a key={id} href={source.url} target="_blank" rel="noreferrer" className="block rounded-[5px] border border-[var(--line)] px-3 py-2 no-underline hover:border-[var(--brass)]">{body}</a> : <div key={id} className="rounded-[5px] border border-[var(--line)] px-3 py-2">{body}</div>; })}</div></div>
+          {point.counter ? <div className="mt-5 rounded-[5px] border-2 border-dashed border-[var(--line)] px-4 py-3"><span className="mb-1 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Where it's weak</span><p className="text-[12.5px] leading-snug text-foreground">{point.counter}</p></div> : null}
+          <div className="mt-5 border-t-2 border-[var(--line)] pt-4"><span className="mb-2 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Sourced from</span><div className="space-y-1.5">{point.sources.map((id) => { const source = sources.find((item) => item.id === id); if (!source) return null; const body = <><p className="mb-1 text-[11.5px] leading-snug text-foreground">{source.title}</p><p className="font-mono text-[9.5px] text-dim">{source.who} · {sourceKind(source.source_type)}{source.when ? ` · ${formatDate(source.when)}` : ''}</p></>; return source.url ? <a key={id} href={source.url} target="_blank" rel="noreferrer" className="block rounded-[5px] border border-[var(--line)] px-3 py-2 no-underline transition-colors hover:border-[var(--brass)]">{body}</a> : <div key={id} className="rounded-[5px] border border-[var(--line)] px-3 py-2">{body}</div>; })}</div></div>
         </div>
-      </section>
-    </div>
+    </ExactDialog>
   );
 }

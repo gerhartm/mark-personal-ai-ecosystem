@@ -63,10 +63,12 @@ export function ErrorState({ error, retry }: { error: Error; retry?: () => void 
 
 export function Provenance({ source, when, kind }: { source?: string; when?: string; kind?: string }) {
   return (
-    <div className="desk-provenance">
-      {source ? <span className="is-source">{source}</span> : null}
+    <div className="flex flex-wrap items-center gap-[7px] font-mono text-[9.5px] text-dim">
+      {source ? <span className="text-[var(--brass)]">{source}</span> : null}
+      {source && kind ? <span className="text-[var(--line)]">/</span> : null}
       {kind ? <span>{kind}</span> : null}
-      {when ? <time>{when}</time> : null}
+      {when ? <span className="text-[var(--line)]">/</span> : null}
+      {when ? <time className="text-[var(--cyan)]">{when}</time> : null}
     </div>
   );
 }

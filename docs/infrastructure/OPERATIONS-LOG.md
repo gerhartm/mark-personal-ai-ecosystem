@@ -1051,3 +1051,15 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Production: image `mark-crypto-dashboard:20260904T150300Z` is healthy with zero restarts, 66 events, 54 sources, and 89 media assets.
 - Recovery: retained rollback container `crypto-dashboard-rollback-20260904T141918Z`, previous image `mark-crypto-dashboard:20260904T141918Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T150300Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260904T150300Z`.
 - Scope safety: Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.
+
+## 2026-09-04 17:41-17:48 UTC: Final Lovable parity and Timeline dossier accepted
+
+- Operator: Codex completing Darshan's instruction to port every visible design element from Mark's freshest Lovable build while retaining the working production backend.
+- Status: completed and promoted as Crypto Intelligence release `20260904T174126Z`.
+- Frontend scope: retained exactly five visible screens in Mark's order, preserved the approved shell, typography, layout, controls, Timeline density bands, expanded event dossier, Prep experience, Haseeb bot, Tarun bot, creator feedback, citations, and responsive structure. Dark mode remains the only intentional visual addition.
+- Evidence behavior: Timeline dossiers now assemble only stored evidence into readable significance, a distinct takeaway, sourced reactions, original source cards, forward-looking points, and next-signal navigation. Duplicate significance text and raw Markdown artifacts are removed. Prep and creator outputs retain the accepted clarity, quotation, counterargument, citation, length, and revision contracts.
+- Verification: web and server production builds passed; all 92 server tests passed; all 72 Chrome checks passed locally, in an isolated canary, and after production promotion. Desktop and mobile layouts, every visible route, Timeline color-band filtering, expanded dossiers, readable Prep points, creator outputs, dark-mode contrast, request integrity, console behavior, and overflow passed.
+- Production: image `mark-crypto-dashboard:20260904T174126Z` is healthy with zero restarts, 66 canonical events, 54 canonical sources, and 89 media assets. Mark and Marimar origin identities return HTTP `200`; missing identity returns HTTP `401`.
+- Security and edge: the container is non-root, read-only, capability-dropped, protected by `no-new-privileges`, and bound only to `127.0.0.1:9330`. Public HTTPS redirects to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200`.
+- Recovery: retained rollback container `crypto-dashboard-rollback-20260904T150300Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T174126Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260904T174126Z`.
+- Cost and scope: no paid model call was made. Cloudflare configuration, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.

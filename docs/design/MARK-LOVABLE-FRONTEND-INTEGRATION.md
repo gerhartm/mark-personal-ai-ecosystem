@@ -4,7 +4,7 @@
 
 **Product:** Crypto Intelligence
 
-**Status:** accepted in production, with Mark's literal Lovable component port and response-quality completion in release `20260904T150300Z`
+**Status:** accepted in production, with Mark's literal Lovable component port and response-quality completion in release `20260904T174126Z`
 
 ## Purpose
 
@@ -105,10 +105,10 @@ Migration `007 ask_history` adds the successful Ask history table. It is forward
 - Server TypeScript check passed.
 - Web production build passed.
 - Server production build passed.
-- All 91 automated server tests passed.
+- All 92 automated server tests passed.
 - Desktop routes at 1440 by 1000 passed visual and interaction checks.
 - Mobile routes at 390 by 844 passed navigation and horizontal overflow checks.
-- All 54 browser acceptance checks passed for Topics, topic detail, Timeline, Prep, Haseeb bot, Tarun bot, creator revision, creator format changes, requested lengths, evidence, theme switching, and mobile navigation.
+- All 72 browser acceptance checks passed for Topics, topic detail, Timeline, expanded evidence dossiers, Prep, Haseeb bot, Tarun bot, creator revision, creator format changes, requested lengths, evidence, settled dark-mode contrast, and mobile navigation.
 - Browser checks produced zero JavaScript page errors and zero console errors.
 - Source scan found no Lovable demo records, fake totals, seeded timeline text, or em dash characters in active application source.
 - Production dependency audit found zero known vulnerabilities.
@@ -164,3 +164,13 @@ The release passed 91 automated server tests and 53 interactive Chrome checks on
 Release `20260904T150300Z` adds the final creator-state boundary found during source review. Changing a creator workflow between tweet and blog now clears incompatible prior output, while a completed result continues to render in its original format until that change is made. The current release passed all 54 Chrome checks locally, in an isolated canary, and in production without additional paid model calls.
 
 The live image is `mark-crypto-dashboard:20260904T150300Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260904T141918Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T150300Z/crypto-intelligence.db`. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.
+
+## Final visual and Timeline dossier completion
+
+Release `20260904T174126Z` completes the literal visual and interaction parity pass against Mark's freshest preserved Lovable project. The five visible screens retain Mark's shell, navigation, typography, dimensions, spacing, controls, topic presentation, year and month density bands, Timeline list, expanded dossier, Prep layout, creator controls, output cards, feedback workflow, citations, and responsive behavior. Dark mode remains the only intentional visual addition.
+
+The Timeline dossier uses only retained database evidence. It presents what happened, why it matters, the strongest stored takeaway, sourced reactions, original source cards, forward-looking points, and next-signal navigation. Repeated summary text is removed and raw Markdown is normalized before display. Prep and creator generation continue to enforce the previously accepted clear-language, evidence, quotation, uncertainty, citation, length, and revision contracts.
+
+The release passed all 92 server tests and all 72 Chrome checks locally, in an isolated production canary, and after production promotion. The checks covered desktop and mobile layouts, every visible route, clickable Timeline color segments, expanded dossiers, five source-backed Prep points, direct quotes, counterarguments, creator output shape, citations, revision continuity, dark-mode contrast, browser requests, console errors, and horizontal overflow. No paid model call was made for this release.
+
+The live image is `mark-crypto-dashboard:20260904T174126Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260904T150300Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T174126Z/crypto-intelligence.db`. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.

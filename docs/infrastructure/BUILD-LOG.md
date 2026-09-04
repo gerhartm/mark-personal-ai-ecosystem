@@ -614,3 +614,11 @@ Darshan approved a premium dark liquid-glass fintech intelligence direction with
 Claude Code may use Three.js for a small number of meaningful focal components, such as an ambient intelligence field or relationship explorer. The primary research experience remains accessible HTML, CSS, SVG, or Canvas. Three.js must be lazy-loaded, bounded by a motion and performance budget, paused when inactive, compatible with reduced-motion preferences, and backed by a non-3D fallback. No information or action may depend on 3D.
 
 The design proposal must identify each planned 3D component, its product purpose, loading boundary, and fallback before UI implementation begins. This documentation-only update did not modify runtime services, production data, domains, or the legacy dashboard.
+
+## 31. Mark's final Lovable interface and evidence dossier accepted
+
+The freshest preserved Lovable export was used as the literal visual and interaction specification. Production now exposes only Topics, Timeline, Prep, Haseeb bot, and Tarun bot in Mark's order, with dark mode as the only intentional visual addition. Mock records and seeded outputs remain excluded; every visible count, topic, event, source, claim, and generated result comes from the existing application boundaries.
+
+Timeline year and month color bands are interactive, and an event opens the full approved dossier structure with readable significance, a distinct takeaway, sourced reactions, original sources, forward-looking evidence, and next-signal navigation. Prep and creator workflows preserve the accepted plain-language, source, quotation, counterargument, citation, output-length, and revision requirements.
+
+Both production builds passed. The server passed 92 tests across ten files. Chrome passed 72 checks locally, against an isolated canary database copy, and against the promoted production image. The final container is healthy with zero restarts and preserves the prior loopback-only, non-root, read-only, capability-dropped security boundary. The release used no paid model call.

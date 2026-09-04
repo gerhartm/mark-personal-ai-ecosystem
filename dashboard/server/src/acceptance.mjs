@@ -126,15 +126,20 @@ async function desktopPass(browser) {
   check((await page.locator('nav a').allTextContents()).length === 5, 'Navigation contains exactly Mark’s five screens');
   check(await page.getByRole('heading', { name: 'Topics', exact: true }).isVisible(), 'Topics opens as the home screen');
   check((await page.locator('main a[href^="/topics/"]').count()) > 0, 'Topics uses live topic records');
-  await page.getByRole('button', { name: 'high signal' }).click();
-  check((await page.locator('main a[href^="/topics/"]').count()) > 0, 'Topic signal filter works');
+  const firstTopicTag = page.locator('main button').nth(1);
+  check(await firstTopicTag.isVisible(), 'Topics exposes Mark’s tag filter rail');
+  await firstTopicTag.click();
+  check((await page.locator('main a[href^="/topics/"]').count()) > 0, 'Topic tag filter works');
   await page.getByRole('button', { name: 'all', exact: true }).click();
   await page.locator('main a[href^="/topics/"]').first().click();
   await page.waitForURL(/\/topics\//);
-  await page.locator('.topic-position article').first().waitFor();
-  check((await page.locator('.topic-position article').count()) > 0, 'Topic detail shows readable claims');
+  await page.getByTestId('topic-claim').first().waitFor();
+  check((await page.getByTestId('topic-claim').count()) > 0, 'Topic detail shows readable claims');
   check(!(await bodyHasRawMarkdown(page.locator('main'))), 'Topic detail has no raw Markdown');
-  const sourceFilter = page.locator('.topic-exact-layout aside > div').first().locator('button').nth(1);
+  for (const label of ['Transcripts', 'Tweet', 'Blog post', 'Your notes']) {
+    check(await page.getByRole('button', { name: new RegExp(`^${label}\\s+\\d+$`) }).isVisible(), `Topic source filter always exposes ${label}`);
+  }
+  const sourceFilter = page.getByTestId('topic-layout').locator('aside > div').first().locator('button').nth(1);
   if (await sourceFilter.count()) {
     await sourceFilter.click();
     await page.getByRole('button', { name: 'clear filters' }).waitFor();
@@ -148,30 +153,43 @@ async function desktopPass(browser) {
   await page.waitForURL(/\/timeline$/);
   await page.getByRole('heading', { name: 'Timeline', exact: true }).waitFor();
   check(await page.getByRole('heading', { name: 'Timeline', exact: true }).isVisible(), 'Timeline screen opens');
-  check((await page.locator('.timeline-year-row button').count()) > 0, 'Timeline exposes historic year controls');
-  check((await page.locator('.timeline-density-jump').count()) === 12, 'Timeline density strip covers all twelve months');
-  const monthWithEvents = page.locator('.timeline-density-month').filter({ has: page.locator('.timeline-density-stack > span') }).first();
-  if (await monthWithEvents.count()) await monthWithEvents.locator('.timeline-density-jump').click();
-  const categoryButton = page.locator('.timeline-category-row button').nth(1);
-  if (await categoryButton.count()) await categoryButton.click();
-  const firstEvent = page.locator('.timeline-event-row').first();
+  check((await page.getByTestId('timeline-year').count()) > 0, 'Timeline exposes historic year controls');
+  const selectedYear = page.locator('[data-testid="timeline-year"][aria-selected="true"]');
+  const activeYearColor = (await selectedYear.count())
+    ? selectedYear.getByTestId('timeline-year-segment').first()
+    : page.getByTestId('timeline-year-segment').first();
+  check(await activeYearColor.isVisible(), 'Timeline year bars contain clickable category colors');
+  await activeYearColor.click();
+  check((await page.locator('[data-testid="timeline-category"][aria-pressed="true"]').count()) === 1, 'Clicking a year color filters its category');
+  check((await page.getByRole('button', { name: 'All Signals', exact: true }).getAttribute('aria-pressed')) === 'false', 'Year color filter leaves the all-signals state');
+  await page.getByRole('button', { name: 'All Signals', exact: true }).click();
+  check((await page.getByTestId('timeline-month').count()) === 12, 'Timeline density strip covers all twelve months');
+  const densityColor = page.getByTestId('timeline-month-segment').first();
+  check(await densityColor.isVisible(), 'Timeline month bars contain clickable category colors');
+  await densityColor.click();
+  check((await page.locator('[data-testid="timeline-category"][aria-pressed="true"]').count()) === 1, 'Clicking a month color filters its category');
+  const firstEvent = page.getByTestId('timeline-event').first();
   check(await firstEvent.isVisible(), 'Timeline category filter retains relevant events');
   await firstEvent.click();
-  check(await page.getByRole('heading', { name: /.+/ }).last().isVisible(), 'Timeline event opens an evidence dialog');
-  check(await page.getByText('What happened', { exact: true }).isVisible(), 'Timeline explains what happened');
-  check(await page.getByText('Source context', { exact: true }).isVisible(), 'Timeline explains source context');
-  await page.getByRole('button', { name: 'Read supporting source' }).click();
-  await page.getByText('Supporting source', { exact: true }).waitFor();
-  check(!(await bodyHasRawMarkdown(page.locator('.desk-modal'))), 'Timeline evidence dialog has no raw Markdown');
+  await page.getByTestId('timeline-dossier').waitFor();
+  await page.getByTestId('timeline-dossier-sources').waitFor();
+  check(await page.getByTestId('timeline-dossier').isVisible(), 'Timeline event opens Mark’s full evidence dossier');
+  check(await page.getByTestId('timeline-dossier').getByText('Mentions', { exact: true }).isVisible(), 'Timeline dossier shows mention volume');
+  check(await page.getByTestId('timeline-dossier-reactions').isVisible(), 'Timeline dossier exposes sourced reactions');
+  check(await page.getByTestId('timeline-dossier-sources').isVisible(), 'Timeline dossier exposes supporting sources');
+  check((await page.getByTestId('timeline-dossier-source').count()) > 0, 'Timeline dossier contains real source cards');
+  check(await page.getByText('What to watch', { exact: true }).isVisible(), 'Timeline dossier exposes forward-looking evidence');
+  check(await page.getByTestId('timeline-dossier-footer').getByRole('button').isVisible(), 'Timeline dossier exposes next-signal navigation');
+  check(!(await bodyHasRawMarkdown(page.getByTestId('timeline-dossier'))), 'Timeline evidence dossier has no raw Markdown');
   await page.screenshot({ path: join(OUT, '02-timeline-event.png'), fullPage: false });
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close event details' }).click();
   await checkViewport(page, 'Timeline desktop');
 
   await page.getByRole('link', { name: /Prep/ }).click();
   await page.locator('#prep-topic').fill('How does distribution shape value capture in lending protocols?');
   const tangent = page.locator('button').filter({ hasText: /^\+ / }).first();
   if (await tangent.count()) await tangent.click();
-  await page.getByRole('button', { name: 'Prepare' }).click();
+  await page.locator('#prep-topic').press('Enter');
   await page.getByText('Distribution determines durable value capture', { exact: true }).waitFor();
   check((await page.locator('button').filter({ hasText: /Open ·/ }).count()) === 5, 'Prep returns the requested five source-backed points');
   check(!(await bodyHasRawMarkdown(page.locator('main'))), 'Prep has no raw Markdown');
@@ -181,26 +199,26 @@ async function desktopPass(browser) {
   check(await page.getByText('Direct quotes · 1', { exact: true }).isVisible(), 'Prep exposes quote-level evidence');
   check(await page.getByText('Sourced from', { exact: true }).last().isVisible(), 'Prep exposes exact sources');
   await page.screenshot({ path: join(OUT, '03-prep-detail.png'), fullPage: false });
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close point details' }).click();
   await checkViewport(page, 'Prep desktop');
 
   await page.getByRole('link', { name: /Haseeb bot/ }).click();
   await page.locator('.creator-prompt').fill('Why protocol distribution matters more than execution speed');
   await page.getByRole('button', { name: 'Generate' }).click();
-  await page.locator('.creator-draft').first().waitFor();
-  check((await page.locator('.creator-draft').count()) === 3, 'Haseeb bot returns exactly three requested tweets');
-  const haseebTweetLengths = await page.locator('.creator-tweet').evaluateAll((nodes) => nodes.map((node) => (node.textContent || '').trim().length));
+  await page.getByTestId('creator-draft').first().waitFor();
+  check((await page.getByTestId('creator-draft').count()) === 3, 'Haseeb bot returns exactly three requested tweets');
+  const haseebTweetLengths = await page.getByTestId('creator-tweet').evaluateAll((nodes) => nodes.map((node) => (node.textContent || '').trim().length));
   check(haseebTweetLengths.every((length) => length >= 140 && length <= 220), 'Haseeb tweets use a realistic short-post length', haseebTweetLengths.join(', '));
   check((await page.getByRole('button', { name: 'Copy' }).count()) === 3, 'Haseeb outputs are individually copyable');
   check(!(await bodyHasRawMarkdown(page.locator('.creator-output'))), 'Haseeb output has no raw Markdown');
-  check((await page.locator('.creator-citation').count()) === 3, 'Haseeb outputs include source evidence and inference');
-  await page.locator('.creator-feedback textarea').fill('Make the opening sharper and keep the mechanism.');
+  check((await page.getByTestId('creator-citation').count()) === 3, 'Haseeb outputs include source evidence and inference');
+  await page.getByTestId('creator-feedback').locator('textarea').fill('Make the opening sharper and keep the mechanism.');
   await page.getByRole('button', { name: 'Revise' }).click();
   await page.getByText('Revised angle 1', { exact: true }).waitFor();
   check(revisionIncludedPriorOutput, 'Creator revision preserves and sends the previous draft');
   await page.screenshot({ path: join(OUT, '04-haseeb-revised.png'), fullPage: true });
   await page.getByRole('button', { name: 'blog post' }).click();
-  check((await page.locator('.creator-draft').count()) === 0, 'Changing creator format clears incompatible prior output');
+  check((await page.getByTestId('creator-draft').count()) === 0, 'Changing creator format clears incompatible prior output');
   await checkViewport(page, 'Haseeb desktop');
 
   await page.getByRole('link', { name: /Tarun bot/ }).click();
@@ -209,13 +227,13 @@ async function desktopPass(browser) {
   await page.locator('.creator-prompt').fill('Why token governance is a legitimacy problem');
   check(await page.getByRole('button', { name: 'Generate' }).isEnabled(), 'Tarun controls keep the entered prompt');
   await page.getByRole('button', { name: 'Generate' }).click();
-  await page.locator('.creator-draft').first().waitFor();
-  check((await page.locator('.creator-draft').count()) === 1, 'Tarun blog mode returns exactly one draft');
-  check((await page.locator('.creator-draft h2, .creator-draft h3').count()) > 0, 'Tarun blog Markdown renders as headings');
-  const tarunBlogWords = await page.locator('.creator-draft').first().innerText().then((text) => text.trim().split(/\s+/).filter(Boolean).length);
+  await page.getByTestId('creator-draft').first().waitFor();
+  check((await page.getByTestId('creator-draft').count()) === 1, 'Tarun blog mode returns exactly one draft');
+  check((await page.getByTestId('creator-draft').locator('h2, h3').count()) > 0, 'Tarun blog Markdown renders as headings');
+  const tarunBlogWords = await page.getByTestId('creator-draft').first().innerText().then((text) => text.trim().split(/\s+/).filter(Boolean).length);
   check(tarunBlogWords >= 250 && tarunBlogWords <= 350, 'Tarun short blog uses the requested length', `${tarunBlogWords} words`);
   check(!(await bodyHasRawMarkdown(page.locator('.creator-output'))), 'Tarun blog shows rendered text without Markdown artifacts');
-  check((await page.locator('.creator-citation').count()) === 1, 'Tarun output includes source evidence and inference');
+  check((await page.getByTestId('creator-citation').count()) === 1, 'Tarun output includes source evidence and inference');
   await page.screenshot({ path: join(OUT, '05-tarun-blog.png'), fullPage: true });
   await checkViewport(page, 'Tarun desktop');
 
@@ -223,6 +241,18 @@ async function desktopPass(browser) {
   check(await theme.isVisible(), 'Dark mode control is available');
   await theme.click();
   check(await page.evaluate(() => document.documentElement.dataset.theme === 'dark'), 'Dark mode applies to the approved design');
+  await page.waitForTimeout(300);
+  const darkDraft = await page.getByTestId('creator-draft').first().evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      background: style.backgroundColor,
+      foreground: style.color,
+      cardToken: style.getPropertyValue('--card').trim(),
+      foregroundToken: style.getPropertyValue('--foreground').trim(),
+    };
+  });
+  check(darkDraft.background === 'rgb(22, 26, 23)', 'Generated content cards inherit the dark surface', JSON.stringify(darkDraft));
+  check(darkDraft.foreground === 'rgb(220, 227, 221)', 'Generated content cards retain readable dark-mode text', JSON.stringify(darkDraft));
   await page.screenshot({ path: join(OUT, '06-dark-mode.png'), fullPage: false });
 
   await context.close();
@@ -247,7 +277,11 @@ async function mobilePass(browser) {
     await checkViewport(page, `${heading} mobile`);
   }
   await page.goto(`${BASE}/timeline`, { waitUntil: 'networkidle' });
-  await page.screenshot({ path: join(OUT, '07-mobile-timeline.png'), fullPage: true });
+  await page.getByTestId('timeline-event').first().click();
+  await page.getByTestId('timeline-dossier').waitFor();
+  check(await page.getByTestId('timeline-dossier').isVisible(), 'Timeline dossier opens as a mobile sheet');
+  check(!(await bodyHasRawMarkdown(page.getByTestId('timeline-dossier'))), 'Mobile Timeline dossier has no raw Markdown');
+  await page.screenshot({ path: join(OUT, '07-mobile-timeline.png'), fullPage: false });
   await context.close();
 }
 

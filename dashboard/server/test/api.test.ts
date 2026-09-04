@@ -117,6 +117,19 @@ describe('read routes', () => {
     expect(t.pins.some((p: any) => p.key_takeaway)).toBe(true);
   });
 
+  it('builds an evidence-only dossier for the expanded Timeline design', async () => {
+    const timeline = await json('/api/timeline');
+    const pin = timeline.pins.find((item: any) => item.reference_count > 1) ?? timeline.pins[0];
+    const dossier = await json(`/api/timeline/${encodeURIComponent(pin.event_id)}/dossier`);
+    expect(dossier.event.id).toBe(pin.event_id);
+    expect(dossier.event.reference_count).toBeGreaterThan(0);
+    expect(dossier.significance.length).toBeGreaterThan(0);
+    expect(dossier.sources.length).toBeGreaterThan(0);
+    expect(dossier.sources.every((source: any) => source.source_id && source.headline)).toBe(true);
+    expect(dossier.reactions.every((reaction: any) => reaction.source_id && reaction.line)).toBe(true);
+    expect(Array.isArray(dossier.watch)).toBe(true);
+  });
+
   it('builds a graph whose every edge points at a node it returned', async () => {
     const g = await json('/api/graph?minShared=2');
     const ids = new Set(g.events.map((e: any) => e.id));

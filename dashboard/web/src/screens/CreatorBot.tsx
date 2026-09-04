@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { api } from '../lib/api';
+import { api, useQuery } from '../lib/api';
 import { Eyebrow, ViewHead } from '../components/Desk';
 import { compact, formatDate, sourceKind } from '../lib/desk';
 import './creator-bot.css';
@@ -27,6 +27,7 @@ type Output = { text: string; angle: string; citations: Citation[] };
 type CreatorResult = { id: string; revision: number; outputs: Output[]; format: CreatorFormat };
 
 export function CreatorBot({ creator }: { creator: 'Haseeb' | 'Tarun' }) {
+  const brief = useQuery<any>('/brief');
   const [prompt, setPrompt] = useState('');
   const [format, setFormat] = useState<CreatorFormat>('tweet');
   const [count, setCount] = useState('3');
@@ -89,37 +90,44 @@ export function CreatorBot({ creator }: { creator: 'Haseeb' | 'Tarun' }) {
           <OptionRow label="Tone" values={TONES} active={tone} setActive={setTone} />
           <label className="creator-custom">
             <span>Your own tone</span>
-            <textarea rows={2} value={customTone} onChange={(event) => setCustomTone(event.target.value)} placeholder="Describe the voice you want in your own words" />
+            <textarea
+              rows={2}
+              value={customTone}
+              onChange={(event) => setCustomTone(event.target.value)}
+              placeholder={creator === 'Haseeb'
+                ? 'Describe the voice you want in your own words — e.g. blunter, more first-principles, fewer hedges, one concrete example per point.'
+                : 'Describe the voice you want in your own words — e.g. more patient, more first-principles, fewer asides, one concrete example per point.'}
+            />
           </label>
           <div className="creator-last-row">
             <OptionRow label="Length" values={LENGTHS} active={length} setActive={setLength} />
-            <button type="button" onClick={() => run()} disabled={busy || !prompt.trim()}>{busy ? 'Writing...' : 'Generate'}</button>
+            <button type="button" onClick={() => run()} disabled={busy || !prompt.trim()}>{busy ? 'Writing…' : 'Generate'}</button>
           </div>
-          <p className="creator-count">Creator Reference memory and Crypto evidence connected</p>
+          <p className="creator-count">{brief.data?.counts?.sources ?? 0} sources in corpus</p>
         </div>
 
         <div className="creator-bot-card creator-output">
           <Eyebrow>Output</Eyebrow>
           {error ? <p className="creator-error" role="alert">{error}</p> : null}
-          {!outputs.length && !busy ? <p className="creator-empty">Nothing generated yet. Write a prompt above and select Generate.</p> : null}
-          {busy && !outputs.length ? <p className="creator-empty">Pulling voice and evidence from memory...</p> : null}
+          {!outputs.length && !busy ? <p className="creator-empty">Nothing generated yet — write a prompt above and hit Generate.</p> : null}
+          {busy && !outputs.length ? <p className="creator-empty">Pulling voice from corpus…</p> : null}
           {outputs.map((output, index) => (
-            <article className="creator-draft" key={`${output.angle}-${index}`}>
-              <div className="creator-draft-head">
-                <span>{output.angle || `angle ${index + 1}`}</span>
-                <small>{renderedFormat === 'blog' ? `${output.text.trim().split(/\s+/).length} words` : `${output.text.length}/280`}</small>
-                <button type="button" onClick={() => navigator.clipboard?.writeText(output.text)}>Copy</button>
+            <article data-testid="creator-draft" className="mb-2.5 rounded-[7px] border border-[var(--line)] bg-card px-[14px] py-[13px] transition-colors last:mb-0 hover:border-[var(--brass)]" key={`${output.angle}-${index}`}>
+              <div className="mb-2 flex items-center gap-2">
+                <span className="font-mono text-[9.5px] tracking-[0.09em] uppercase text-dim">{output.angle || `angle ${index + 1}`}</span>
+                <small className="ml-auto font-mono text-[9px] text-dim">{renderedFormat === 'blog' ? `${output.text.trim().split(/\s+/).length} words` : `${output.text.length}/280`}</small>
+                <button className="rounded border border-[var(--line)] px-2 py-[3px] font-mono text-[9px] text-muted-foreground transition-colors hover:border-[var(--brass)] hover:text-foreground" type="button" onClick={() => navigator.clipboard?.writeText(output.text)}>Copy</button>
               </div>
-              {renderedFormat === 'blog' ? <div className="desk-markdown"><ReactMarkdown>{output.text}</ReactMarkdown></div> : <p className="creator-tweet">{output.text}</p>}
+              {renderedFormat === 'blog' ? <BlogOutput text={output.text} /> : <p data-testid="creator-tweet" className="m-0 text-[15px] leading-[1.55] text-pretty text-foreground">{output.text}</p>}
             </article>
           ))}
           {outputs.length ? (
-            <div className="creator-feedback">
+            <div data-testid="creator-feedback" className="mt-4 border-t border-[var(--line)] pt-4">
               <Eyebrow>Feedback · suggest changes</Eyebrow>
-              <textarea rows={2} value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="e.g. make the second angle sharper and cut the final sentence" />
-              <div className="creator-feedback-foot">
-                <p>Keeps everything you did not ask to change</p>
-                <button type="button" onClick={() => run(feedback.trim())} disabled={busy || !feedback.trim()}>{busy ? 'Revising...' : 'Revise'}</button>
+              <textarea className="mt-1.5 w-full resize-none rounded-[5px] border border-[var(--line)] bg-[var(--panel-2)] px-3 py-2 text-[12.5px] leading-relaxed text-foreground placeholder:text-dim focus-visible:border-[var(--brass)] focus-visible:outline-none" rows={2} value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="e.g. make the second angle sharper and cut the final sentence" />
+              <div className="mt-2 flex items-center gap-3">
+                <p className="m-0 font-mono text-[9.5px] text-dim">Regenerates the draft above with your notes applied</p>
+                <button className="ml-auto rounded border border-[var(--brass)] px-[13px] py-1.5 font-mono text-[10px] tracking-[0.05em] text-[var(--brass)] transition-colors disabled:opacity-40" type="button" onClick={() => run(feedback.trim())} disabled={busy || !feedback.trim()}>{busy ? 'Revising…' : 'Revise'}</button>
               </div>
             </div>
           ) : null}
@@ -128,25 +136,41 @@ export function CreatorBot({ creator }: { creator: 'Haseeb' | 'Tarun' }) {
         {outputs.length ? (
           <div className="creator-bot-card">
             <Eyebrow>Works cited · quotes &amp; inferences</Eyebrow>
-            {outputs.map((output, outputIndex) => (
-              <section className="creator-citation-group" key={`citations-${outputIndex}`}>
-                <p className="creator-citation-label">{outputs.length > 1 ? `${output.angle} · ` : ''}{output.citations.length} source{output.citations.length === 1 ? '' : 's'}</p>
-                {output.citations.map((citation) => (
-                  <div className="creator-citation" key={`${outputIndex}-${citation.id}`}>
-                    <span>{sourceKind(citation.source.source_type)} · {compact(citation.source.title, 110)}</span>
-                    {citation.quote ? <blockquote>“{citation.quote}”</blockquote> : null}
-                    <p><b>Inference · </b>{citation.inference}</p>
-                    <small>{citation.source.who}{citation.source.when ? ` · ${formatDate(citation.source.when)}` : ''}</small>
-                    {citation.source.url ? <a href={citation.source.url} target="_blank" rel="noreferrer">Open original</a> : null}
+            <div className="mt-1 space-y-4">
+              {outputs.map((output, outputIndex) => (
+                <section key={`citations-${outputIndex}`}>
+                  <p className="mb-1.5 font-mono text-[9px] tracking-[0.12em] uppercase text-dim">{outputs.length > 1 ? `${output.angle} · ` : ''}{output.citations.length} source{output.citations.length === 1 ? '' : 's'}</p>
+                  <div className="space-y-2.5">
+                    {output.citations.map((citation) => (
+                      <div data-testid="creator-citation" className="border-l-2 border-[var(--brass)] pl-3" key={`${outputIndex}-${citation.id}`}>
+                        <p className="m-0 font-mono text-[9px] tracking-[0.09em] uppercase text-[var(--brass)]">{sourceKind(citation.source.source_type)} · {compact(citation.source.title, 110)}</p>
+                        {citation.quote ? <blockquote className="mt-1 mb-0 font-serif text-[13.5px] leading-relaxed text-muted-foreground">“{citation.quote}”</blockquote> : null}
+                        <p className="mt-1 mb-0 text-[12.5px] leading-relaxed text-muted-foreground"><span className="font-mono text-[9px] tracking-[0.09em] uppercase text-dim">Inference · </span>{citation.inference}</p>
+                        <small className="mt-1 block font-mono text-[9px] text-dim">{citation.source.who}{citation.source.when ? ` · ${formatDate(citation.source.when)}` : ''}</small>
+                        {citation.source.url ? <a className="mt-1 inline-block font-mono text-[9px] text-[var(--brass)] no-underline" href={citation.source.url} target="_blank" rel="noreferrer">Open original</a> : null}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </section>
-            ))}
+                </section>
+              ))}
+            </div>
           </div>
         ) : null}
       </div>
     </section>
   );
+}
+
+function BlogOutput({ text }: { text: string }) {
+  return <div className="font-serif text-[15.5px] leading-[1.7] text-foreground"><ReactMarkdown components={{
+    h1: ({ children }) => <h3 className="mt-5 mb-1.5 font-sans text-[13px] tracking-[0.02em] text-[var(--brass)] first:mt-0">{children}</h3>,
+    h2: ({ children }) => <h3 className="mt-5 mb-1.5 font-sans text-[13px] tracking-[0.02em] text-[var(--brass)] first:mt-0">{children}</h3>,
+    h3: ({ children }) => <h3 className="mt-5 mb-1.5 font-sans text-[13px] tracking-[0.02em] text-[var(--brass)] first:mt-0">{children}</h3>,
+    p: ({ children }) => <p className="mb-3 text-pretty last:mb-0">{children}</p>,
+    ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5 text-pretty">{children}</ul>,
+    ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5 text-pretty">{children}</ol>,
+    a: ({ children, href }) => <a className="text-[var(--brass)] underline underline-offset-2" href={href} target="_blank" rel="noreferrer">{children}</a>,
+  }}>{text}</ReactMarkdown></div>;
 }
 
 function OptionRow({ label, values, active, setActive }: { label: string; values: string[]; active: string; setActive: (value: string) => void }) {

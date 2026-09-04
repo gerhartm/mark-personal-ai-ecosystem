@@ -39,8 +39,8 @@ dashboard/data/
 
 # Local captures, logs, and editor state
 **/screenshots/
+acceptance/
 **/*.log
 .DS_Store
 .idea/
 .vscode/
-

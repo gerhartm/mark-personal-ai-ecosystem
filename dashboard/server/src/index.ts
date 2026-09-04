@@ -182,6 +182,11 @@ app.get('/api/timeline', async (req) => {
   return t.timeline(q.from, q.to);
 });
 
+app.get('/api/timeline/:id/dossier', async (req, reply) => {
+  const dossier = t.timelineDossier((req.params as { id: string }).id);
+  return dossier ?? reply.code(404).send({ error: 'not_found' });
+});
+
 app.get('/api/graph', async (req) => {
   const q = req.query as Record<string, string>;
   return t.graph({

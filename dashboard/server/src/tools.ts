@@ -312,6 +312,174 @@ export function timeline(from?: string, to?: string) {
   return { pins, captures, bounds };
 }
 
+function dossierParagraph(value: unknown, limit = 420) {
+  const text = String(value ?? '')
+    .replace(/```[a-z]*\s*/gi, '')
+    .replace(/```/g, '')
+    .replace(/^\s*#{1,6}\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length <= limit) return text;
+  const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9“"'])/);
+  let result = '';
+  for (const sentence of sentences) {
+    const next = `${result} ${sentence.trim()}`.trim();
+    if (next.length > limit) break;
+    result = next;
+  }
+  if (result.length >= Math.min(170, limit / 2)) return result;
+  const clipped = text.slice(0, limit);
+  const boundary = Math.max(clipped.lastIndexOf('; '), clipped.lastIndexOf(', '), clipped.lastIndexOf(' '));
+  return `${clipped.slice(0, boundary > limit * .65 ? boundary : limit).trim()}…`;
+}
+
+/**
+ * The Timeline dossier mirrors Mark's approved expanded-event design while
+ * remaining evidence-only. Every sentence below already exists in the active
+ * database. This function selects and groups stored material, but never asks a
+ * model to invent reactions, sources, or follow-up claims.
+ */
+export function timelineDossier(id: string) {
+  const event = one<any>(
+    `SELECT e.*, ${SUBJECT_DATE} AS subject_date,
+            ${REFERENCE_COUNT} AS reference_count
+       FROM events e WHERE e.id = ?`,
+    id,
+  );
+  if (!event) return null;
+
+  const source = one<any>('SELECT * FROM sources WHERE source_id = ?', event.source_id);
+  const insights = all<any>(
+    'SELECT position, text FROM event_insights WHERE event_id = ? ORDER BY position',
+    id,
+  );
+
+  const related = all<any>(
+    `WITH related_ids(id) AS (
+       SELECT to_event_id FROM event_connections
+        WHERE from_event_id = ? AND resolved = 1
+       UNION
+       SELECT from_event_id FROM event_connections
+        WHERE to_event_id = ? AND resolved = 1
+     )
+     SELECT e.id, e.summary, e.primary_category, e.significance,
+            ${SUBJECT_DATE} AS subject_date,
+            e.source_id, s.title AS source_title, s.source_label,
+            s.source_type, s.source_channel, s.source_url, s.captured_at,
+            (SELECT i.text FROM event_insights i
+              WHERE i.event_id = e.id ORDER BY i.position LIMIT 1) AS insight
+       FROM related_ids r
+       JOIN events e ON e.id = r.id
+       JOIN sources s ON s.source_id = e.source_id
+      ORDER BY e.significance DESC, subject_date DESC, e.id`,
+    id,
+    id,
+  );
+
+  const sourceRows = [
+    source
+      ? {
+          source_id: source.source_id,
+          headline: source.title,
+          outlet: source.source_label || source.source_channel || source.source_type,
+          kind: source.source_type || event.source_type || 'source',
+          when: event.subject_date || source.captured_at,
+          url: source.source_url || event.source_url || null,
+          event_id: event.id,
+        }
+      : null,
+    ...related.map((row) => ({
+      source_id: row.source_id,
+      headline: row.source_title,
+      outlet: row.source_label || row.source_channel || row.source_type,
+      kind: row.source_type || 'source',
+      when: row.subject_date || row.captured_at,
+      url: row.source_url || null,
+      event_id: row.id,
+    })),
+  ].filter(Boolean) as any[];
+
+  const seenSources = new Set<string>();
+  const sources = sourceRows.filter((row) => {
+    if (!row.source_id || seenSources.has(row.source_id)) return false;
+    seenSources.add(row.source_id);
+    return true;
+  });
+
+  const reactions = related
+    .filter((row) => row.summary || row.insight)
+    .map((row) => ({
+      event_id: row.id,
+      source_id: row.source_id,
+      who: row.source_label || row.source_channel || row.source_title || 'Stored source',
+      stance: row.primary_category,
+      line: dossierParagraph(row.insight || row.summary, 340),
+    }))
+    .filter((row, index, rows) =>
+      rows.findIndex((candidate) =>
+        candidate.source_id === row.source_id && candidate.line === row.line,
+      ) === index,
+    )
+    .slice(0, 6);
+
+  if (!reactions.length && source) {
+    for (const insight of insights.slice(0, 3)) {
+      reactions.push({
+        event_id: event.id,
+        source_id: source.source_id,
+        who: source.source_label || source.source_channel || source.title || 'Stored source',
+        stance: event.primary_category,
+        line: dossierParagraph(insight.text, 340),
+      });
+    }
+  }
+
+  const soWhat = insights[0]?.text || event.mark_notes || event.underlying_principle || null;
+  const normalizedSoWhat = String(soWhat ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const significance = [
+    event.summary,
+    event.detailed_notes || event.mark_notes,
+    event.underlying_principle || event.business_signal || event.detailed_content,
+  ].filter((value, index, rows) => {
+    const text = String(value ?? '').trim();
+    if (!text) return false;
+    const normalized = text.toLowerCase().replace(/\s+/g, ' ');
+    if (normalizedSoWhat && normalized === normalizedSoWhat) return false;
+    const key = normalized.slice(0, 180);
+    return rows.findIndex((candidate) =>
+      String(candidate ?? '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 180) === key,
+    ) === index;
+  }).map((value) => dossierParagraph(value));
+
+  const forwardLooking = /\b(watch|next|will|could|may|remains|depends|pending|expected|risk|determine|follow)\b/i;
+  const watch = insights
+    .map((item) => item.text)
+    .filter((text) => text && text !== soWhat && forwardLooking.test(text))
+    .filter((text, index, rows) => rows.indexOf(text) === index)
+    .slice(0, 3);
+
+  return {
+    event: {
+      id: event.id,
+      title: event.summary,
+      category: event.primary_category,
+      date: event.subject_date,
+      reference_count: event.reference_count,
+      significance: event.significance,
+    },
+    significance,
+    so_what: soWhat,
+    reactions,
+    sources,
+    watch,
+    verified_at: source?.captured_at || event.ingested_at || event.timestamp || event.subject_date,
+  };
+}
+
 export function graph(opts: { focus?: string; minShared?: number; entityTypes?: string[]; limit?: number } = {}) {
   const minShared = opts.minShared ?? 2;
   const types = opts.entityTypes?.length ? opts.entityTypes : ['protocols', 'people', 'tokens', 'chains'];
@@ -411,7 +579,10 @@ export function search(q: string, limit = 40) {
 export function brief() {
   const counts = one<any>(
     `SELECT (SELECT count(*) FROM events) events,
+            (SELECT count(*) FROM events) claims,
             (SELECT count(*) FROM sources) sources,
+            (SELECT count(DISTINCT source_id) FROM events WHERE source_type='telegram_forward') forwards,
+            (SELECT count(DISTINCT source_id) FROM events WHERE source_type LIKE '%transcript%') transcripts,
             (SELECT count(*) FROM event_facets) facets,
             (SELECT count(*) FROM media_assets) media,
             (SELECT count(*) FROM content_drafts) drafts,
@@ -484,7 +655,7 @@ export function brief() {
 }
 
 export function listTopics(limit = 80, selected?: string) {
-  const topics = all<any>(
+  const topicRows = all<any>(
     `SELECT t.tag, count(DISTINCT t.event_id) AS event_count,
             count(DISTINCT e.source_id) AS source_count,
             count(DISTINCT e.primary_category) AS position_count,
@@ -495,6 +666,18 @@ export function listTopics(limit = 80, selected?: string) {
       ORDER BY event_count DESC, source_count DESC, t.tag LIMIT ?`,
     limit,
   );
+  const topics = topicRows.map((topic) => ({
+    ...topic,
+    tags: all<{ tag: string; event_count: number }>(
+      `SELECT e.primary_category AS tag, count(DISTINCT e.id) AS event_count
+         FROM event_tags t JOIN events e ON e.id = t.event_id
+        WHERE t.tag = ?
+        GROUP BY e.primary_category
+        ORDER BY event_count DESC, e.primary_category
+        LIMIT 3`,
+      topic.tag,
+    ).map((item) => item.tag),
+  }));
   if (!selected) return topics;
   const events = findEvents({ tag: selected, sort: 'subject', limit: 100 }).events;
   const sources = all(

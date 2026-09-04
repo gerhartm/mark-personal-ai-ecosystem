@@ -1,7 +1,7 @@
 # Option 1: Current Status and Acceptance Matrix
 
-**Checkpoint date:** 2026-09-03
-**Accepted Crypto release:** `20260903T163620Z`
+**Checkpoint date:** 2026-09-04
+**Accepted Crypto release:** `20260904T150300Z`
 **Accepted ForkedBrain release:** `20260811T132229Z`
 
 ## Status definitions
@@ -20,12 +20,12 @@
 | Evidence-first Topics home | Accepted | 65 real topics built from stored tags, events, sources, and claims; no generated watchlist or dummy totals |
 | Legacy daily Brief home | Deliberately excluded | Removed from the primary workflow because Mark requested source-led research rather than generated command-center interpretation |
 | Source-grounded Ask | Accepted backend capability | Real Hermes evidence, clickable inline canonical citations, source-scoped questions, plain-language response contract, Markdown rendering, and searchable history passed; it is not exposed as a separate tab in Mark's five-screen interface |
-| Historical Timeline | Accepted | All stored years from 2000 through 2026, real reference counts, clear source takeaways, evidence dialogs, and source links passed |
+| Historical Timeline | Accepted | All stored years from 2000 through 2026, distinct supporting-source counts, clear event explanations, evidence dialogs, and source links passed |
 | Sources | Accepted backend capability | 54 real sources, requested source groups, retained text, extracted claims, search, and detail contracts passed; it is not exposed as a separate tab in Mark's five-screen interface |
 | Connections primary view | Deliberately excluded | Removed from primary navigation after Mark rejected the unclear relationship view; the compatibility route remains for preserved links |
 | Quiz | Accepted backend capability | Evidence-linked generation, grading, feedback, atomic history, and model-answer reveals passed; it is not exposed as a separate tab in Mark's five-screen interface |
-| Studio | Accepted backend capability | Topic-guided source selection, X posts, X threads, LinkedIn, review briefs, Creator Reference lens, revision history, citation validation, and publishable-format validation passed; the visible creator workflows are Haseeb bot and Tarun bot |
-| Speaking Preparation | Accepted | Exposed as Prep with bounded evidence and citations |
+| Studio | Accepted backend capability | Topic-guided source selection, X posts, X threads, LinkedIn, review briefs, revision history, citation validation, and publishable-format validation passed; the visible creator workflows are Haseeb bot and Tarun bot |
+| Speaking Preparation | Accepted | Prep returns readable synthesis, selected topic tangents, limitations, exact sources, and quote-level evidence through a structured Hermes contract |
 | Light and dark themes | Accepted | Light is the default; the only addition to Mark's mock is a persistent dark-mode switch |
 | Dashboard Capture | Accepted | URL, pasted text, YouTube transcript, duplicate, unsafe URL, and failure behavior passed |
 | Semantic memory migration | Accepted | 197 identities reconciled; replay skipped 197 with no duplicate creates or failures |
@@ -35,7 +35,7 @@
 | Telegram → OpenViking ingestion | Accepted | Native Satoshi memory ingestion and later recall observed |
 | Telegram → Dashboard Library registration | Accepted | Two live Satoshi/OpenViking sources reached `ready`, entered the Library, and remained deduplicated on replay and restart |
 | Telegram source visibility in graph | Accepted | Both registered sources were found through body/title graph search while the 20-node cap remained enforced |
-| Creator Reference | Accepted backend capability | Manual corpus boundary, retrieval, generation lens, and no-fabrication behavior passed; Haseeb bot and Tarun bot are the only visible creator-reference screens |
+| Creator Reference | Accepted | Haseeb and Tarun both generated from retained creator-specific material and bounded crypto evidence; count, tone, length, citations, evidence-ID separation, and append-only revision behavior passed |
 | Humanized Content | Accepted | Opt-in final pass preserved evidence and citations in acceptance checks |
 | ForkedBrain command center | Accepted | Protected overview, navigation, search, details, and bounded graph passed |
 
@@ -123,7 +123,7 @@ The release passed these production checks without a paid model call:
 - [ ] Remove the temporary tester after explicit approval.
 - [x] Refresh production counts and this matrix.
 - [x] Refresh the non-secret server documentation mirror and verify hashes.
-- [x] Push the `20260903T163620Z` release documentation and checkpoint to the private repo.
+- [x] Push the `20260904T150300Z` release documentation and checkpoint to the private repo.
 - [ ] Deliver the client handbook, access guide, and any requested restore
       demonstration.
 

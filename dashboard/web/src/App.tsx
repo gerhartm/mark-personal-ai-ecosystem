@@ -24,8 +24,8 @@ export default function App() {
           <Route path="/topics/:tag" element={<TopicDetail />} />
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/prep" element={<Prep />} />
-          <Route path="/haseeb" element={<CreatorBot creator="Haseeb" />} />
-          <Route path="/tarun" element={<CreatorBot creator="Tarun" />} />
+          <Route path="/haseeb" element={<CreatorBot key="haseeb" creator="Haseeb" />} />
+          <Route path="/tarun" element={<CreatorBot key="tarun" creator="Tarun" />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

@@ -1024,3 +1024,30 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Recovery mirror: refreshed `/root/mark-v2-docs/` from the final tracked Git checkpoint, verified every tracked file hash, and retained the previous mirror as `/root/mark-v2-docs.pre-20260903T163620Z`.
 - Scope safety: Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.
 - Cost: release acceptance made zero paid model calls.
+
+## 2026-09-04 14:19-14:34 UTC: Response-quality completion accepted
+
+- Operator: Codex completing the behavior, evidence, and response requirements behind Mark's exact five-screen Lovable interface.
+- Status: completed and promoted as Crypto Intelligence release `20260904T141918Z`.
+- Product scope: added structured Prep and creator workflows, readable evidence presentation, original source links, concise Timeline source context, distinct supporting-source counts, exact source resolution, requested creator output counts and lengths, citation separation, and append-only creator revisions.
+- Frontend boundary: Topics, Timeline, Prep, Haseeb bot, and Tarun bot remain the only visible screens. Dark mode remains the only intentional visual addition. No seeded record, mock response, fake count, old dashboard tab, or dummy action was added.
+- Canary defects: real Hermes acceptance exposed an internal evidence ID inside one Haseeb draft and a Tarun lookup path that ignored retained Tarun corpus records. Both were corrected before production. Publishable copy now rejects internal IDs, and creator generation explicitly retrieves retained Haseeb or Tarun records alongside topical evidence.
+- Automated verification: server and web production builds passed, all 91 server tests passed across 10 files, production dependency audits reported zero known vulnerabilities, deployment scripts passed shell syntax validation, and `git diff --check` passed.
+- Browser verification: local, canary, and production builds each passed all 53 Chrome checks across desktop and 390-pixel mobile. Topics, topic detail, Timeline, event evidence, source reading, Prep, Haseeb generation and revision, Tarun blog output, citations, requested lengths, dark mode, overflow, requests, and console behavior passed.
+- Real Hermes acceptance: a disposable copied database produced a five-point sourced Prep brief, a Haseeb post and revision, and a 314-word Tarun article with three resolved sources. Test drafts were discarded before promotion. These bounded canary checks used paid model calls; static browser and deployment checks did not.
+- Production: image `mark-crypto-dashboard:20260904T141918Z` is healthy with zero restarts on `127.0.0.1:9330`. SQLite quick and integrity checks returned `ok`, foreign-key violations were zero, and production retained 66 events, 54 sources, and 89 media assets.
+- Access and edge: Mark and Marimar origin identities returned HTTP `200`; missing identity returned HTTP `401`; public HTTPS redirected to Cloudflare Access; HTTP redirected to HTTPS; `intel.forkedbrain.fyi` remained HTTP `200`.
+- Security: the container runs as non-root user `dashboard`, uses a read-only root filesystem, drops all capabilities, enables `no-new-privileges`, and publishes only on loopback.
+- Recovery: retained rollback container `crypto-dashboard-rollback-20260903T163620Z`, previous image `mark-crypto-dashboard:20260903T163620Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T141918Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260904T141918Z`.
+- Scope safety: Cloudflare configuration, Hermes provider configuration, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.
+
+## 2026-09-04 15:03-15:09 UTC: Creator format state boundary accepted
+
+- Operator: Codex completing the final browser interaction edge found during source review.
+- Status: completed and promoted as Crypto Intelligence release `20260904T150300Z`.
+- Change: switching Haseeb bot or Tarun bot between tweet and blog now clears incompatible prior output, and completed output renders according to its saved format.
+- Verification: server and web builds passed; all 91 server tests passed against a disposable database and live built server; all 54 Chrome checks passed locally, in the isolated production canary, and in production; no first-party request or browser console error occurred.
+- Cost: no additional paid model call was made because the accepted Hermes workflows were unchanged.
+- Production: image `mark-crypto-dashboard:20260904T150300Z` is healthy with zero restarts, 66 events, 54 sources, and 89 media assets.
+- Recovery: retained rollback container `crypto-dashboard-rollback-20260904T141918Z`, previous image `mark-crypto-dashboard:20260904T141918Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T150300Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260904T150300Z`.
+- Scope safety: Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.

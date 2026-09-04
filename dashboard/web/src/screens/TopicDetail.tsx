@@ -17,6 +17,7 @@ type Claim = {
   source_label?: string;
   source_channel?: string;
   source_type?: string;
+  source_url?: string;
 };
 
 type RelatedTag = { tag: string; event_count: number };
@@ -77,6 +78,12 @@ export function TopicDetail() {
     })),
     [visible],
   );
+  const groupWeights = useMemo(() => {
+    const values = groups.map((group) => new Set(group.items.map(claimSpeaker)).size);
+    const total = values.reduce((sum, count) => sum + count, 0) || 1;
+    return values.map((count) => Math.round((count / total) * 100));
+  }, [groups]);
+  const filtered = speaker !== 'Everyone' || sourceType !== 'All' || window !== 'All time';
   const years = claims.map((claim) => Number(claim.subject_date?.slice(0, 4))).filter(Boolean);
   const coverage = years.length
     ? Math.min(...years) === Math.max(...years)
@@ -110,15 +117,19 @@ export function TopicDetail() {
 
       <div className="topic-exact-layout">
         <div>
-          <Eyebrow>Where the argument sits</Eyebrow>
+          <Eyebrow>Where the evidence sits</Eyebrow>
           <div className="topic-stance-bar">
             {groups.map((group, index) => (
-              <span key={group.category} style={{ width: `${Math.max(8, (group.items.length / Math.max(1, visible.length)) * 100)}%` }}>
-                {String.fromCharCode(65 + index)} · {Math.round((group.items.length / Math.max(1, visible.length)) * 100)}%
+              <span key={group.category} title={titleCase(group.category)} style={{ width: `${Math.max(8, groupWeights[index])}%` }}>
+                {String.fromCharCode(65 + index)} · {groupWeights[index]}%
               </span>
             ))}
           </div>
-          <p className="topic-stance-note">Share of filed claims per position.</p>
+          <p className="topic-stance-note">Share of evidence categories, weighted by distinct source identity rather than repeated claims.</p>
+
+          {groups.length > 1 && visible.length > 1 ? <div className="topic-contested"><span>Multiple perspectives</span><p>The retained material approaches this topic through {groups.length} evidence categories. Open the claims and original sources before treating one view as consensus.</p></div> : null}
+
+          {filtered ? <div className="topic-filter-status"><span>showing {visible.length} of {claims.length} filed claims</span><button type="button" onClick={() => { setSpeaker('Everyone'); setSourceType('All'); setWindow('All time'); }}>clear filters</button></div> : null}
 
           {visible.length === 0 ? (
             <EmptyState title="No claims match those filters">Choose another source, window, or source type.</EmptyState>
@@ -130,6 +141,7 @@ export function TopicDetail() {
                 <article key={`${claim.event_id}-${claim.position}`}>
                   <p>{claim.text}</p>
                   <Provenance source={claimSpeaker(claim)} kind={sourceKind(claim.source_type)} when={formatDate(claim.subject_date)} />
+                  {claim.source_url ? <a className="topic-source-link" href={claim.source_url} target="_blank" rel="noreferrer">Open original source</a> : null}
                 </article>
               ))}
             </div>

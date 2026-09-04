@@ -4,7 +4,7 @@
 
 **Product:** Crypto Intelligence
 
-**Status:** accepted in production, with the final literal Lovable component port in release `20260903T163620Z`
+**Status:** accepted in production, with Mark's literal Lovable component port and response-quality completion in release `20260904T150300Z`
 
 ## Purpose
 
@@ -28,7 +28,7 @@ The earlier preserved export remains at `01-Source-Material/lovable/Timeline-Tal
 |---|---|---|---|
 | 01 | Topics | Browse themes already present in the corpus | Stored event tags, events, sources, and claims |
 | 02 | Timeline | Inspect unique events and every dated reference across all available years | Stored event dates and resolved connections |
-| 03 | Prep | Prepare for speaking from chosen sources and date windows | Studio generation contract with the Mark writing lens |
+| 03 | Prep | Prepare for speaking from a question and selected corpus topics | Structured Hermes generation with bounded evidence, uncertainty, and exact sources |
 | 04 | Haseeb bot | Generate in Haseeb's supplied creator reference | Existing Creator Reference lens, Hermes, stored evidence, and citations |
 | 05 | Tarun bot | Generate in Tarun's supplied creator reference | Existing Creator Reference lens, Hermes, stored evidence, and citations |
 
@@ -46,7 +46,7 @@ Topic detail presents real claims and their speakers, source types, source count
 
 ### Historical timeline
 
-Timeline is not restricted to the current year. The year control is generated from every stored date. Each event row identifies its category, precision, unique event identity, real reference count, and a key takeaway drawn from stored source material. Opening a row shows what happened, the source context, key evidence, the full event, the supporting source, and the original link when available.
+Timeline is not restricted to the current year. The year control is generated from every stored date. Each event row identifies its category, precision, unique event identity, distinct supporting-source count, and a key takeaway drawn from stored source material. Opening a row shows what happened, why it matters, the source context, the supporting source, and the original link when available.
 
 ### Grounded generation
 
@@ -54,11 +54,11 @@ The underlying Ask and Studio contracts remain evidence bounded. Responses requi
 
 ### Source-led creation
 
-Prep follows Mark's Lovable interaction and generates from the real corpus through the existing Studio contract. Haseeb bot and Tarun bot use the Creator Reference lens over the same verified evidence boundary. No separate Studio or Creator Reference tab is exposed.
+Prep follows Mark's Lovable interaction and generates from the real corpus through a structured output contract. Haseeb bot and Tarun bot combine topic evidence with retained creator-specific material, while keeping evidence IDs and source details outside the publishable copy. No separate Studio or Creator Reference tab is exposed.
 
 ### Publishable output formats
 
-The backend retains its validated contracts for X posts, X threads, LinkedIn posts, speaking preparation, month review, and year review. The server checks format and citation requirements before saving and performs at most one bounded correction pass when needed. The visible interface exposes only the controls and output states in Mark's Lovable design.
+The backend retains its validated contracts for X posts, X threads, LinkedIn posts, speaking preparation, month review, and year review. The five-screen interface adds stricter structured contracts for Prep and the two creator bots. It enforces requested output count, requested length, real post shape, source resolution, exact quotations, plain-language evidence notes, and append-only revisions before saving. The visible interface exposes only the controls and output states in Mark's Lovable design.
 
 ### Light and dark themes
 
@@ -94,6 +94,8 @@ All visible totals are read from production APIs. The only fixed values are inte
 | `GET /api/ask/history` | Returns searchable successful Ask history |
 | `POST /api/studio/drafts` | Accepts optional `source_ids`, supports `x_post`, and requires periods for review formats |
 | `GET /api/timeline` | Returns source provenance, real reference counts, key source takeaways, and source context |
+| `POST /api/prep` | Returns a structured overview, supporting points, uncertainty, direct quotes, and exact sources |
+| `POST /api/creator` | Returns validated Haseeb or Tarun outputs, evidence cards, and append-only revisions |
 
 Migration `007 ask_history` adds the successful Ask history table. It is forward only and runs against the existing single database.
 
@@ -103,10 +105,10 @@ Migration `007 ask_history` adds the successful Ask history table. It is forward
 - Server TypeScript check passed.
 - Web production build passed.
 - Server production build passed.
-- All 87 automated server tests passed.
+- All 91 automated server tests passed.
 - Desktop routes at 1440 by 1000 passed visual and interaction checks.
 - Mobile routes at 390 by 844 passed navigation and horizontal overflow checks.
-- Topics, topic detail, Timeline, Prep, Haseeb bot, Tarun bot, theme switching, and mobile navigation passed browser interaction checks.
+- All 54 browser acceptance checks passed for Topics, topic detail, Timeline, Prep, Haseeb bot, Tarun bot, creator revision, creator format changes, requested lengths, evidence, theme switching, and mobile navigation.
 - Browser checks produced zero JavaScript page errors and zero console errors.
 - Source scan found no Lovable demo records, fake totals, seeded timeline text, or em dash characters in active application source.
 - Production dependency audit found zero known vulnerabilities.
@@ -149,4 +151,16 @@ The live image is `mark-crypto-dashboard:20260902T084905Z`. The stopped predeces
 
 Release `20260903T163620Z` makes the freshest preserved Lovable source the literal frontend specification. The production application exposes the same five primary screens in the same order: Topics, Timeline, Prep, Haseeb bot, and Tarun bot. It preserves the Lovable shell, labels, typography, widths, spacing, borders, controls, charts, output states, feedback controls, citations, and responsive structure. Dark mode is the only intentional visual addition.
 
-Lovable sample content and mock generation remain excluded. Every screen uses the existing production APIs, database, Hermes generation boundary, source identities, and citations. Extra legacy product routes are not exposed in the frontend. The live image is `mark-crypto-dashboard:20260903T163620Z`, the preferred known-good application rollback is `crypto-dashboard-rollback-20260903T131714Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260903T163620Z/crypto-intelligence.db`. Candidate `20260903T162235Z` was superseded after interactive browser testing exposed a navigation cleanup defect and is not an accepted rollback target. No Cloudflare, Hermes, OpenViking, ForkedBrain, or legacy Intel configuration changed.
+Lovable sample content and mock generation remain excluded. Every screen uses the existing production APIs, database, Hermes generation boundary, source identities, and citations. Extra legacy product routes are not exposed in the frontend. Release `20260903T163620Z` remains the immediate application rollback for the response-quality completion release. Candidate `20260903T162235Z` was superseded after interactive browser testing exposed a navigation cleanup defect and is not an accepted rollback target.
+
+## Response-quality completion
+
+Release `20260904T141918Z` completes the behavior behind Mark's five-screen design without changing its visible information architecture. Prep now returns readable synthesis instead of disconnected facts, gives every point a concrete limitation, and exposes exact supporting sources and quotes. Timeline source reading removes raw Markdown artifacts and keeps context concise. Topic evidence links to the original source when available.
+
+Haseeb bot and Tarun bot now use creator-specific retained material alongside the selected crypto evidence. Their server contract enforces the chosen format, count, tone, and length, prevents internal evidence IDs from leaking into publishable copy, keeps citations in Works cited, and preserves the prior draft during revision.
+
+The release passed 91 automated server tests and 53 interactive Chrome checks on local, canary, and production builds. A disposable canary also passed bounded real Hermes checks for a five-point Prep brief, a Haseeb post and revision, and a 314-word Tarun article. Those checks confirmed readable writing, resolved evidence, requested lengths, creator-specific generation, and no raw Markdown or internal citation markers in publishable copy. Canary test drafts were discarded before production promotion.
+
+Release `20260904T150300Z` adds the final creator-state boundary found during source review. Changing a creator workflow between tweet and blog now clears incompatible prior output, while a completed result continues to render in its original format until that change is made. The current release passed all 54 Chrome checks locally, in an isolated canary, and in production without additional paid model calls.
+
+The live image is `mark-crypto-dashboard:20260904T150300Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260904T141918Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T150300Z/crypto-intelligence.db`. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.

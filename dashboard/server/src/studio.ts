@@ -266,7 +266,7 @@ export async function buildStudioContext(value: StudioDraftInput) {
     `CORPUS EVIDENCE\n${evidence.join('\n')}`,
   ].join('\n\n').slice(0, 36_000);
 
-  return { ...input, prompt, evidenceCount: evidence.length };
+  return { ...input, prompt, evidenceCount: evidence.length, evidenceRecords: records };
 }
 
 export function extractCitationIds(body: string) {

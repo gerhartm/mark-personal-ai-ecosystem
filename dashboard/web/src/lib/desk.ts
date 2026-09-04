@@ -16,6 +16,20 @@ export const compact = (value: unknown, length = 220) => {
   return text.length > length ? `${text.slice(0, length - 1).trim()}…` : text;
 };
 
+export const readableText = (value: unknown, length = 900) => {
+  const text = String(value ?? '')
+    .replace(/```[a-z]*\s*/gi, '')
+    .replace(/```/g, '')
+    .replace(/^\s*#{1,6}\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > length ? `${text.slice(0, length - 1).trim()}…` : text;
+};
+
 export const formatDate = (value?: string | null) => {
   if (!value) return 'Date unknown';
   const date = new Date(value.length === 10 ? `${value}T00:00:00Z` : value);

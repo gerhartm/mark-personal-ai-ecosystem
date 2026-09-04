@@ -28,6 +28,7 @@ import {
   draftCitations,
   studioStatus,
 } from './studio.js';
+import { generateCreatorDraft, generatePrepBrief } from './workflows.js';
 import {
   QuizInputError,
   createQuizSession,
@@ -417,6 +418,44 @@ app.post('/api/studio/drafts', async (req, reply) => {
   }
   try {
     return await createStudioDraft(req.body as any, actor);
+  } catch (error) {
+    if (error instanceof StudioInputError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(503).send({
+      error: 'hermes_unavailable',
+      message: cleanHermesError(error instanceof Error ? error.message : error),
+    });
+  }
+});
+
+app.post('/api/prep', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isStudioRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before building another brief.' });
+  }
+  try {
+    return await generatePrepBrief(req.body as any, actor);
+  } catch (error) {
+    if (error instanceof StudioInputError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(503).send({
+      error: 'hermes_unavailable',
+      message: cleanHermesError(error instanceof Error ? error.message : error),
+    });
+  }
+});
+
+app.post('/api/creator', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isStudioRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before generating another draft.' });
+  }
+  try {
+    return await generateCreatorDraft(req.body as any, actor);
   } catch (error) {
     if (error instanceof StudioInputError) {
       return reply.code(error.status).send({ error: error.code, message: error.message });

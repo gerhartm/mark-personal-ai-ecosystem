@@ -8,6 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "start:production": "node dist/index.js",
+    "acceptance": "node src/acceptance.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

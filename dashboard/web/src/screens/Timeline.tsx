@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { Chip, EmptyState, ErrorState, LoadingRows, ViewHead } from '../components/Desk';
 import { useQuery } from '../lib/api';
-import { categoryColor, compact, formatDate, titleCase } from '../lib/desk';
+import { categoryColor, compact, formatDate, readableText, titleCase } from '../lib/desk';
 import './timeline.css';
 
 type Pin = {
@@ -35,6 +34,7 @@ export function Timeline() {
   const defaultYear = years.includes(new Date().getUTCFullYear()) ? new Date().getUTCFullYear() : (years[0] ?? new Date().getUTCFullYear());
   const [chosenYear, setChosenYear] = useState<number | null>(null);
   const [category, setCategory] = useState('All');
+  const [activeMonth, setActiveMonth] = useState<number | null>(null);
   const [selected, setSelected] = useState<Pin | null>(null);
   const activeYear = chosenYear && years.includes(chosenYear) ? chosenYear : defaultYear;
 
@@ -60,7 +60,18 @@ export function Timeline() {
         {years.map((year) => <Chip key={year} active={year === activeYear} onClick={() => { setChosenYear(year); setCategory('All'); }}>{year}</Chip>)}
       </div>
 
-      <DensityStrip pins={yearPins} categories={categories.filter((item) => item !== 'All')} />
+      <DensityStrip
+        pins={yearPins}
+        categories={categories.filter((item) => item !== 'All')}
+        activeCategory={category}
+        activeMonth={activeMonth}
+        onJump={(month) => {
+          setActiveMonth(month);
+          requestAnimationFrame(() => document.getElementById(`timeline-month-${month}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        }}
+        onCategorySelect={(next) => setCategory(next)}
+      />
+      <p className="timeline-density-note">{activeYear} · bars split by category · select a color band to filter that category</p>
 
       <div className="desk-chip-row timeline-category-row" aria-label="Filter event category">
         {categories.map((item) => <Chip key={item} active={category === item} onClick={() => setCategory(item)}>{titleCase(item)}</Chip>)}
@@ -70,7 +81,7 @@ export function Timeline() {
 
       <div className="timeline-exact-layout"><div className="timeline-ledger">
         {months.map((group) => (
-          <section className="timeline-month" key={group.month}>
+          <section className="timeline-month" id={`timeline-month-${group.month}`} key={group.month}>
             <header>
               <h2>{monthName(group.month)}</h2>
               <span />
@@ -102,7 +113,14 @@ export function Timeline() {
   );
 }
 
-function DensityStrip({ pins, categories }: { pins: Pin[]; categories: string[] }) {
+function DensityStrip({ pins, categories, activeCategory, activeMonth, onJump, onCategorySelect }: {
+  pins: Pin[];
+  categories: string[];
+  activeCategory: string;
+  activeMonth: number | null;
+  onJump: (month: number) => void;
+  onCategorySelect: (category: string) => void;
+}) {
   const countEvents = (rows: Pin[]) => new Set(rows.map((pin) => pin.event_id)).size;
   const peak = Math.max(1, ...Array.from({ length: 12 }, (_, index) => countEvents(pins.filter((pin) => Number(pin.sort_key.slice(5, 7)) === index + 1))));
   return (
@@ -111,13 +129,15 @@ function DensityStrip({ pins, categories }: { pins: Pin[]; categories: string[] 
         const month = index + 1;
         const rows = pins.filter((pin) => Number(pin.sort_key.slice(5, 7)) === month);
         return (
-          <div className="timeline-density-month" key={month} title={`${monthName(month)}: ${countEvents(rows)} events`}>
-            <div className="timeline-density-stack" style={{ height: `${Math.max(4, countEvents(rows) / peak * 52)}px` }}>
+          <div className={`timeline-density-month ${activeMonth === month ? 'is-active' : ''}`} key={month} title={`${monthName(month)}: ${countEvents(rows)} events`}>
+            <button type="button" className="timeline-density-jump" onClick={() => onJump(month)} aria-label={`Jump to ${monthName(month)}, ${countEvents(rows)} events`}>
+            <span className="timeline-density-stack" style={{ height: `${Math.max(4, countEvents(rows) / peak * 52)}px` }}>
               {categories.map((category) => {
                 const count = rows.filter((row) => row.primary_category === category).length;
-                return count ? <span key={category} style={{ flex: count, background: categoryColor(category) }} /> : null;
+                return count ? <span key={category} role="button" tabIndex={0} title={`${titleCase(category)} · ${count} mentions`} onClick={(event) => { event.stopPropagation(); onJump(month); onCategorySelect(activeCategory === category ? 'All' : category); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onJump(month); onCategorySelect(activeCategory === category ? 'All' : category); } }} style={{ flex: count, background: categoryColor(category), opacity: activeCategory === 'All' || activeCategory === category ? 1 : .18 }} /> : null;
               })}
-            </div>
+            </span>
+            </button>
             <small>{monthName(month).slice(0, 1)}</small>
           </div>
         );
@@ -127,6 +147,13 @@ function DensityStrip({ pins, categories }: { pins: Pin[]; categories: string[] 
 }
 
 function TimelineDialog({ pin, close }: { pin: Pin; close: () => void }) {
+  const [showSource, setShowSource] = useState(false);
+  const source = useQuery<any>(showSource ? `/sources/${encodeURIComponent(pin.source_id)}` : null, [pin.source_id, showSource]);
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [close]);
   return (
     <div className="desk-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}>
       <section className="desk-modal" role="dialog" aria-modal="true" aria-labelledby="timeline-dialog-title">
@@ -140,19 +167,19 @@ function TimelineDialog({ pin, close }: { pin: Pin; close: () => void }) {
         <div className="desk-modal-body timeline-dialog-body">
           <section>
             <p className="desk-eyebrow">What happened</p>
-            <p className="timeline-dialog-prose">{pin.summary}</p>
+            <p className="timeline-dialog-prose">{readableText(pin.summary, 900)}</p>
           </section>
-          {pin.key_takeaway ? <section><p className="desk-eyebrow">Key takeaway from the source</p><p className="timeline-dialog-prose">{pin.key_takeaway}</p></section> : null}
+          {pin.key_takeaway ? <section><p className="desk-eyebrow">Why it matters</p><p className="timeline-dialog-prose">{readableText(pin.key_takeaway, 700)}</p></section> : null}
           <section>
             <p className="desk-eyebrow">Source context</p>
-            <p className="timeline-dialog-prose">{pin.detailed_content || pin.source_title || pin.source_label || 'Stored source'}</p>
+            <p className="timeline-dialog-prose">{readableText(pin.detailed_content || pin.source_title || pin.source_label || 'Stored source', 900)}</p>
             {pin.detailed_content ? <p className="timeline-dialog-source">From {pin.source_title || pin.source_label || 'the stored source'}</p> : null}
             <div className="timeline-dialog-links">
-              <Link to={`/event/${pin.event_id}`}>Open full event</Link>
-              <Link to={`/source/${encodeURIComponent(pin.source_id)}`}>Open supporting source</Link>
+              <button type="button" onClick={() => setShowSource((value) => !value)}>{showSource ? 'Hide supporting source' : 'Read supporting source'}</button>
               {pin.source_url ? <a href={pin.source_url} target="_blank" rel="noreferrer">Open original</a> : null}
             </div>
           </section>
+          {showSource ? <section className="timeline-source-reader"><p className="desk-eyebrow">Supporting source</p>{source.loading ? <p className="timeline-dialog-prose">Loading the retained source...</p> : null}{source.error ? <p className="timeline-dialog-prose">The retained source could not be opened. The event context above remains available.</p> : null}{source.data ? <><h3>{source.data.title || source.data.source_label || 'Stored source'}</h3><p className="timeline-dialog-prose">{readableText(source.data.research_brief?.summary || source.data.content || source.data.events?.[0]?.summary || 'No readable source summary is available.', 1_200)}</p></> : null}</section> : null}
         </div>
       </section>
     </div>

@@ -38,6 +38,16 @@ const SORTS: Record<string, string> = {
 /** Earliest subject-time pin for an event, falling back to capture time. */
 const SUBJECT_DATE = `COALESCE((SELECT MIN(d.sort_key) FROM event_dates d WHERE d.event_id = e.id), substr(e.timestamp,1,10))`;
 
+/** Distinct retained sources connected to an event, including its own source. */
+const REFERENCE_COUNT = `(SELECT count(DISTINCT linked.source_id) FROM (
+  SELECT e.source_id AS source_id
+  UNION ALL
+  SELECT related.source_id
+    FROM event_connections c
+    JOIN events related ON related.id = CASE WHEN c.from_event_id=e.id THEN c.to_event_id ELSE c.from_event_id END
+   WHERE c.resolved=1 AND (c.from_event_id=e.id OR c.to_event_id=e.id)
+) linked)`;
+
 export function findEvents(f: EventFilters = {}) {
   const where: string[] = [];
   const p: any[] = [];
@@ -113,8 +123,7 @@ export function findEvents(f: EventFilters = {}) {
             e.summary, e.business_signal, e.source_id, e.source_type, e.source_channel,
             ${SUBJECT_DATE} AS subject_date,
             s.title AS source_title, s.source_label, s.source_url,
-            1 + (SELECT count(*) FROM event_connections c
-                   WHERE c.resolved=1 AND (c.from_event_id=e.id OR c.to_event_id=e.id)) AS reference_count,
+            ${REFERENCE_COUNT} AS reference_count,
             (SELECT count(*) FROM event_insights i WHERE i.event_id = e.id) AS insight_count,
             (SELECT count(*) FROM event_entities x WHERE x.event_id = e.id) AS entity_count,
             (SELECT count(*) FROM event_dates d WHERE d.event_id = e.id) AS date_count,
@@ -287,8 +296,7 @@ export function timeline(from?: string, to?: string) {
             e.detailed_content, e.source_id, s.title AS source_title,
             s.source_label, s.source_url,
             (SELECT i.text FROM event_insights i WHERE i.event_id=e.id ORDER BY i.position LIMIT 1) AS key_takeaway,
-            1 + (SELECT count(*) FROM event_connections c
-                   WHERE c.resolved=1 AND (c.from_event_id=e.id OR c.to_event_id=e.id)) AS reference_count
+            ${REFERENCE_COUNT} AS reference_count
        FROM event_dates d JOIN events e ON e.id = d.event_id
        JOIN sources s ON s.source_id=e.source_id
        ${clause} ORDER BY d.sort_key`,

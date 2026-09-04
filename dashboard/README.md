@@ -11,9 +11,9 @@ primary screens are:
 - **Topics:** the evidence-first home view, built only from real stored tags,
   events, sources, and extracted claims.
 - **Timeline:** the uniform category and date view Mark designed, populated from
-  real stored events and mention counts.
-- **Prep:** theses, talking points, likely questions,
-  counterarguments, and closing takeaways from a selected date range.
+  real stored events and distinct supporting-source reference counts.
+- **Prep:** readable theses, supporting points, evidence, counterarguments, and
+  source context generated from a question and selected corpus topics.
 - **Haseeb bot:** creator-reference generation through the existing Hermes and
   Studio boundary, using real corpus evidence.
 - **Tarun bot:** the second creator-reference workflow using the same verified
@@ -60,7 +60,7 @@ Environment, all optional, all by name only:
 
 ## Production deployment
 
-The accepted V2 release is `20260903T163620Z`. Its reproducible runtime contract
+The accepted V2 release is `20260904T150300Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
@@ -117,7 +117,7 @@ npm start &               # the API tests exercise the running server
 npx vitest run
 ```
 
-87 tests: reconciliation against the handoff manifest, canonical identity
+91 tests: reconciliation against the handoff manifest, canonical identity
 preservation, facet derivation, precision spans, taxonomy verbatim, append-only
 notes, the identity register, unified search determinism, media authorisation
 and traversal, the Access identity boundary, bounded Hermes evidence assembly,
@@ -126,8 +126,9 @@ exact duplicate skipping, partial-native-write cleanup, locked-resource safety,
 Studio evidence packaging, citation enforcement, atomic generation, append-only
 draft editing, evidence-linked Quiz generation and atomic grading, sourced
 briefing validation and preservation, Satoshi sync authentication, durable
-queue completion, long-source indexing, replay deduplication, and the build's
-refusal of a tampered handoff.
+queue completion, long-source indexing, replay deduplication, structured Prep
+and creator validation, publishable-length enforcement, evidence-ID leak
+prevention, and the build's refusal of a tampered handoff.
 
 ## Screenshots
 

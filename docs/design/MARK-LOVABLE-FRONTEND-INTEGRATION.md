@@ -4,7 +4,7 @@
 
 **Product:** Crypto Intelligence
 
-**Status:** accepted in production, with Mark's literal Lovable component port and response-quality completion in release `20260904T181850Z`
+**Status:** accepted in production, with Mark's literal Lovable component port and full real-Hermes Control Center QA in release `20260905T072131Z`
 
 ## Purpose
 
@@ -206,3 +206,15 @@ Release `20260905T061516Z` refines only the separate sidebar utility area. Contr
 The refinement passed the web type check and production build, then all 89 Chrome checks locally, in the isolated canary, and after production promotion. Light mode, dark mode, desktop, mobile, navigation count, live status values, horizontal overflow, requests, and console behavior passed. Release acceptance made zero paid model calls.
 
 The live image is `mark-crypto-dashboard:20260905T061516Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260905T051408Z`, the database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T061516Z/crypto-intelligence.db`, and the deployment snapshot is `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T061516Z`.
+
+## Full Control Center and paid generation acceptance
+
+Release `20260905T072131Z` proves the Control Center against real Hermes behavior, not only mocked browser responses. Disposable copied databases were used for every prompt edit, topic reorganization, generated brief, creator draft, revision, and invalid-input test.
+
+The pass found and corrected two defects. Long topic titles are now rejected instead of being cut mid-word, and bodyless Restore Default and Rebuild Topics requests no longer carry an incorrect JSON content type. Topic organization now accepts only complete plain-text titles of 5 to 16 words and no more than 96 characters, with one bounded correction request available when the first structured result is invalid.
+
+Real paid generation produced focused, readable, evidence-backed results across Topics, Prep, Haseeb bot, and Tarun bot. Prep led with the answer, returned five distinct mechanism-based points, included exact citations, and named a real weakness for each point. Haseeb returned three format-valid posts and preserved citations through an append-only revision. Tarun returned a 344-word structured article with three citations and no internal evidence IDs in the publishable body. Temporary page instructions changed the next output exactly as requested for Prep, Haseeb, and Tarun, and every control was restored afterward.
+
+The final image passed 98 server tests, both TypeScript checks, the web production build, 89 of 89 browser checks in the final canary, and 89 of 89 browser checks again in production. Production retained its 66 events, 54 sources, 89 media assets, revision-0 default controls, and 7 received and 7 synced Telegram records. A restart preserved the database checksum and counts.
+
+The live image is `mark-crypto-dashboard:20260905T072131Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260905T061516Z`, the database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T072131Z/crypto-intelligence.db`, and the deployment snapshot is `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T072131Z`.

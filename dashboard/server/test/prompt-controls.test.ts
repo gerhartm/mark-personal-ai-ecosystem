@@ -66,4 +66,15 @@ describe('page prompt controls', () => {
     expect(validateTopicOrganization({ topics: Array.from({ length: 6 }, (_, index) => topic(index)) }, valid)).toHaveLength(6);
     expect(() => validateTopicOrganization({ topics: [...Array.from({ length: 5 }, (_, index) => topic(index)), { ...topic(6), event_ids: ['a', 'missing'] }] }, valid)).toThrow(/unknown evidence/i);
   });
+
+  it('rejects topic titles that would be cut or read as incomplete', () => {
+    const valid = new Set(['a', 'b']);
+    const base = Array.from({ length: 6 }, (_, index) => ({
+      title: `Specific mechanism claim number ${index}`,
+      description: 'A clear description of the shared source-backed argument and why the grouped evidence belongs together.',
+      event_ids: ['a', 'b'],
+    }));
+    expect(() => validateTopicOrganization({ topics: [{ ...base[0], title: `${'Long topic '.repeat(12)}mechanism` }, ...base.slice(1)] }, valid)).toThrow(/96 characters/i);
+    expect(() => validateTopicOrganization({ topics: [{ ...base[0], title: 'Collateral risk moves from protocols to' }, ...base.slice(1)] }, valid)).toThrow(/incomplete phrase/i);
+  });
 });

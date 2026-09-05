@@ -3,9 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 const BASE = '/api';
 
 export async function api<T = any>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (init?.body != null && !headers.has('content-type')) headers.set('content-type', 'application/json');
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+    headers,
   });
   if (!res.ok) {
     let detail: any = null;

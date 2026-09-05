@@ -219,7 +219,8 @@ function parseJsonObject(raw: string) {
   }
 }
 
-const cleanText = (value: unknown, limit: number) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
+const cleanText = (value: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim();
+const incompleteTitleEnding = /\b(?:a|an|and|as|at|by|for|from|in|of|on|or|the|to|with)$/i;
 
 function topicKey(title: string, index: number) {
   const slug = title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 58);
@@ -233,15 +234,20 @@ export function validateTopicOrganization(raw: any, validEventIds: Set<string>) 
   if (rows.length < 6 || rows.length > 24) issues.push('Return 6 to 24 focused topics.');
   const titles = new Set<string>();
   const topics = rows.map((row: any, index: number) => {
-    const title = cleanText(row?.title, 100);
-    const description = cleanText(row?.description, 420);
+    const title = cleanText(row?.title);
+    const description = cleanText(row?.description);
     const eventIds = Array.isArray(row?.event_ids)
-      ? [...new Set<string>(row.event_ids.map((id: unknown) => cleanText(id, 120)).filter(Boolean))]
+      ? [...new Set<string>(row.event_ids.map((id: unknown) => cleanText(id).slice(0, 120)).filter(Boolean))]
       : [];
     if (title.length < 12) issues.push(`Topic ${index + 1} needs a specific title.`);
+    if (title.length > 96) issues.push(`Topic ${index + 1} title must be 96 characters or fewer.`);
+    if (title.split(/\s+/).filter(Boolean).length > 16) issues.push(`Topic ${index + 1} title must use 16 words or fewer.`);
+    if (incompleteTitleEnding.test(title)) issues.push(`Topic ${index + 1} title ends with an incomplete phrase.`);
+    if (/(?:\*\*|__|```|^#{1,6}\s)/.test(title)) issues.push(`Topic ${index + 1} title must be plain text.`);
     if (titles.has(title.toLowerCase())) issues.push(`Topic ${index + 1} duplicates another title.`);
     titles.add(title.toLowerCase());
     if (description.length < 40) issues.push(`Topic ${index + 1} needs a useful description.`);
+    if (description.length > 420) issues.push(`Topic ${index + 1} description must be 420 characters or fewer.`);
     if (eventIds.length < 2 || eventIds.length > 12) issues.push(`Topic ${index + 1} must connect 2 to 12 evidence records.`);
     if (eventIds.some((id) => !validEventIds.has(id))) issues.push(`Topic ${index + 1} references unknown evidence.`);
     return { title, description, event_ids: eventIds };
@@ -267,17 +273,33 @@ export async function rebuildTopics(actor: string) {
     '/crypto-intelligence',
     'Reorganize Mark\'s stored corpus into precise research topics. Use only the evidence records below.',
     `MARK\'S TOPICS INSTRUCTION\n${control.instructions}`,
-    'Each topic must express a concrete theme, claim, mechanism, disagreement, or argument. Avoid broad subject labels. Connect 2 to 12 exact event IDs to each topic. An event may support more than one topic when the evidence genuinely overlaps. Do not invent events, claims, consensus, dates, or sources.',
+    'Each topic must express a concrete theme, claim, mechanism, disagreement, or argument. Avoid broad subject labels. Write each title as a complete grammatical phrase of 5 to 16 words and no more than 96 characters. Never cut a word or end a title with an incomplete phrase. Connect 2 to 12 exact event IDs to each topic. An event may support more than one topic when the evidence genuinely overlaps. Do not invent events, claims, consensus, dates, or sources.',
     'Return only valid JSON with this shape: {"topics":[{"title":"specific claim or theme","description":"one clear sentence describing the shared argument","event_ids":["exact event ID"]}]}. Return 6 to 24 topics. Do not wrap JSON in Markdown.',
     `STORED EVIDENCE\n${evidenceText}`,
   ].join('\n\n');
-  const response = await runHermesAgent(prompt.slice(0, 36_000), {
+  const generate = (text: string) => runHermesAgent(text, {
     title: 'Topics organization',
     reasoningEffort: 'low',
     timeoutMs: 180_000,
   });
+  let rawText = (await generate(prompt.slice(0, 36_000))).text;
   const validIds = new Set<string>(evidence.map((row) => row.id));
-  const normalized = validateTopicOrganization(parseJsonObject(response.text), validIds);
+  let normalized;
+  try {
+    normalized = validateTopicOrganization(parseJsonObject(rawText), validIds);
+  } catch (error) {
+    if (!(error instanceof PromptControlError) || error.code !== 'invalid_topics') throw error;
+    rawText = (await generate([
+      '/crypto-intelligence',
+      'Correct the previous topic organization once. Keep every valid grouping, fix every issue below, and return only corrected JSON.',
+      error.message,
+      `MARK'S TOPICS INSTRUCTION\n${control.instructions}`,
+      'Use 6 to 24 topics. Each title must be a complete grammatical phrase of 5 to 16 words and no more than 96 characters. Each description must be 40 to 420 characters. Each topic must connect 2 to 12 exact event IDs from the stored evidence. Do not invent evidence.',
+      `PREVIOUS JSON\n${rawText}`,
+      `STORED EVIDENCE\n${evidenceText}`,
+    ].join('\n\n').slice(0, 40_000))).text;
+    normalized = validateTopicOrganization(parseJsonObject(rawText), validIds);
+  }
   const categoriesByEvent = new Map<string, string>(evidence.map((row) => [row.id, row.primary_category]));
   const generatedAt = new Date().toISOString();
   const organization: TopicOrganization = {

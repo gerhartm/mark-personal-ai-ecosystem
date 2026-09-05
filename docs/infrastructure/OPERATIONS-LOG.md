@@ -1100,3 +1100,24 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Production: image `mark-crypto-dashboard:20260905T061516Z` is healthy with zero restarts and live status of 7 received, 7 synced, 0 processing, and 0 failed.
 - Recovery: retained rollback `crypto-dashboard-rollback-20260905T051408Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T061516Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T061516Z`.
 - Cost and scope: no paid model call was made. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.
+
+## 2026-09-05 07:21 UTC: Full real-Hermes Control Center QA and guarded release pending
+
+- Operator: Codex completing Darshan's instruction to test the isolated copy comprehensively with paid Hermes requests and finish any defects found.
+- Status: pending guarded production promotion after final canary acceptance.
+- Planned change: reject incomplete generated topic titles instead of truncating them, add one bounded correction pass for invalid topic organizations, and fix bodyless Control Center actions by sending a JSON content type only when a request body exists.
+- Canary boundary: all prompt edits, topic rebuilds, paid Prep and creator generations, revisions, and restart checks use only the disposable copied database on loopback port `9331`.
+- Production boundary: the live database, prompt organization, Hermes, OpenViking, Satoshi, Cloudflare, ForkedBrain, and the legacy Intel service remain unchanged until the tested application image is promoted.
+- Recovery plan: retain the current production image and container as `crypto-dashboard-rollback-20260905T061516Z`, create a consistent pre-release database backup, and snapshot the deployment definition before promotion.
+- Status update: completed and promoted as Crypto Intelligence release `20260905T072131Z`.
+- Defects corrected: incomplete topic titles are rejected instead of truncated, invalid topic output receives one bounded correction pass, and bodyless Restore Default and Rebuild Topics actions no longer send a JSON content type.
+- Real Hermes proof: 13 user-level paid workflow exercises covered Topics organization, Prep, Haseeb generation and revision, Tarun generation, and page-specific prompt effects. The generated prose was clear, evidence-backed, format-valid, and free of raw Markdown and internal evidence IDs in publishable copy.
+- Prompt effect proof: temporary instructions for Prep, Haseeb, and Tarun changed the next real output exactly as requested. All four generated-page controls were restored to their defaults in the disposable canary, and revision history persisted after restart.
+- Retrieval proof: the 16-topic organization resolved a selected topic to four exact events, four source records, 20 claims, original URLs, dates, channels, and related tags.
+- Failure proof: unknown pages, evidence-only edits, short and oversized instructions, invalid Prep inputs, invalid creator inputs, and revisions without prior output returned the intended HTTP `400`, `404`, or `409` errors without partial writes.
+- Automated verification: 98 of 98 server tests, server and web type checks, the web production build, and `git diff --check` passed.
+- Browser verification: all 89 checks passed against the final canary and all 89 passed again after production promotion. There were zero first-party request failures and zero browser console errors.
+- Production: image `mark-crypto-dashboard:20260905T072131Z` is healthy with 66 events, 54 sources, 89 media assets, default revision-0 controls, and live Telegram status of 7 received, 7 synced, 0 processing, and 0 failed.
+- Persistence and security: the production database checksum and counts survived restart. The container remains non-root, read-only, capability-dropped, protected by `no-new-privileges`, and published only on `127.0.0.1:9330`.
+- Recovery: retained rollback `crypto-dashboard-rollback-20260905T061516Z`, backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T072131Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T072131Z`.
+- Scope safety: Hermes configuration, OpenViking, Satoshi, Cloudflare, ForkedBrain, and the legacy Intel service were unchanged. Public Crypto remained Access-protected, and the legacy Intel endpoint remained available.

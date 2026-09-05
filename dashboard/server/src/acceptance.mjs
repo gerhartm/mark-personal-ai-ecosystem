@@ -133,10 +133,11 @@ async function desktopPass(browser) {
   const syncStatus = page.getByTestId('telegram-sync-status');
   await syncStatus.waitFor();
   const syncText = await syncStatus.innerText();
-  check(Boolean(liveBrief.telegram_sync) && syncText.includes(`${liveBrief.telegram_sync.received} received`), 'Sidebar shows the live Telegram received count', syncText);
-  check(Boolean(liveBrief.telegram_sync) && syncText.includes(`${liveBrief.telegram_sync.synced} synced`), 'Sidebar shows the live Telegram synced count', syncText);
-  check(Boolean(liveBrief.telegram_sync) && syncText.includes(`${liveBrief.telegram_sync.processing} processing`), 'Sidebar shows the live Telegram processing count', syncText);
-  check(Boolean(liveBrief.telegram_sync) && syncText.includes(`${liveBrief.telegram_sync.failed} failed`), 'Sidebar shows the live Telegram failed count', syncText);
+  const normalizedSyncText = syncText.toLowerCase().replace(/\s+/g, ' ');
+  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.received} received`), 'Sidebar shows the live Telegram received count', syncText);
+  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.synced} synced`), 'Sidebar shows the live Telegram synced count', syncText);
+  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.processing} processing`), 'Sidebar shows the live Telegram processing count', syncText);
+  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.failed} failed`), 'Sidebar shows the live Telegram failed count', syncText);
   check((await page.locator('nav a').allTextContents()).length === 5, 'Navigation contains exactly Mark’s five screens');
   check(await page.getByRole('link', { name: 'Control center', exact: true }).isVisible(), 'Control Center is a separate utility link');
   check(await page.getByRole('heading', { name: 'Topics', exact: true }).isVisible(), 'Topics opens as the home screen');

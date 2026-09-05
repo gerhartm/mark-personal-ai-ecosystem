@@ -1,6 +1,6 @@
 services:
   crypto-dashboard:
-    image: mark-crypto-dashboard:20260905T051408Z
+    image: mark-crypto-dashboard:20260905T061516Z
     container_name: crypto-dashboard
     restart: unless-stopped
     env_file:

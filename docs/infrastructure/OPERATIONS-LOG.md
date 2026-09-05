@@ -1089,3 +1089,14 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Production: image `mark-crypto-dashboard:20260905T051408Z` is healthy on loopback port `9330` with 66 events, 54 sources, and 89 media assets. Migration `008 prompt_controls` is present and all five controls report revision 0 at acceptance.
 - Recovery: retained rollback container `crypto-dashboard-rollback-20260904T184636Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T051408Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T051408Z`.
 - Cost and scope: release acceptance used zero paid model calls. Cloudflare, Hermes provider configuration, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.
+
+## 2026-09-05 06:15-06:23 UTC: Sidebar utility polish accepted
+
+- Operator: Codex refining the visual balance of the separate sidebar utility area.
+- Status: completed and promoted as Crypto Intelligence release `20260905T061516Z`.
+- Change: Control Center now has a clear interactive row and purpose label, Telegram synchronization uses a compact aligned status card, and Dark mode uses a labeled switch with visible on and off states.
+- Scope boundary: Topics, Timeline, Prep, Haseeb bot, and Tarun bot remain the exact five numbered screens. Their design, routes, data, prompts, and behavior were not changed.
+- Verification: web type check and production build passed. All 89 Chrome checks passed locally, in canary, and in production across light mode, dark mode, desktop, mobile, navigation, synchronization values, overflow, requests, and console behavior.
+- Production: image `mark-crypto-dashboard:20260905T061516Z` is healthy with zero restarts and live status of 7 received, 7 synced, 0 processing, and 0 failed.
+- Recovery: retained rollback `crypto-dashboard-rollback-20260905T051408Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T061516Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T061516Z`.
+- Cost and scope: no paid model call was made. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.

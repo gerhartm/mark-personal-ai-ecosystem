@@ -198,3 +198,11 @@ The sidebar also reports live Satoshi synchronization values from the backend. A
 The release passed 97 server tests and all 89 Chrome checks locally, in the isolated production canary, and after production promotion. The browser suite verified the five-screen navigation boundary, all existing evidence and creator workflows, the separate Control Center, light and dark themes, desktop and mobile layouts, live Telegram status refresh, Markdown rendering, requests, and console behavior. Deployment and acceptance made zero paid model calls.
 
 The live image is `mark-crypto-dashboard:20260905T051408Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260904T184636Z`, the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T051408Z/crypto-intelligence.db`, and the deployment snapshot is `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T051408Z`. Cloudflare, Hermes provider settings, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.
+
+## Sidebar utility balance
+
+Release `20260905T061516Z` refines only the separate sidebar utility area. Control Center is now a clearly interactive unnumbered row with a concise purpose label, Telegram synchronization is presented as one compact live-status card with aligned values, and Dark mode uses a proper labeled switch. The five numbered Mark-designed screens and their layouts are unchanged.
+
+The refinement passed the web type check and production build, then all 89 Chrome checks locally, in the isolated canary, and after production promotion. Light mode, dark mode, desktop, mobile, navigation count, live status values, horizontal overflow, requests, and console behavior passed. Release acceptance made zero paid model calls.
+
+The live image is `mark-crypto-dashboard:20260905T061516Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260905T051408Z`, the database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T061516Z/crypto-intelligence.db`, and the deployment snapshot is `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T061516Z`.

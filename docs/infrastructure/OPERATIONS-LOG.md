@@ -1074,3 +1074,18 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Security and edge: the container remains non-root, read-only, capability-dropped, protected by `no-new-privileges`, and bound only to `127.0.0.1:9330`. Public HTTPS redirects to Cloudflare Access, HTTP redirects to HTTPS, and `intel.forkedbrain.fyi` remains HTTP `200`.
 - Recovery: retained rollback container `crypto-dashboard-rollback-20260904T174126Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T181850Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260904T181850Z`.
 - Cost and scope: no paid model call was made. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.
+
+## 2026-09-05 05:14-05:32 UTC: Separate prompt Control Center accepted
+
+- Operator: Codex implementing Mark's request for a place to inspect and fine-tune page-specific generation instructions.
+- Status: completed and promoted as Crypto Intelligence release `20260905T051408Z`.
+- Frontend boundary: Topics, Timeline, Prep, Haseeb bot, and Tarun bot remain the only numbered navigation entries and retain Mark's approved Lovable layouts. `Control center` is a separate unnumbered utility link near the bottom of the rail.
+- Prompt controls: Topics, Prep, Haseeb bot, and Tarun bot expose editable instructions with append-only revisions and restore support. Timeline is visibly evidence-only because it is assembled from stored facts rather than a page generation prompt.
+- Safety contract: page instructions can tune organization, emphasis, tone, and output structure. They cannot disable source grounding, citation checks, output validation, or the prohibition on invented claims.
+- Topic organization: `Rebuild Topics` is manual, uses one bounded low-reasoning Hermes request, validates proposed groups against exact event IDs, and stores only an organization layer. No source record is changed, and no rebuild occurs during release or in the background.
+- Live Satoshi status: production reports 7 received, 7 synced, 0 processing, and 0 failed. The sidebar reads these values from the backend and refreshes them while the page is visible.
+- Automated verification: server and web type checks passed, both production builds passed, all 97 server tests passed, deployment scripts passed their own checks, and `git diff --check` passed.
+- Browser verification: all 89 Chrome checks passed locally, against the disposable canary, and after production promotion. Every Mark-designed screen, the Timeline dossier, Prep, creator generation, the Control Center, dark mode, desktop and mobile layouts, live status refresh, Markdown rendering, network requests, and console behavior passed.
+- Production: image `mark-crypto-dashboard:20260905T051408Z` is healthy on loopback port `9330` with 66 events, 54 sources, and 89 media assets. Migration `008 prompt_controls` is present and all five controls report revision 0 at acceptance.
+- Recovery: retained rollback container `crypto-dashboard-rollback-20260904T184636Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T051408Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T051408Z`.
+- Cost and scope: release acceptance used zero paid model calls. Cloudflare, Hermes provider configuration, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were unchanged.

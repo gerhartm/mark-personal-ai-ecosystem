@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { audit, db, one } from './db.js';
 import { runHermesAgent } from './hermes-client.js';
+import { getPageInstructions } from './prompt-controls.js';
 import {
   StudioInputError,
   appendStudioRevision,
@@ -293,6 +294,7 @@ export async function generatePrepBrief(value: PrepInput, actor: string): Promis
     `Question or topic: ${input.topic}`,
     `Lens: ${input.lens} of 5. Return exactly ${input.pointCount} supporting points.`,
     input.tangents.length ? `Include these selected tangents only when evidence supports them: ${input.tangents.join(', ')}.` : '',
+    `MARK'S PAGE INSTRUCTIONS\n${getPageInstructions('prep')}`,
     'Writing rules: lead with the answer, use plain language, explain the mechanism, keep every paragraph focused, and make the result easy to speak from. Do not dump disconnected statistics. Do not invent facts, quotations, consensus, or certainty.',
     'Evidence rules: every point must cite at least one exact ID below. A quote is optional, but if used it must be an exact substring of that evidence record. Each citation needs one plain sentence explaining how the source supports the point.',
     `Return only valid JSON with this shape: {"overview":"2 to 4 sentence synthesis","suggested_tangents":["subject"],"points":[{"title":"clear claim","body":"short explanation","detail":["deeper paragraph"],"counter":"where the point is weak or uncertain","tag":null,"citations":[{"id":"exact evidence ID","quote":null,"speaker":"source speaker if known","locator":"timestamp or section if known","when":"source date if known","inference":"how this evidence supports the point"}]}]}. Do not wrap JSON in Markdown.`,
@@ -486,6 +488,7 @@ export async function generateCreatorDraft(value: CreatorInput, actor: string): 
     `Create ${input.count} ${input.format === 'tweet' ? 'tweet' : 'blog post'} output${input.count === 1 ? '' : 's'} about: ${input.prompt}`,
     `Creator: ${input.creator}. Use the records marked creator_reference below and search the unified Creator Reference memory before writing. The supplied creator records are valid reference material, so do not claim the creator is unavailable.`,
     voiceRules,
+    `MARK'S PAGE INSTRUCTIONS\n${getPageInstructions(input.creator === 'Haseeb' ? 'haseeb' : 'tarun')}`,
     `Tone: ${input.tone}. ${toneRules[input.tone]}`,
     input.customTone ? `Additional tone instruction that overrides the preset when they conflict: ${input.customTone}` : '',
     `Length: ${input.length}. ${creatorLengthRule(input.format, input.length)}`,

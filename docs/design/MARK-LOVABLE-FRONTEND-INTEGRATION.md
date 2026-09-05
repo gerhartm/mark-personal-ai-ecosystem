@@ -182,3 +182,19 @@ Release `20260904T181850Z` restores the visible `Generate with Hermes` action at
 The web and server production builds passed, all 92 server tests passed, and all 73 Chrome checks passed locally, in the isolated canary, and after production promotion. The production browser pass clicked the restored button, received the requested five source-backed points, and rechecked direct quotes, limitations, exact sources, raw Markdown, dark mode, mobile layout, request failures, and console errors. No paid model call was made because browser generation used the accepted deterministic evidence fixture.
 
 The live image is `mark-crypto-dashboard:20260904T181850Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260904T174126Z`, and the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260904T181850Z/crypto-intelligence.db`. Cloudflare, Hermes, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.
+
+## Separate prompt Control Center
+
+Release `20260905T051408Z` adds a separate Control Center for Mark without changing the five numbered screens or their Lovable layouts. The utility link sits below the primary navigation so Topics, Timeline, Prep, Haseeb bot, and Tarun bot remain exactly the product Mark designed.
+
+The Control Center exposes page-specific instructions for Topics, Prep, Haseeb bot, and Tarun bot. Every saved instruction creates an append-only revision, previous revisions can be restored, and changes apply only to later generations. Timeline is identified as evidence-only because it assembles stored records and does not use a generative page prompt.
+
+Editable instructions can change organization, emphasis, tone, and output structure. They cannot disable source grounding, citation checks, output validation, or the rule against invented claims. Those evidence controls remain fixed in application code and are visible in the interface.
+
+Topics uses an explicit two-step workflow. Mark first saves a Topics instruction, then selects `Rebuild Topics` when he wants Hermes to reorganize the existing corpus. Rebuilding uses one bounded, low-reasoning Hermes request, validates every proposed topic against exact stored event IDs, and stores only the resulting organization. It never changes or duplicates source records. No topic rebuild, paid request, or background generation occurs automatically.
+
+The sidebar also reports live Satoshi synchronization values from the backend. At production acceptance it showed 7 received, 7 synced, 0 processing, and 0 failed. These are live queue values, not design placeholders.
+
+The release passed 97 server tests and all 89 Chrome checks locally, in the isolated production canary, and after production promotion. The browser suite verified the five-screen navigation boundary, all existing evidence and creator workflows, the separate Control Center, light and dark themes, desktop and mobile layouts, live Telegram status refresh, Markdown rendering, requests, and console behavior. Deployment and acceptance made zero paid model calls.
+
+The live image is `mark-crypto-dashboard:20260905T051408Z`. The stopped immediate rollback is `crypto-dashboard-rollback-20260904T184636Z`, the verified pre-promotion database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T051408Z/crypto-intelligence.db`, and the deployment snapshot is `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T051408Z`. Cloudflare, Hermes provider settings, OpenViking, Satoshi, ForkedBrain, and the legacy Intel service were not changed.

@@ -38,6 +38,11 @@ describe('read routes', () => {
     expect(b.theme.title).toBeTruthy();
     expect(b.gaps.unresolvedConnections).toBe(7);
     expect(b.range.min < b.range.max).toBe(true);
+    expect(typeof b.telegram_sync.received).toBe('number');
+    expect(typeof b.telegram_sync.synced).toBe('number');
+    expect(typeof b.telegram_sync.processing).toBe('number');
+    expect(typeof b.telegram_sync.failed).toBe('number');
+    expect(typeof b.telegram_sync.configured).toBe('boolean');
   });
 
   it('filters events by the stored taxonomy, not by family', async () => {
@@ -80,7 +85,7 @@ describe('read routes', () => {
     expect(recon.unresolvedConnections).toBe(7);
     expect(recon.orphanEvents).toBe(0);
     expect(recon.foreignKeyErrors).toBe(0);
-    expect(recon.migrations.length).toBe(7);
+    expect(recon.migrations.length).toBe(8);
   });
 
   it('builds topics and source detail from the stored corpus', async () => {
@@ -100,6 +105,13 @@ describe('read routes', () => {
     expect(source.research_brief.overview).toBeTruthy();
     expect(source.research_brief.key_points.length).toBeGreaterThan(0);
     expect(source.research_brief.key_points.length).toBeLessThanOrEqual(6);
+  });
+
+  it('exposes page instructions without weakening the evidence contract', async () => {
+    const response = await json('/api/prompt-controls');
+    expect(response.controls.map((control: any) => control.id)).toEqual(['topics', 'timeline', 'prep', 'haseeb', 'tarun']);
+    expect(response.controls.find((control: any) => control.id === 'timeline').mode).toBe('evidence');
+    expect(response.controls.filter((control: any) => control.mode === 'generated').every((control: any) => control.instructions.length >= 80)).toBe(true);
   });
 
   it('returns preserved Ask history without generating placeholder answers', async () => {

@@ -7,6 +7,7 @@ import { TopicDetail } from './screens/TopicDetail';
 import { Timeline } from './screens/Timeline';
 import { Prep } from './screens/Prep';
 import { CreatorBot } from './screens/CreatorBot';
+import { ControlCenter } from './screens/ControlCenter';
 
 export default function App() {
   // Appearance preferences are applied before first paint of any screen.
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/prep" element={<Prep />} />
           <Route path="/haseeb" element={<CreatorBot key="haseeb" creator="Haseeb" />} />
           <Route path="/tarun" element={<CreatorBot key="tarun" creator="Tarun" />} />
+          <Route path="/control-center" element={<ControlCenter />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

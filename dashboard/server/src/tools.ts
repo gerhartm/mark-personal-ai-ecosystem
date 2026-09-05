@@ -7,6 +7,7 @@
  */
 import { all, one, db } from './db.js';
 import { buildSourceBrief, eventPresentation } from './presentation.js';
+import { activeTopicOrganization } from './prompt-controls.js';
 
 /* ------------------------------------------------------------------ */
 /* filters                                                             */
@@ -579,10 +580,7 @@ export function search(q: string, limit = 40) {
 export function brief() {
   const counts = one<any>(
     `SELECT (SELECT count(*) FROM events) events,
-            (SELECT count(*) FROM events) claims,
             (SELECT count(*) FROM sources) sources,
-            (SELECT count(DISTINCT source_id) FROM events WHERE source_type='telegram_forward') forwards,
-            (SELECT count(DISTINCT source_id) FROM events WHERE source_type LIKE '%transcript%') transcripts,
             (SELECT count(*) FROM event_facets) facets,
             (SELECT count(*) FROM media_assets) media,
             (SELECT count(*) FROM content_drafts) drafts,
@@ -590,6 +588,18 @@ export function brief() {
             (SELECT count(*) FROM conversation_sessions) conversations,
             (SELECT count(*) FROM events WHERE origin='ingested') ingested_events`,
   )!;
+
+  const telegramSync = one<any>(
+    `SELECT count(*) AS received,
+            coalesce(sum(CASE WHEN status='ready' THEN 1 ELSE 0 END), 0) AS ready,
+            coalesce(sum(CASE WHEN status IN ('queued','processing') THEN 1 ELSE 0 END), 0) AS processing,
+            coalesce(sum(CASE WHEN status='failed' THEN 1 ELSE 0 END), 0) AS failed,
+            max(updated_at) AS updated_at
+       FROM source_sync_jobs`,
+  )!;
+  telegramSync.synced = one<{ c: number }>(
+    "SELECT count(*) c FROM sources WHERE origin='ingested' AND source_channel='telegram'",
+  )!.c;
 
   const theme = one('SELECT id, title, through_line FROM themes LIMIT 1');
   const themeCoverage = one<{ c: number }>('SELECT count(DISTINCT event_id) c FROM theme_events')!.c;
@@ -651,10 +661,86 @@ export function brief() {
   const recentQuestions = listAskHistory('', 5);
   const topics = listTopics(8);
 
-  return { counts, theme, themeCoverage, gaps, highSignal, categories, captureByMonth, subjectByYear, recentDrafts, lastRead, range, recentSources, recentQuestions, topics };
+  return { counts, telegram_sync: telegramSync, theme, themeCoverage, gaps, highSignal, categories, captureByMonth, subjectByYear, recentDrafts, lastRead, range, recentSources, recentQuestions, topics };
 }
 
 export function listTopics(limit = 80, selected?: string) {
+  const organized = activeTopicOrganization();
+  if (organized?.topics.length) {
+    const visible = organized.topics.slice(0, Math.max(1, Math.min(limit, 80)));
+    const topics = visible.map((topic) => {
+      const placeholders = topic.event_ids.map(() => '?').join(',');
+      const stats = one<any>(
+        `SELECT count(DISTINCT e.id) AS event_count,
+                count(DISTINCT e.source_id) AS source_count,
+                count(DISTINCT e.primary_category) AS position_count,
+                max(${SUBJECT_DATE}) AS latest_subject_date,
+                max(e.significance) AS max_significance
+           FROM events e WHERE e.id IN (${placeholders})`,
+        ...topic.event_ids,
+      );
+      return {
+        tag: topic.key,
+        title: topic.title,
+        description: topic.description,
+        event_count: stats?.event_count ?? 0,
+        source_count: stats?.source_count ?? 0,
+        position_count: stats?.position_count ?? 0,
+        latest_subject_date: stats?.latest_subject_date ?? null,
+        max_significance: stats?.max_significance ?? 0,
+        tags: topic.tags,
+      };
+    });
+    if (!selected) return topics;
+    const chosen = organized.topics.find((topic) => topic.key === selected);
+    if (chosen) {
+      const placeholders = chosen.event_ids.map(() => '?').join(',');
+      const events = all<any>(
+        `SELECT e.id, e.origin, e.timestamp, e.primary_category, e.significance,
+                e.summary, e.business_signal, e.source_id, e.source_type, e.source_channel,
+                ${SUBJECT_DATE} AS subject_date,
+                s.title AS source_title, s.source_label, s.source_url
+           FROM events e JOIN sources s ON s.source_id=e.source_id
+          WHERE e.id IN (${placeholders})
+          ORDER BY subject_date DESC, e.significance DESC, e.id`,
+        ...chosen.event_ids,
+      ).map(withTags);
+      const sources = all(
+        `SELECT DISTINCT s.*, count(e2.id) AS event_count
+           FROM events e JOIN sources s ON s.source_id=e.source_id
+           LEFT JOIN events e2 ON e2.source_id=s.source_id
+          WHERE e.id IN (${placeholders})
+          GROUP BY s.source_id ORDER BY s.captured_at DESC`,
+        ...chosen.event_ids,
+      );
+      const claims = all(
+        `SELECT i.event_id, i.position, i.text, e.primary_category, e.significance,
+                ${SUBJECT_DATE} AS subject_date, e.source_id,
+                s.title AS source_title, s.source_label, s.source_channel, s.source_type, s.source_url
+           FROM events e JOIN event_insights i ON i.event_id=e.id
+           JOIN sources s ON s.source_id=e.source_id
+          WHERE e.id IN (${placeholders})
+          ORDER BY e.significance DESC, subject_date DESC, i.position`,
+        ...chosen.event_ids,
+      );
+      const relatedTags = all(
+        `SELECT t.tag, count(DISTINCT t.event_id) AS event_count
+           FROM event_tags t WHERE t.event_id IN (${placeholders})
+          GROUP BY t.tag ORDER BY event_count DESC, t.tag LIMIT 8`,
+        ...chosen.event_ids,
+      );
+      return {
+        topics,
+        selected,
+        topic_title: chosen.title,
+        topic_description: chosen.description,
+        events,
+        sources,
+        claims,
+        related_tags: relatedTags,
+      };
+    }
+  }
   const topicRows = all<any>(
     `SELECT t.tag, count(DISTINCT t.event_id) AS event_count,
             count(DISTINCT e.source_id) AS source_count,

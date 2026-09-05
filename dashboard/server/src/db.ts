@@ -86,6 +86,35 @@ if (!hasMigration('007')) db.transaction(() => {
   ).run(new Date().toISOString());
 })();
 
+/** Runtime migration 008: Mark-owned page instructions with append-only revision history. */
+if (!hasMigration('008')) db.transaction(() => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_settings (
+      page_id TEXT PRIMARY KEY,
+      instructions TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision >= 1),
+      updated_at TEXT NOT NULL,
+      updated_by TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS prompt_revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      page_id TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      instructions TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL CHECK (action IN ('save','restore')),
+      created_at TEXT NOT NULL,
+      UNIQUE(page_id, revision)
+    );
+    CREATE INDEX IF NOT EXISTS idx_prompt_revisions_page
+      ON prompt_revisions(page_id, revision DESC);
+  `);
+  db.prepare(
+    `INSERT OR IGNORE INTO schema_migrations (id, name, applied_at)
+     VALUES ('008', 'prompt_controls', ?)`,
+  ).run(new Date().toISOString());
+})();
+
 /** The private media archive. Unset means media is unavailable in this environment. */
 export const MEDIA_ROOT = process.env.CRYPTO_MEDIA_ROOT ?? null;
 

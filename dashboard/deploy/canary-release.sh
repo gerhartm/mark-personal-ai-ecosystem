@@ -67,8 +67,17 @@ jq -e '
 ' <<<"$ingestion" >/dev/null
 
 database_health="$(docker exec "$name" node --input-type=module -e \
-  "import Database from 'better-sqlite3'; const db = new Database('/data/crypto-intelligence.db', { readonly: true }); console.log(JSON.stringify({quick_check:db.pragma('quick_check',{simple:true}),foreign_keys:db.pragma('foreign_key_check').length,sync_migration:db.prepare(\"SELECT count(*) c FROM schema_migrations WHERE id='006' AND name='telegram_source_sync'\").get().c,ask_history_migration:db.prepare(\"SELECT count(*) c FROM schema_migrations WHERE id='007' AND name='ask_history'\").get().c})); db.close();")"
-jq -e '.quick_check == "ok" and .foreign_keys == 0 and .sync_migration == 1 and .ask_history_migration == 1' <<<"$database_health" >/dev/null
+  "import Database from 'better-sqlite3'; const db = new Database('/data/crypto-intelligence.db', { readonly: true }); console.log(JSON.stringify({quick_check:db.pragma('quick_check',{simple:true}),foreign_keys:db.pragma('foreign_key_check').length,sync_migration:db.prepare(\"SELECT count(*) c FROM schema_migrations WHERE id='006' AND name='telegram_source_sync'\").get().c,ask_history_migration:db.prepare(\"SELECT count(*) c FROM schema_migrations WHERE id='007' AND name='ask_history'\").get().c,prompt_controls_migration:db.prepare(\"SELECT count(*) c FROM schema_migrations WHERE id='008' AND name='prompt_controls'\").get().c})); db.close();")"
+jq -e '.quick_check == "ok" and .foreign_keys == 0 and .sync_migration == 1 and .ask_history_migration == 1 and .prompt_controls_migration == 1' <<<"$database_health" >/dev/null
+
+prompt_controls="$(curl -fsS \
+  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  http://127.0.0.1:9331/api/prompt-controls)"
+jq -e '
+  [.controls[].id] == ["topics","timeline","prep","haseeb","tarun"] and
+  (.controls | map(select(.mode == "generated")) | length) == 4 and
+  (.controls | map(select(.mode == "evidence")) | length) == 1
+' <<<"$prompt_controls" >/dev/null
 
 test "$(curl -sS -o /dev/null -w '%{http_code}' \
   -X POST -H 'Content-Type: application/json' \
@@ -90,4 +99,4 @@ quiz_status="$(curl -fsS \
 jq -e '.connected == true and .default_question_count == 5' <<<"$quiz_status" >/dev/null
 
 counts="$(jq -r '[.counts.events,.counts.sources,.counts.media]|join(":")' <<<"$brief")"
-printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=%s\ndatabase=healthy-with-migrations-006-007\ninternal_sync_without_secret=401\nintelligence=connected\nmemory=connected\nstudio=connected-with-lenses\nquiz=connected\npaid_model_calls=0\n' "$counts"
+printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=%s\ndatabase=healthy-with-migrations-006-007-008\nprompt_controls=ready\ninternal_sync_without_secret=401\nintelligence=connected\nmemory=connected\nstudio=connected-with-lenses\nquiz=connected\npaid_model_calls=0\n' "$counts"

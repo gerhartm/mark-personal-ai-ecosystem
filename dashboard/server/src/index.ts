@@ -30,6 +30,15 @@ import {
 } from './studio.js';
 import { generateCreatorDraft, generatePrepBrief } from './workflows.js';
 import {
+  PromptControlError,
+  getPromptControl,
+  listPromptControls,
+  promptHistory,
+  rebuildTopics,
+  restorePromptControl,
+  savePromptControl,
+} from './prompt-controls.js';
+import {
   QuizInputError,
   createQuizSession,
   gradeQuizSession,
@@ -117,7 +126,16 @@ app.get('/api/internal/telegram-sync/:externalId', async (req, reply) => {
   return job ?? reply.code(404).send({ error: 'not_found' });
 });
 
-app.get('/api/brief', async () => t.brief());
+app.get('/api/brief', async () => {
+  const brief = t.brief();
+  return {
+    ...brief,
+    telegram_sync: {
+      ...brief.telegram_sync,
+      configured: telegramSyncConfigured(),
+    },
+  };
+});
 
 app.get('/api/intelligence', async () => intelligenceStatus());
 
@@ -170,6 +188,75 @@ app.get('/api/sources/:id', async (req, reply) => {
 app.get('/api/topics', async (req) => {
   const q = req.query as Record<string, string>;
   return q.tag ? t.listTopics(80, q.tag) : { topics: t.listTopics(80) };
+});
+
+app.get('/api/prompt-controls', async () => ({ controls: listPromptControls() }));
+
+app.get('/api/prompt-controls/:page', async (req, reply) => {
+  try {
+    return getPromptControl((req.params as { page: string }).page);
+  } catch (error) {
+    if (error instanceof PromptControlError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    throw error;
+  }
+});
+
+app.get('/api/prompt-controls/:page/history', async (req, reply) => {
+  try {
+    return { history: promptHistory((req.params as { page: string }).page) };
+  } catch (error) {
+    if (error instanceof PromptControlError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    throw error;
+  }
+});
+
+app.put('/api/prompt-controls/:page', async (req, reply) => {
+  try {
+    return savePromptControl(
+      (req.params as { page: string }).page,
+      (req.body as { instructions?: unknown })?.instructions,
+      requestActor(req),
+    );
+  } catch (error) {
+    if (error instanceof PromptControlError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(500).send({ error: 'prompt_save_failed', message: 'The page instruction could not be saved.' });
+  }
+});
+
+app.post('/api/prompt-controls/:page/restore', async (req, reply) => {
+  try {
+    return restorePromptControl((req.params as { page: string }).page, requestActor(req));
+  } catch (error) {
+    if (error instanceof PromptControlError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(500).send({ error: 'prompt_restore_failed', message: 'The default instruction could not be restored.' });
+  }
+});
+
+app.post('/api/prompt-controls/topics/rebuild', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isStudioRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before rebuilding Topics again.' });
+  }
+  try {
+    return await rebuildTopics(actor);
+  } catch (error) {
+    if (error instanceof PromptControlError) {
+      return reply.code(error.status).send({ error: error.code, message: error.message });
+    }
+    return reply.code(503).send({
+      error: 'hermes_unavailable',
+      message: cleanHermesError(error instanceof Error ? error.message : error),
+    });
+  }
 });
 
 app.get('/api/ask/history', async (req) => {

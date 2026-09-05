@@ -98,7 +98,7 @@ export function TopicDetail() {
     <section>
       <Link className="mb-4 inline-block font-mono text-[10px] text-dim hover:text-[var(--brass)]" to="/">← all topics</Link>
       <div className="mb-5 border-b border-[var(--line)] pb-4">
-        <h1 className="mb-[7px] text-[26px] font-medium tracking-[-0.025em] text-foreground">{titleCase(topic)}</h1>
+        <h1 className="mb-[7px] text-[26px] font-medium tracking-[-0.025em] text-foreground">{result.data?.topic_title ?? titleCase(topic)}</h1>
         <p className="font-mono text-[10px] text-dim">
           {claims.length} claims · {new Set(claims.map(claimSpeaker)).size} speakers · {result.data?.sources?.length ?? 0} sources
           {coverage ? ` · ${coverage}` : ''}

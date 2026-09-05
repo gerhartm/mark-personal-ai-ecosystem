@@ -576,6 +576,29 @@ migration('007', 'ask_history', () => {
   `);
 });
 
+migration('008', 'prompt_controls', () => {
+  db.exec(`
+    CREATE TABLE prompt_settings (
+      page_id TEXT PRIMARY KEY,
+      instructions TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision >= 1),
+      updated_at TEXT NOT NULL,
+      updated_by TEXT NOT NULL
+    );
+    CREATE TABLE prompt_revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      page_id TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      instructions TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL CHECK (action IN ('save','restore')),
+      created_at TEXT NOT NULL,
+      UNIQUE(page_id, revision)
+    );
+    CREATE INDEX idx_prompt_revisions_page ON prompt_revisions(page_id, revision DESC);
+  `);
+});
+
 /* ------------------------------------------------------------------ *
  * Apply
  * ------------------------------------------------------------------ */

@@ -117,13 +117,28 @@ async function checkViewport(page, label) {
 
 async function desktopPass(browser) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 950 }, deviceScaleFactor: 1, colorScheme: 'light', extraHTTPHeaders: HEADERS });
+  const briefResponse = await context.request.get(`${BASE}/api/brief`, { headers: HEADERS });
+  check(briefResponse.ok(), 'Live status API responds', `${briefResponse.status()}`);
+  const liveBrief = briefResponse.ok() ? await briefResponse.json() : { telegram_sync: null };
   const source = await sourceFixture(context.request);
   await installGenerationMocks(context, source);
   const page = await context.newPage();
+  let briefFetches = 0;
+  page.on('response', (response) => {
+    if (response.url() === `${BASE}/api/brief`) briefFetches += 1;
+  });
   await instrument(page);
 
   await page.goto(BASE, { waitUntil: 'networkidle' });
+  const syncStatus = page.getByTestId('telegram-sync-status');
+  await syncStatus.waitFor();
+  const syncText = await syncStatus.innerText();
+  check(Boolean(liveBrief.telegram_sync) && syncText.includes(`${liveBrief.telegram_sync.received} received`), 'Sidebar shows the live Telegram received count', syncText);
+  check(Boolean(liveBrief.telegram_sync) && syncText.includes(`${liveBrief.telegram_sync.synced} synced`), 'Sidebar shows the live Telegram synced count', syncText);
+  check(Boolean(liveBrief.telegram_sync) && syncText.includes(`${liveBrief.telegram_sync.processing} processing`), 'Sidebar shows the live Telegram processing count', syncText);
+  check(Boolean(liveBrief.telegram_sync) && syncText.includes(`${liveBrief.telegram_sync.failed} failed`), 'Sidebar shows the live Telegram failed count', syncText);
   check((await page.locator('nav a').allTextContents()).length === 5, 'Navigation contains exactly Mark’s five screens');
+  check(await page.getByRole('link', { name: 'Control center', exact: true }).isVisible(), 'Control Center is a separate utility link');
   check(await page.getByRole('heading', { name: 'Topics', exact: true }).isVisible(), 'Topics opens as the home screen');
   check((await page.locator('main a[href^="/topics/"]').count()) > 0, 'Topics uses live topic records');
   const firstTopicTag = page.locator('main button').nth(1);
@@ -240,12 +255,25 @@ async function desktopPass(browser) {
   await page.screenshot({ path: join(OUT, '05-tarun-blog.png'), fullPage: true });
   await checkViewport(page, 'Tarun desktop');
 
+  await page.getByRole('link', { name: 'Control center', exact: true }).click();
+  await page.getByRole('heading', { name: 'Control center', exact: true }).waitFor();
+  check((await page.getByTestId('control-center').locator('aside button').count()) === 5, 'Control Center covers all five Mark-designed pages');
+  check(await page.getByLabel('Page instructions').isVisible(), 'Control Center exposes the active Topics instruction');
+  check(await page.getByText('Fixed evidence contract', { exact: true }).isVisible(), 'Control Center keeps evidence safeguards visible');
+  await page.getByTestId('control-center').locator('aside button').filter({ hasText: 'Timeline' }).click();
+  check(await page.getByText('This view is evidence-only, so there is no prompt to edit.', { exact: true }).isVisible(), 'Control Center identifies the non-generative Timeline contract');
+  await page.getByTestId('control-center').locator('aside button').filter({ hasText: 'Prep' }).click();
+  check(await page.getByLabel('Page instructions').isVisible(), 'Control Center switches between page instructions');
+  check(!(await bodyHasRawMarkdown(page.locator('main'))), 'Control Center has no raw Markdown');
+  await page.screenshot({ path: join(OUT, '06-control-center.png'), fullPage: true });
+  await checkViewport(page, 'Control Center desktop');
+
   const theme = page.getByRole('button', { name: 'Dark mode' });
   check(await theme.isVisible(), 'Dark mode control is available');
   await theme.click();
   check(await page.evaluate(() => document.documentElement.dataset.theme === 'dark'), 'Dark mode applies to the approved design');
   await page.waitForTimeout(300);
-  const darkDraft = await page.getByTestId('creator-draft').first().evaluate((element) => {
+  const darkDraft = await page.getByTestId('control-center').evaluate((element) => {
     const style = getComputedStyle(element);
     return {
       background: style.backgroundColor,
@@ -254,9 +282,10 @@ async function desktopPass(browser) {
       foregroundToken: style.getPropertyValue('--foreground').trim(),
     };
   });
-  check(darkDraft.background === 'rgb(22, 26, 23)', 'Generated content cards inherit the dark surface', JSON.stringify(darkDraft));
-  check(darkDraft.foreground === 'rgb(220, 227, 221)', 'Generated content cards retain readable dark-mode text', JSON.stringify(darkDraft));
-  await page.screenshot({ path: join(OUT, '06-dark-mode.png'), fullPage: false });
+  check(darkDraft.background === 'rgb(22, 26, 23)', 'Control Center inherits the dark surface', JSON.stringify(darkDraft));
+  check(darkDraft.foreground === 'rgb(220, 227, 221)', 'Control Center retains readable dark-mode text', JSON.stringify(darkDraft));
+  check(briefFetches >= 2, 'Telegram status refreshes automatically while the page is visible', `${briefFetches} live reads`);
+  await page.screenshot({ path: join(OUT, '07-dark-mode.png'), fullPage: false });
 
   await context.close();
 }
@@ -273,6 +302,7 @@ async function mobilePass(browser) {
     ['/prep', 'Prep'],
     ['/haseeb', 'Haseeb bot'],
     ['/tarun', 'Tarun bot'],
+    ['/control-center', 'Control center'],
   ];
   for (const [path, heading] of routes) {
     await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
@@ -284,7 +314,7 @@ async function mobilePass(browser) {
   await page.getByTestId('timeline-dossier').waitFor();
   check(await page.getByTestId('timeline-dossier').isVisible(), 'Timeline dossier opens as a mobile sheet');
   check(!(await bodyHasRawMarkdown(page.getByTestId('timeline-dossier'))), 'Mobile Timeline dossier has no raw Markdown');
-  await page.screenshot({ path: join(OUT, '07-mobile-timeline.png'), fullPage: false });
+  await page.screenshot({ path: join(OUT, '08-mobile-timeline.png'), fullPage: false });
   await context.close();
 }
 

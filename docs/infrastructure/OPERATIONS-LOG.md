@@ -1141,3 +1141,15 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Repository: committed and pushed the custom login, Turnstile integration, acceptance suites, guarded deployment scripts, and redacted operations documentation to private `main`.
 - Safety: the checkpoint contains no plaintext login password, Turnstile secret, API token, signed session, provider credential, or private client content.
 - Recovery mirror: refreshed `/root/mark-v2-docs/` from the final tracked checkpoint, compared all tracked file hashes, and retained the previous generated mirror as `/root/mark-v2-docs.pre-20260905T084059Z`.
+
+## 2026-09-05 09:32-09:55 UTC: Real Turnstile and Crypto Access cutover accepted
+
+- Operator: Codex completing Darshan's approved custom-login cutover with a temporary least-privilege Cloudflare token.
+- Turnstile: created a real managed widget restricted to `crypto.forkedbrain.fyi`, installed its site key and owner-only secret, and enabled exact hostname plus `workspace_login` action validation. The temporary API response and process credential were removed locally after final Cloudflare readback.
+- Access boundary: removed only `crypto.forkedbrain.fyi` from the existing shared Access application. `forkedbrain.fyi`, `manage.forkedbrain.fyi`, and `manage-realtime.forkedbrain.fyi` remain Access-protected. The current Access policy and all approved members were preserved byte-for-byte at the policy-contract level.
+- Public authentication: the custom Crypto login returns HTTP `200`, anonymous private APIs return HTTP `401`, anonymous session state is empty, invalid Turnstile tokens fail closed, and the real widget is not one of Cloudflare's always-pass test widgets.
+- Production correction: allowed Cloudflare's injected first-party analytics beacon in the strict Content Security Policy after it became visible outside Access. No dashboard component, workflow, prompt, data record, or visual style changed.
+- Verification: all 104 server tests passed; server and web type checks and production builds passed; the isolated canary passed with zero paid model calls; public browser acceptance passed all 89 checks with zero first-party request failures and zero console errors.
+- Production: active image `mark-crypto-dashboard:20260905T095230Z`; healthy application origin `127.0.0.1:9330`; authentication gateway `127.0.0.1:9331`; 66 events, 54 sources, 89 media assets, and live Telegram status of 7 received, 7 synced, 0 processing, and 0 failed.
+- Persistence and recovery: the production database was unchanged by credential installation and retained SQLite health. Immediate rollback is `crypto-dashboard-rollback-20260905T084059Z`; database backup is `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T095230Z/crypto-intelligence.db`; pre-Turnstile runtime backup is `/srv/mark-v2/operator-backups/20260905T093346Z-real-turnstile-pre`; Access mutation backup is stored in the ignored client secret area.
+- Remaining operator action: revoke the temporary Cloudflare API token. The production runtime does not use it.

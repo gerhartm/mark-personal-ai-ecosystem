@@ -518,12 +518,12 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted application release: `20260905T084059Z`
+Current accepted application release: `20260905T095230Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260905T084059Z`
+- image: `mark-crypto-dashboard:20260905T095230Z`
 - loopback origin: `http://127.0.0.1:9330`
 - authentication gateway: `http://127.0.0.1:9331`
 - application network: `27am3wgv7vkohkenprml4s3p`
@@ -538,12 +538,12 @@ Runtime contract:
 - mounted Turnstile secret: `/srv/mark-v2/secrets/crypto-dashboard-turnstile-secret`
 - versioned deployment definition: `dashboard/deploy/docker-compose.production.yml`
 
-Preferred application rollback: `mark-crypto-dashboard:20260905T072131Z` with
-stopped container `crypto-dashboard-rollback-20260905T072131Z`. Candidate
+Preferred application rollback: `mark-crypto-dashboard:20260905T084059Z` with
+stopped container `crypto-dashboard-rollback-20260905T084059Z`. Candidate
 `20260903T162235Z` was superseded after browser interaction exposed a navigation
 cleanup defect and must not be treated as an accepted rollback target. The
 pre-release database backup is
-`/srv/mark-v2/crypto-dashboard/backups/pre-20260905T084059Z/crypto-intelligence.db`.
+`/srv/mark-v2/crypto-dashboard/backups/pre-20260905T095230Z/crypto-intelligence.db`.
 Restore a database backup only when data rollback is explicitly required.
 
 ### Routine status
@@ -560,7 +560,7 @@ Expected state is healthy, `127.0.0.1:9330->5183/tcp`, read-only root filesystem
 
 The application uses its own shared-password login. The browser must receive an HttpOnly, Secure, SameSite Lax session cookie that expires after 12 hours. Every private API must reject an anonymous request with HTTP `401`. The username and actor are `mark`; never record the password in source, documentation, command history, or environment. The password verifier and session secret are mounted as owner-only files.
 
-Cloudflare Turnstile must be visible on the login page and verified server-side. Before removing Cloudflare Access, replace the official test widget credentials with a real widget restricted to `crypto.forkedbrain.fyi`, set `TURNSTILE_EXPECTED_HOSTNAME=crypto.forkedbrain.fyi` and `TURNSTILE_EXPECTED_ACTION=workspace_login`, recreate only the Crypto dashboard, and run the 22-check login acceptance over public HTTPS. Never expose the public custom login while an always-pass test widget is configured.
+Cloudflare Turnstile must be visible on the login page and verified server-side. Production uses a real managed widget restricted to `crypto.forkedbrain.fyi`, with `TURNSTILE_EXPECTED_HOSTNAME=crypto.forkedbrain.fyi` and `TURNSTILE_EXPECTED_ACTION=workspace_login`. Cloudflare Access is intentionally absent only from Crypto so Mark can use the custom login directly. The shared Access application must continue to protect `forkedbrain.fyi`, `manage.forkedbrain.fyi`, and `manage-realtime.forkedbrain.fyi`.
 
 With a valid application session, require:
 

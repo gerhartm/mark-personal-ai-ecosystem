@@ -63,13 +63,13 @@ jq -e '
 jq -e '
   .success == true and
   .result.decision == "allow" and
-  ([.result.include[].email.email] | sort) == [
-    "darshan@growthforgeai.com",
-    "gerhartmark@gmail.com"
-  ] and
+  (.result.include | length) >= 1 and
+  all(.result.include[]; (.email.email | type) == "string" and (.email.email | length) > 0) and
   (.result.exclude | length) == 0 and
   (.result.require | length) == 0
 ' "${backup_dir}/access-policy-before.json" >/dev/null
+jq -S '.result | {id,name,decision,precedence,include,exclude,require}' \
+  "${backup_dir}/access-policy-before.json" >"${backup_dir}/access-policy-contract-before.json"
 
 jq '
   .result | {
@@ -159,12 +159,13 @@ jq -e '
   ]
 ' "${backup_dir}/access-app-after.json" >/dev/null
 jq -e '
-  .success == true and
-  ([.result.include[].email.email] | sort) == [
-    "darshan@growthforgeai.com",
-    "gerhartmark@gmail.com"
-  ]
+  .success == true
 ' "${backup_dir}/access-policy-after.json" >/dev/null
+jq -S '.result | {id,name,decision,precedence,include,exclude,require}' \
+  "${backup_dir}/access-policy-after.json" >"${backup_dir}/access-policy-contract-after.json"
+cmp -s \
+  "${backup_dir}/access-policy-contract-before.json" \
+  "${backup_dir}/access-policy-contract-after.json"
 
 trap - ERR
 printf 'access_removal=complete\ncrypto_login_status=200\ncrypto_private_api_status=401\nturnstile=production\naccess_destinations=3\nlegacy_intel_status=200\nbackup=%s\n' \

@@ -35,6 +35,12 @@ before_counts="$(docker run --rm \
 docker stop crypto-dashboard >/dev/null
 docker rename crypto-dashboard "$rollback"
 docker update --restart=no "$rollback" >/dev/null
+# The authentication gateway is stateless and uses a fixed container name.
+# Remove only the verified prior gateway so the new Compose project can own it.
+if docker inspect crypto-auth >/dev/null 2>&1; then
+  test "$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.service" }}' crypto-auth)" = crypto-auth
+  docker rm -f crypto-auth >/dev/null
+fi
 # Give every release its own Compose project identity. Reusing the default
 # project name causes Compose to adopt and recreate the renamed predecessor,
 # defeating the stopped-container rollback we intentionally keep above.
@@ -46,10 +52,14 @@ for _ in $(seq 1 30); do
 done
 test "$(docker inspect -f '{{.State.Health.Status}}' crypto-dashboard)" = healthy
 
-test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9330/)" = 401
-test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/)" = 200
+test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9330/)" = 200
+test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9330/api/brief)" = 401
+auth_config="$(curl -fsS http://127.0.0.1:9330/api/auth/config)"
+jq -e '.mode == "shared-password" and .turnstile == true and (.turnstileSiteKey | length) > 0' <<<"$auth_config" >/dev/null
+session_token="$(docker exec crypto-dashboard node --input-type=module -e "import { issueSession } from '/app/server/dist/request-auth.js'; process.stdout.write(issueSession('mark','mark'));" )"
+auth_cookie="crypto_session=${session_token}"
 
-brief="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/api/brief)"
+brief="$(curl -fsS -H "Cookie: ${auth_cookie}" http://127.0.0.1:9330/api/brief)"
 jq -e --argjson before "$before_counts" '
   .counts.events >= $before.events and
   .counts.sources >= $before.sources and
@@ -61,7 +71,7 @@ database_health="$(docker exec crypto-dashboard node --input-type=module -e \
 jq -e '.quick_check == "ok" and .foreign_keys == 0 and .sync_migration == 1 and .ask_history_migration == 1 and .prompt_controls_migration == 1' <<<"$database_health" >/dev/null
 
 prompt_controls="$(curl -fsS \
-  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  -H "Cookie: ${auth_cookie}" \
   http://127.0.0.1:9330/api/prompt-controls)"
 jq -e '
   [.controls[].id] == ["topics","timeline","prep","haseeb","tarun"] and
@@ -70,18 +80,18 @@ jq -e '
 ' <<<"$prompt_controls" >/dev/null
 
 intelligence_status="$(curl -fsS \
-  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  -H "Cookie: ${auth_cookie}" \
   http://127.0.0.1:9330/api/intelligence)"
 jq -e '.connected == true and .refresh_hours == 24' <<<"$intelligence_status" >/dev/null
 
-ingestion="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/api/ingestion)"
+ingestion="$(curl -fsS -H "Cookie: ${auth_cookie}" http://127.0.0.1:9330/api/ingestion)"
 jq -e '.configured == true and .connected == true and (.receipts | type == "array")' <<<"$ingestion" >/dev/null
 
-media_ref="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9330/api/media | jq -r '.assets[0].archive_ref | @uri')"
-test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-31' -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' "http://127.0.0.1:9330/api/media/${media_ref}")" = 206
+media_ref="$(curl -fsS -H "Cookie: ${auth_cookie}" http://127.0.0.1:9330/api/media | jq -r '.assets[0].archive_ref | @uri')"
+test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-31' -H "Cookie: ${auth_cookie}" "http://127.0.0.1:9330/api/media/${media_ref}")" = 206
 
 studio_status="$(curl -fsS \
-  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  -H "Cookie: ${auth_cookie}" \
   http://127.0.0.1:9330/api/studio/status)"
 jq -e '
   .connected == true and
@@ -91,7 +101,7 @@ jq -e '
 ' <<<"$studio_status" >/dev/null
 
 quiz_status="$(curl -fsS \
-  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
+  -H "Cookie: ${auth_cookie}" \
   http://127.0.0.1:9330/api/quiz/status)"
 jq -e '.connected == true and .default_question_count == 5' <<<"$quiz_status" >/dev/null
 
@@ -99,5 +109,5 @@ docker rm -f "$canary" >/dev/null
 rm -rf "/srv/mark-v2/crypto-dashboard/canary/${release}"
 
 counts="$(jq -r '[.counts.events,.counts.sources,.counts.media]|join(":")' <<<"$brief")"
-printf 'production=healthy\nrelease=%s\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=%s\ndatabase=healthy-with-migrations-006-007-008\nprompt_controls=ready\nintelligence=connected\nmemory=connected\nmedia_range=206\nstudio=connected-with-lenses\nquiz=connected\nrollback=%s\nbackup=%s\n' \
+printf 'production=healthy\nrelease=%s\nlogin_page=200\nprivate_api_without_session=401\nauthenticated_session=200\nturnstile=configured\ncounts=%s\ndatabase=healthy-with-migrations-006-007-008\nprompt_controls=ready\nintelligence=connected\nmemory=connected\nmedia_range=206\nstudio=connected-with-lenses\nquiz=connected\nrollback=%s\nbackup=%s\n' \
   "$release" "$counts" "$rollback" "${backup_dir}/crypto-intelligence.db"

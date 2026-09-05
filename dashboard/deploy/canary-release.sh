@@ -26,13 +26,22 @@ docker run -d \
   --env OPENVIKING_USER=hermes \
   --env INTELLIGENCE_AUTO_REFRESH_HOURS=24 \
   --env SATOSHI_DASHBOARD_SYNC_SECRET_FILE=/run/secrets/satoshi-dashboard-sync-key \
+  --env AUTH_MODE=shared-password \
+  --env AUTH_USERNAME=mark \
+  --env AUTH_ACTOR=mark \
+  --env AUTH_PASSWORD_HASH_FILE=/run/secrets/crypto-dashboard-login-password \
+  --env AUTH_SESSION_SECRET_FILE=/run/secrets/crypto-dashboard-session-secret \
+  --env TURNSTILE_SECRET_KEY_FILE=/run/secrets/crypto-dashboard-turnstile-secret \
   --network 27am3wgv7vkohkenprml4s3p \
-  -p 127.0.0.1:9331:5183 \
+  -p 127.0.0.1:9332:5183 \
   --mount "type=bind,src=${canary_dir},dst=/data" \
   --mount type=bind,src=/srv/mark-v2/crypto-legacy-media/v1,dst=/media,readonly \
   --mount type=bind,src=/srv/mark-v2/secrets/forkedbrain-hermes-password,dst=/run/secrets/hermes-dashboard-password,readonly \
   --mount type=bind,src=/srv/mark-v2/secrets/crypto-dashboard-openviking-key,dst=/run/secrets/openviking-dashboard-key,readonly \
   --mount type=bind,src=/srv/mark-v2/secrets/satoshi-dashboard-sync-key,dst=/run/secrets/satoshi-dashboard-sync-key,readonly \
+  --mount type=bind,src=/srv/mark-v2/secrets/crypto-dashboard-login-password,dst=/run/secrets/crypto-dashboard-login-password,readonly \
+  --mount type=bind,src=/srv/mark-v2/secrets/crypto-dashboard-session-secret,dst=/run/secrets/crypto-dashboard-session-secret,readonly \
+  --mount type=bind,src=/srv/mark-v2/secrets/crypto-dashboard-turnstile-secret,dst=/run/secrets/crypto-dashboard-turnstile-secret,readonly \
   --read-only \
   --cap-drop ALL \
   --security-opt no-new-privileges:true \
@@ -47,18 +56,22 @@ for _ in $(seq 1 30); do
 done
 test "$(docker inspect -f '{{.State.Health.Status}}' "$name")" = healthy
 
-test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9331/)" = 401
-test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9331/)" = 200
+test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9332/)" = 200
+test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9332/api/brief)" = 401
+auth_config="$(curl -fsS http://127.0.0.1:9332/api/auth/config)"
+jq -e '.mode == "shared-password" and .turnstile == true and (.turnstileSiteKey | length) > 0' <<<"$auth_config" >/dev/null
+session_token="$(docker exec "$name" node --input-type=module -e "import { issueSession } from '/app/server/dist/request-auth.js'; process.stdout.write(issueSession('mark','mark'));" )"
+auth_cookie="crypto_session=${session_token}"
 
-brief="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9331/api/brief)"
+brief="$(curl -fsS -H "Cookie: ${auth_cookie}" http://127.0.0.1:9332/api/brief)"
 jq -e '.counts.events >= 66 and .counts.sources >= 47 and .counts.media == 89' <<<"$brief" >/dev/null
 
 intelligence_status="$(curl -fsS \
-  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
-  http://127.0.0.1:9331/api/intelligence)"
+  -H "Cookie: ${auth_cookie}" \
+  http://127.0.0.1:9332/api/intelligence)"
 jq -e '.connected == true and .refresh_hours == 24' <<<"$intelligence_status" >/dev/null
 
-ingestion="$(curl -fsS -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' http://127.0.0.1:9331/api/ingestion)"
+ingestion="$(curl -fsS -H "Cookie: ${auth_cookie}" http://127.0.0.1:9332/api/ingestion)"
 jq -e '
   .configured == true and
   .connected == true and
@@ -71,8 +84,8 @@ database_health="$(docker exec "$name" node --input-type=module -e \
 jq -e '.quick_check == "ok" and .foreign_keys == 0 and .sync_migration == 1 and .ask_history_migration == 1 and .prompt_controls_migration == 1' <<<"$database_health" >/dev/null
 
 prompt_controls="$(curl -fsS \
-  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
-  http://127.0.0.1:9331/api/prompt-controls)"
+  -H "Cookie: ${auth_cookie}" \
+  http://127.0.0.1:9332/api/prompt-controls)"
 jq -e '
   [.controls[].id] == ["topics","timeline","prep","haseeb","tarun"] and
   (.controls | map(select(.mode == "generated")) | length) == 4 and
@@ -81,11 +94,11 @@ jq -e '
 
 test "$(curl -sS -o /dev/null -w '%{http_code}' \
   -X POST -H 'Content-Type: application/json' \
-  -d '{}' http://127.0.0.1:9331/api/internal/telegram-sync)" = 401
+  -d '{}' http://127.0.0.1:9332/api/internal/telegram-sync)" = 401
 
 studio_status="$(curl -fsS \
-  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
-  http://127.0.0.1:9331/api/studio/status)"
+  -H "Cookie: ${auth_cookie}" \
+  http://127.0.0.1:9332/api/studio/status)"
 jq -e '
   .connected == true and
   (.templates | index("speaking_prep")) != null and
@@ -94,9 +107,9 @@ jq -e '
 ' <<<"$studio_status" >/dev/null
 
 quiz_status="$(curl -fsS \
-  -H 'cf-access-authenticated-user-email: gerhartmark@gmail.com' \
-  http://127.0.0.1:9331/api/quiz/status)"
+  -H "Cookie: ${auth_cookie}" \
+  http://127.0.0.1:9332/api/quiz/status)"
 jq -e '.connected == true and .default_question_count == 5' <<<"$quiz_status" >/dev/null
 
 counts="$(jq -r '[.counts.events,.counts.sources,.counts.media]|join(":")' <<<"$brief")"
-printf 'canary=healthy\nstatic_without_identity=401\nstatic_with_identity=200\ncounts=%s\ndatabase=healthy-with-migrations-006-007-008\nprompt_controls=ready\ninternal_sync_without_secret=401\nintelligence=connected\nmemory=connected\nstudio=connected-with-lenses\nquiz=connected\npaid_model_calls=0\n' "$counts"
+printf 'canary=healthy\nlogin_page=200\nprivate_api_without_session=401\nauthenticated_session=200\nturnstile=configured\ncounts=%s\ndatabase=healthy-with-migrations-006-007-008\nprompt_controls=ready\ninternal_sync_without_secret=401\nintelligence=connected\nmemory=connected\nstudio=connected-with-lenses\nquiz=connected\npaid_model_calls=0\n' "$counts"

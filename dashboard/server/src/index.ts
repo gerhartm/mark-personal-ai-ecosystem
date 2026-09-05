@@ -20,7 +20,21 @@ import {
   ingestionStatus,
   recentIngestionReceipts,
 } from './ingestion.js';
-import { accessHeaderRequired, requestActor, requestIdentity } from './request-auth.js';
+import {
+  accessHeaderRequired,
+  authActor,
+  authMode,
+  authUsername,
+  issueSession,
+  requestActor,
+  requestIdentity,
+  sessionCookieName,
+  sharedAuthConfigurationValid,
+  turnstileConfigured,
+  turnstileSiteKey,
+  verifyPassword,
+  verifyTurnstile,
+} from './request-auth.js';
 import {
   StudioInputError,
   appendStudioRevision,
@@ -66,23 +80,124 @@ app.addHook('onSend', async (req, reply) => {
   reply.header('X-Content-Type-Options', 'nosniff');
   reply.header('Referrer-Policy', 'no-referrer');
   reply.header('X-Frame-Options', 'DENY');
+  reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   reply.header(
     'Content-Security-Policy',
-    "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:",
+    "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; frame-src https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; worker-src 'self' blob:",
   );
   if (req.url.startsWith('/api/')) reply.header('Cache-Control', 'private, no-store');
 });
 
 app.addHook('preHandler', async (req, reply) => {
   if (
-    !accessHeaderRequired
+    authMode === 'development'
     || req.url.startsWith('/api/health')
     || req.url.startsWith('/api/internal/telegram-sync')
+    || req.url.startsWith('/api/auth/')
+    || !req.url.startsWith('/api/')
   ) return;
   const identity = requestIdentity(req);
   if (!identity.authorized) {
     return reply.code(401).send({ error: 'unauthorized', message: 'Authentication is required.' });
   }
+});
+
+const loginAttempts = new Map<string, { failures: number; windowStarted: number; blockedUntil: number }>();
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+const LOGIN_BLOCK_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 5;
+
+const loginAttempt = (key: string, now = Date.now()) => {
+  const current = loginAttempts.get(key);
+  if (!current || now - current.windowStarted >= LOGIN_WINDOW_MS) {
+    const next = { failures: 0, windowStarted: now, blockedUntil: 0 };
+    loginAttempts.set(key, next);
+    return next;
+  }
+  return current;
+};
+
+const recordLoginFailure = (key: string, now = Date.now()) => {
+  const attempt = loginAttempt(key, now);
+  attempt.failures += 1;
+  if (attempt.failures >= LOGIN_MAX_FAILURES) attempt.blockedUntil = now + LOGIN_BLOCK_MS;
+};
+
+const clearLoginFailures = (key: string) => loginAttempts.delete(key);
+
+app.get('/api/auth/config', async () => ({
+  mode: authMode,
+  turnstile: turnstileConfigured(),
+  turnstileSiteKey: turnstileConfigured() ? turnstileSiteKey() : '',
+}));
+
+app.get('/api/auth/session', async (req) => {
+  const identity = requestIdentity(req);
+  return { authenticated: identity.authorized, actor: identity.authorized ? identity.email : '' };
+});
+
+app.post('/api/auth/login', async (req, reply) => {
+  if (authMode !== 'shared-password' || !sharedAuthConfigurationValid()) {
+    return reply.code(503).send({
+      error: 'login_unavailable',
+      message: 'Workspace login is not available. Please contact the workspace administrator.',
+    });
+  }
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  const attempt = loginAttempt(remote);
+  if (attempt.blockedUntil > Date.now()) {
+    const retryAfter = Math.ceil((attempt.blockedUntil - Date.now()) / 1000);
+    reply.header('Retry-After', String(retryAfter));
+    return reply.code(429).send({
+      error: 'rate_limited',
+      message: 'Too many attempts. Please wait 15 minutes before trying again.',
+    });
+  }
+
+  const body = (req.body ?? {}) as { username?: unknown; password?: unknown; turnstileToken?: unknown };
+  const username = String(body.username ?? '').trim().toLowerCase();
+  const password = String(body.password ?? '');
+  const turnstileToken = String(body.turnstileToken ?? '');
+  if (username.length > 128 || password.length > 256 || turnstileToken.length > 4_096) {
+    return reply.code(400).send({
+      error: 'invalid_login_request',
+      message: 'The login request is not valid. Please refresh and try again.',
+    });
+  }
+  if (!(await verifyTurnstile(turnstileToken, remote))) {
+    return reply.code(400).send({
+      error: 'verification_failed',
+      message: 'Human verification did not complete. Please try again.',
+    });
+  }
+
+  const passwordAccepted = await verifyPassword(password);
+  if (username !== authUsername() || !passwordAccepted) {
+    recordLoginFailure(remote);
+    return reply.code(401).send({
+      error: 'invalid_credentials',
+      message: 'The username or password is incorrect.',
+    });
+  }
+
+  clearLoginFailures(remote);
+  const token = issueSession(username, authActor());
+  const secureAttribute = process.env.AUTH_COOKIE_SECURE === 'false' ? '' : '; Secure';
+  reply.header(
+    'Set-Cookie',
+    `${sessionCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly${secureAttribute}; SameSite=Lax; Max-Age=43200`,
+  );
+  return { authenticated: true, actor: authActor() };
+});
+
+app.post('/api/auth/logout', async (_req, reply) => {
+  const secureAttribute = process.env.AUTH_COOKIE_SECURE === 'false' ? '' : '; Secure';
+  reply.header(
+    'Set-Cookie',
+    `${sessionCookieName}=; Path=/; HttpOnly${secureAttribute}; SameSite=Lax; Max-Age=0`,
+  );
+  return { authenticated: false };
 });
 
 const list = (v: unknown): string[] | undefined => {
@@ -757,7 +872,12 @@ if (process.env.NODE_ENV !== 'test') {
   console.log(`  intelligence plane: ${process.env.HERMES_BASE_URL ? 'configured' : 'not connected (degraded)'}`);
   console.log(`  ingestion plane: ${ingestionConfigured() ? 'configured' : 'not connected (degraded)'}`);
   console.log(`  Satoshi source sync: ${telegramSyncConfigured() ? 'configured' : 'not connected (degraded)'}`);
-  console.log(`  access header: ${accessHeaderRequired ? 'required' : 'local development mode'}`);
+  console.log(`  authentication: ${authMode}`);
+  if (authMode === 'shared-password') {
+    console.log(`  human verification: ${turnstileConfigured() ? 'configured' : 'not configured'}`);
+  } else {
+    console.log(`  access header: ${accessHeaderRequired ? 'required' : 'local development mode'}`);
+  }
 }
 
 export { app };

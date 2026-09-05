@@ -1122,3 +1122,16 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Recovery: retained rollback `crypto-dashboard-rollback-20260905T061516Z`, backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T072131Z/crypto-intelligence.db`, and deployment snapshot `/srv/mark-v2/crypto-dashboard/deploy.pre-20260905T072131Z`.
 - Scope safety: Hermes configuration, OpenViking, Satoshi, Cloudflare, ForkedBrain, and the legacy Intel service were unchanged. Public Crypto remained Access-protected, and the legacy Intel endpoint remained available.
 - Recovery mirror: refreshed `/root/mark-v2-docs/` from the final tracked repository checkpoint, verified all 249 tracked file hashes, and retained the prior generated mirror as `/root/mark-v2-docs.pre-20260905T072131Z`.
+
+## 2026-09-05 08:40-09:05 UTC: Custom Crypto login and Turnstile staged safely
+
+- Operator: Codex implementing Darshan's request for the simplest custom password protection, a design-matched login and transition, and CAPTCHA protection without changing Mark's dashboard.
+- Status: application release `20260905T084059Z` is promoted and fully accepted. Public Cloudflare Access removal is intentionally pending real Turnstile credentials and a fresh least-privilege Access token.
+- Interface: added a responsive editorial login matching Crypto Intelligence and a restrained workspace-opening transition. Mark's five numbered screens, Control Center, all dashboard styles, data, prompts, and workflows remain unchanged.
+- Authentication: added salted scrypt password verification, signed 12-hour sessions, HttpOnly Secure SameSite Lax cookies, anonymous API rejection, generic credential failures, bounded inputs, and 15-minute blocking after repeated failures.
+- CAPTCHA: added explicit Cloudflare Turnstile rendering and server-side Siteverify validation with optional hostname and action enforcement. Official Cloudflare test credentials remain installed only while Access is still the public outer layer.
+- Verification: 104 of 104 server tests passed; both type checks and production builds passed; both production dependency audits reported zero vulnerabilities; login acceptance passed 22 of 22 in canary and production, including after restart; full browser acceptance passed 89 of 89 in canary and production with zero first-party failures and zero console errors.
+- Persistence: the production database checksum survived restart and retained 54 sources, 66 events, and 89 media assets. SQLite quick check returned `ok` and foreign-key check returned no rows.
+- Production: active image `mark-crypto-dashboard:20260905T084059Z`, application origin `127.0.0.1:9330`, authentication gateway `127.0.0.1:9331`, and zero dashboard restarts.
+- Recovery: retained `crypto-dashboard-rollback-20260905T072131Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T084059Z/crypto-intelligence.db`, and operator backup `/srv/mark-v2/operator-backups/20260905T084059Z-crypto-custom-login-pre`.
+- Cutover guard: do not remove Cloudflare Access while the test widget is installed. First create a real Turnstile widget for `crypto.forkedbrain.fyi`, enable hostname and action checks, verify public HTTPS login, then run the guarded script that removes only Crypto from the existing Access application and automatically restores it on any failed regression check.

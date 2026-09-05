@@ -14,7 +14,7 @@ ingress:
   - hostname: brain.forkedbrain.fyi
     service: http://127.0.0.1:9119
   - hostname: crypto.forkedbrain.fyi
-    service: http://127.0.0.1:9330
+    service: http://127.0.0.1:9331
   - hostname: forkedbrain.fyi
     service: http://127.0.0.1:9320
   - service: http_status:404

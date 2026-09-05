@@ -1,9 +1,10 @@
 # Crypto Intelligence dashboard
 
 Production-ready V2 dashboard running on the verified crypto handoff data. It
-uses the existing Hermes central brain for answers, the existing unified crypto
-database for evidence, and Cloudflare Access for the public authentication
-boundary. It does not modify Hermes, OpenViking, or the legacy platform.
+uses the existing Hermes central brain for answers and the existing unified
+crypto database for evidence. The application has its own shared-password
+login, signed sessions, and Cloudflare Turnstile verification. It does not
+modify Hermes, OpenViking, or the legacy platform.
 
 The visible interface follows Mark's latest Lovable export exactly. Its five
 primary screens are:
@@ -54,13 +55,22 @@ Environment, all optional, all by name only:
 | `OPENVIKING_API_KEY_FILE` | read-only mounted file containing the tenant-scoped OpenViking key |
 | `OPENVIKING_ACCOUNT_ID`, `OPENVIKING_USER_ID`, `OPENVIKING_AGENT_ID` | non-secret tenant identity used by the native resource API |
 | `SATOSHI_DASHBOARD_SYNC_SECRET_FILE` | read-only file containing the private service credential used by Satoshi's post-ingestion registration helper |
+| `AUTH_MODE` | set to `shared-password` for the custom production login |
+| `AUTH_USERNAME`, `AUTH_ACTOR` | login name and canonical audit actor, both default to `mark` |
+| `AUTH_PASSWORD_HASH_FILE` | read-only file containing the salted scrypt password verifier |
+| `AUTH_SESSION_SECRET_FILE` | read-only file containing the session signing secret |
+| `AUTH_COOKIE_SECURE` | secure by default; set to `false` only for isolated local HTTP acceptance |
+| `TURNSTILE_SITE_KEY` | public Cloudflare Turnstile site key |
+| `TURNSTILE_SECRET_KEY_FILE` | read-only file containing the Turnstile secret |
+| `TURNSTILE_EXPECTED_HOSTNAME` | required production hostname check, `crypto.forkedbrain.fyi` |
+| `TURNSTILE_EXPECTED_ACTION` | required production action check, `workspace_login` |
 | `REQUIRE_ACCESS_HEADER` | require the verified Cloudflare Access email header outside production as well |
 | `ACCESS_ALLOWED_EMAILS` | comma-separated exact allowlist for authenticated users |
 | `CRYPTO_ACTOR` | note author for the local single-user build |
 
 ## Production deployment
 
-The accepted V2 release is `20260904T181850Z`. Its reproducible runtime contract
+The accepted application release is `20260905T084059Z`. Its reproducible runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
@@ -68,29 +78,28 @@ read-only root filesystem, and receives no model-provider credential. Capture
 receives only a tenant-scoped OpenViking key through a read-only file mount; the
 credential is absent from the image, environment, logs, and repository.
 
-The public hostname is live at `https://crypto.forkedbrain.fyi/` through the
-existing exact-email Cloudflare Access application and the isolated V2 tunnel.
-An unauthenticated request must redirect to the Cloudflare Access login, and an
-externally forged identity header must not bypass that redirect. Production also
-requires the Access identity on static application requests as defense in depth.
-The accepted origin and public-boundary tests include the complete dashboard,
-private media range streaming, a real sourced live briefing, and a real Hermes
-answer with canonical evidence.
+The application login is live on the private origin through a local Caddy
+gateway at `127.0.0.1:9331`. Cloudflare Access remains in front of the public
+hostname until a real Turnstile widget for `crypto.forkedbrain.fyi` replaces the
+official test widget used for staged acceptance. Never remove Access while the
+always-pass test widget is installed. Once real keys are installed, the accepted
+public boundary is the custom login, server-side Turnstile verification, and a
+Secure HttpOnly signed session.
 
-The guarded cutover script updates only that Access application and the V2
-tunnel route, verifies the exact policy and all existing hostnames, and restores
-both automatically if any check fails. Give it a fresh short-lived token through
+The guarded removal script updates only the existing Access application,
+verifies the exact policy and all existing hostnames, and restores Access
+automatically if any check fails. Give it a fresh short-lived token through
 standard input so the token never appears in the command line or repository:
 
 ```bash
-dashboard/deploy/activate-crypto-hostname.sh < \
-  ../.secrets/credentials/new-vps/cloudflare/access-cutover-token
+dashboard/deploy/remove-crypto-from-access.sh < \
+  ../.secrets/credentials/new-vps/cloudflare/access-update-token
 ```
 
 The token needs only `Account > Access: Apps and Policies > Edit` for Mark's
 Cloudflare account. Keep the token file mode `0600`, revoke it immediately after
-acceptance, and then delete the local token file. A successful run reports
-`crypto_status=302`, `legacy_intel_status=200`, and the owner-only backup paths.
+acceptance, and then delete the local token file. Create and install a real
+Turnstile widget before running this script.
 
 ## The active database
 
@@ -117,7 +126,7 @@ npm start &               # the API tests exercise the running server
 npx vitest run
 ```
 
-92 tests: reconciliation against the handoff manifest, canonical identity
+104 tests: reconciliation against the handoff manifest, canonical identity
 preservation, facet derivation, precision spans, taxonomy verbatim, append-only
 notes, the identity register, unified search determinism, media authorisation
 and traversal, the Access identity boundary, bounded Hermes evidence assembly,
@@ -145,7 +154,7 @@ using a real Chrome so WebGL renders. Output in `screenshots/`.
 
 ```text
 Authenticated browser
-   |  Cloudflare Access assertion
+   |  password + Turnstile -> signed Secure session
    v
 Fastify backend  ->  crypto-intelligence.db   (one database, one FTS index)
    |             ->  private media archive     (authorised per request, range streaming)

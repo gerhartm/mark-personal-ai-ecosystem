@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Shell } from './components/Shell';
 import { Skeleton } from './components/primitives';
@@ -8,14 +8,55 @@ import { Timeline } from './screens/Timeline';
 import { Prep } from './screens/Prep';
 import { CreatorBot } from './screens/CreatorBot';
 import { ControlCenter } from './screens/ControlCenter';
+import { Login, SessionChecking, WorkspaceOpening } from './screens/Login';
+import './styles/login.css';
+
+type SessionState = 'checking' | 'authenticated' | 'unauthenticated' | 'opening' | 'unavailable';
+type AuthConfig = { mode: string; turnstile: boolean; turnstileSiteKey: string };
 
 export default function App() {
+  const [session, setSession] = useState<SessionState>('checking');
+  const [authConfig, setAuthConfig] = useState<AuthConfig>({ mode: 'development', turnstile: false, turnstileSiteKey: '' });
+
   // Appearance preferences are applied before first paint of any screen.
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.contrast = localStorage.getItem('contrast') ?? 'normal';
     root.dataset.density = localStorage.getItem('density') ?? 'comfortable';
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch('/api/auth/config').then((response) => response.ok ? response.json() : Promise.reject()),
+      fetch('/api/auth/session').then((response) => response.ok ? response.json() : Promise.reject()),
+    ])
+      .then(([config, current]) => {
+        if (!active) return;
+        setAuthConfig(config as AuthConfig);
+        setSession((current as { authenticated?: boolean }).authenticated ? 'authenticated' : 'unauthenticated');
+      })
+      .catch(() => {
+        if (active) setSession('unavailable');
+      });
+    return () => { active = false; };
+  }, []);
+
+  if (session === 'checking') return <SessionChecking />;
+  if (session === 'opening') return <WorkspaceOpening />;
+  if (session === 'unauthenticated' || session === 'unavailable') {
+    return (
+      <Login
+        turnstile={authConfig.turnstile}
+        turnstileSiteKey={authConfig.turnstileSiteKey}
+        unavailable={session === 'unavailable'}
+        onAuthenticated={() => {
+          setSession('opening');
+          window.setTimeout(() => setSession('authenticated'), 850);
+        }}
+      />
+    );
+  }
 
   return (
     <Shell>

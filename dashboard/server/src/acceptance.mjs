@@ -14,6 +14,14 @@ const OUT = resolve(arg('out', join(HERE, '..', '..', 'acceptance')));
 const IDENTITY = arg('identity', '');
 const CHROME = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const HEADERS = IDENTITY ? { 'cf-access-authenticated-user-email': IDENTITY } : {};
+const HTTP_USERNAME = process.env.ACCEPTANCE_HTTP_USERNAME ?? '';
+const HTTP_PASSWORD = process.env.ACCEPTANCE_HTTP_PASSWORD ?? '';
+const HTTP_CREDENTIALS = HTTP_USERNAME && HTTP_PASSWORD
+  ? { username: HTTP_USERNAME, password: HTTP_PASSWORD }
+  : undefined;
+const LOGIN_USERNAME = process.env.ACCEPTANCE_LOGIN_USERNAME ?? '';
+const LOGIN_PASSWORD = process.env.ACCEPTANCE_LOGIN_PASSWORD ?? '';
+const SESSION_TOKEN = process.env.ACCEPTANCE_SESSION_TOKEN ?? '';
 
 mkdirSync(OUT, { recursive: true });
 const checks = [];
@@ -116,7 +124,16 @@ async function checkViewport(page, label) {
 }
 
 async function desktopPass(browser) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 950 }, deviceScaleFactor: 1, colorScheme: 'light', extraHTTPHeaders: HEADERS });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 950 }, deviceScaleFactor: 1, colorScheme: 'light', extraHTTPHeaders: HEADERS, httpCredentials: HTTP_CREDENTIALS });
+  if (SESSION_TOKEN) {
+    await context.addCookies([{ name: 'crypto_session', value: SESSION_TOKEN, url: BASE, httpOnly: true, sameSite: 'Lax' }]);
+  }
+  if (LOGIN_USERNAME && LOGIN_PASSWORD) {
+    const loginResponse = await context.request.post(`${BASE}/api/auth/login`, {
+      data: { username: LOGIN_USERNAME, password: LOGIN_PASSWORD, turnstileToken: '' },
+    });
+    check(loginResponse.ok(), 'Acceptance session login succeeds', `${loginResponse.status()}`);
+  }
   const briefResponse = await context.request.get(`${BASE}/api/brief`, { headers: HEADERS });
   check(briefResponse.ok(), 'Live status API responds', `${briefResponse.status()}`);
   const liveBrief = briefResponse.ok() ? await briefResponse.json() : { telegram_sync: null };
@@ -292,7 +309,16 @@ async function desktopPass(browser) {
 }
 
 async function mobilePass(browser) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, colorScheme: 'light', extraHTTPHeaders: HEADERS });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, colorScheme: 'light', extraHTTPHeaders: HEADERS, httpCredentials: HTTP_CREDENTIALS });
+  if (SESSION_TOKEN) {
+    await context.addCookies([{ name: 'crypto_session', value: SESSION_TOKEN, url: BASE, httpOnly: true, sameSite: 'Lax' }]);
+  }
+  if (LOGIN_USERNAME && LOGIN_PASSWORD) {
+    const loginResponse = await context.request.post(`${BASE}/api/auth/login`, {
+      data: { username: LOGIN_USERNAME, password: LOGIN_PASSWORD, turnstileToken: '' },
+    });
+    check(loginResponse.ok(), 'Mobile acceptance session login succeeds', `${loginResponse.status()}`);
+  }
   const source = await sourceFixture(context.request);
   await installGenerationMocks(context, source);
   const page = await context.newPage();

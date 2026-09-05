@@ -518,13 +518,14 @@ Validate the ingress file before restarting cloudflared. Externally, an unauthen
 
 ## Crypto Intelligence dashboard operations
 
-Current accepted release: `20260905T072131Z`
+Current accepted application release: `20260905T084059Z`
 
 Runtime contract:
 
 - container: `crypto-dashboard`
-- image: `mark-crypto-dashboard:20260905T072131Z`
+- image: `mark-crypto-dashboard:20260905T084059Z`
 - loopback origin: `http://127.0.0.1:9330`
+- authentication gateway: `http://127.0.0.1:9331`
 - application network: `27am3wgv7vkohkenprml4s3p`
 - database directory: `/srv/mark-v2/crypto-dashboard/data`
 - private media archive: `/srv/mark-v2/crypto-legacy-media/v1`
@@ -532,14 +533,17 @@ Runtime contract:
 - mounted Hermes password file: `/srv/mark-v2/secrets/forkedbrain-hermes-password`
 - mounted OpenViking tenant key: `/srv/mark-v2/secrets/crypto-dashboard-openviking-key`
 - mounted Satoshi registration secret: `/srv/mark-v2/secrets/satoshi-dashboard-sync-key`
+- mounted login password verifier: `/srv/mark-v2/secrets/crypto-dashboard-login-password`
+- mounted session signing secret: `/srv/mark-v2/secrets/crypto-dashboard-session-secret`
+- mounted Turnstile secret: `/srv/mark-v2/secrets/crypto-dashboard-turnstile-secret`
 - versioned deployment definition: `dashboard/deploy/docker-compose.production.yml`
 
-Preferred application rollback: `mark-crypto-dashboard:20260905T061516Z` with
-stopped container `crypto-dashboard-rollback-20260905T061516Z`. Candidate
+Preferred application rollback: `mark-crypto-dashboard:20260905T072131Z` with
+stopped container `crypto-dashboard-rollback-20260905T072131Z`. Candidate
 `20260903T162235Z` was superseded after browser interaction exposed a navigation
 cleanup defect and must not be treated as an accepted rollback target. The
 pre-release database backup is
-`/srv/mark-v2/crypto-dashboard/backups/pre-20260905T072131Z/crypto-intelligence.db`.
+`/srv/mark-v2/crypto-dashboard/backups/pre-20260905T084059Z/crypto-intelligence.db`.
 Restore a database backup only when data rollback is explicitly required.
 
 ### Routine status
@@ -554,7 +558,11 @@ Expected state is healthy, `127.0.0.1:9330->5183/tcp`, read-only root filesystem
 
 ### Authenticated acceptance
 
-The static interface must be protected by Cloudflare Access. Every data endpoint also requires the verified Access identity header and rejects missing or unknown identities with HTTP `401`. With an approved identity, require:
+The application uses its own shared-password login. The browser must receive an HttpOnly, Secure, SameSite Lax session cookie that expires after 12 hours. Every private API must reject an anonymous request with HTTP `401`. The username and actor are `mark`; never record the password in source, documentation, command history, or environment. The password verifier and session secret are mounted as owner-only files.
+
+Cloudflare Turnstile must be visible on the login page and verified server-side. Before removing Cloudflare Access, replace the official test widget credentials with a real widget restricted to `crypto.forkedbrain.fyi`, set `TURNSTILE_EXPECTED_HOSTNAME=crypto.forkedbrain.fyi` and `TURNSTILE_EXPECTED_ACTION=workspace_login`, recreate only the Crypto dashboard, and run the 22-check login acceptance over public HTTPS. Never expose the public custom login while an always-pass test widget is configured.
+
+With a valid application session, require:
 
 - brief reports 66 events, 54 sources, and 89 media files
 - `GET /api/intelligence` reports `connected=true`, a 24-hour refresh interval,

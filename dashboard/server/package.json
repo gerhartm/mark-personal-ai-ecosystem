@@ -9,6 +9,7 @@
     "start": "tsx src/index.ts",
     "start:production": "node dist/index.js",
     "acceptance": "node src/acceptance.mjs",
+    "acceptance:auth": "node src/auth-acceptance.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

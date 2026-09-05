@@ -1135,3 +1135,9 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Production: active image `mark-crypto-dashboard:20260905T084059Z`, application origin `127.0.0.1:9330`, authentication gateway `127.0.0.1:9331`, and zero dashboard restarts.
 - Recovery: retained `crypto-dashboard-rollback-20260905T072131Z`, database backup `/srv/mark-v2/crypto-dashboard/backups/pre-20260905T084059Z/crypto-intelligence.db`, and operator backup `/srv/mark-v2/operator-backups/20260905T084059Z-crypto-custom-login-pre`.
 - Cutover guard: do not remove Cloudflare Access while the test widget is installed. First create a real Turnstile widget for `crypto.forkedbrain.fyi`, enable hostname and action checks, verify public HTTPS login, then run the guarded script that removes only Crypto from the existing Access application and automatically restores it on any failed regression check.
+
+## 2026-09-05 09:10 UTC: Custom login repository checkpoint
+
+- Repository: committed and pushed the custom login, Turnstile integration, acceptance suites, guarded deployment scripts, and redacted operations documentation to private `main`.
+- Safety: the checkpoint contains no plaintext login password, Turnstile secret, API token, signed session, provider credential, or private client content.
+- Recovery mirror: refreshed `/root/mark-v2-docs/` from the final tracked checkpoint, compared all tracked file hashes, and retained the previous generated mirror as `/root/mark-v2-docs.pre-20260905T084059Z`.

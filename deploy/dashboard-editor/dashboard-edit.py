@@ -20,7 +20,7 @@ EFFORT = 'high'
 def manifest():
     result = {}
     for directory, folders, files in os.walk(WORKSPACE):
-        folders[:] = [name for name in folders if name not in ('node_modules', 'dist', '.git', 'data', 'test-support')]
+        folders[:] = [name for name in folders if name not in ('node_modules', 'dist', '.git', 'data', 'test-support', '.acceptance-checks', '.editor-tmp', '.npm', '.cache')]
         for name in files:
             path = Path(directory) / name
             if path.is_file() and not path.is_symlink() and not name.endswith(('.log', '.tsbuildinfo')) and not name.startswith('._'):

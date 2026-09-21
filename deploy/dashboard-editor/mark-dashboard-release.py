@@ -20,7 +20,7 @@ REPO = BASE / 'git-store'
 HISTORY = BASE / 'release-history.json'
 BRANCH = 'satoshi-dashboard'
 URL = 'https://github.com/darshanahirrao/mark-personal-ai-ecosystem'
-EXCLUDE = ('node_modules', 'dist', '.git', 'data', 'test-support', 'acceptance', '*.log', '*.tsbuildinfo', '.env', '.env.*', '.DS_Store', '._*')
+EXCLUDE = ('node_modules', 'dist', '.git', 'data', 'test-support', '.acceptance-checks', '.editor-tmp', '.npm', '.cache', 'acceptance', '*.log', '*.tsbuildinfo', '.env', '.env.*', '.DS_Store', '._*')
 
 
 def cmd(args, **kwargs):
@@ -43,7 +43,7 @@ def save(path, value):
 
 def copy_source(source, target):
     for root, dirs, files in os.walk(source):
-        dirs[:] = [d for d in dirs if d not in ('node_modules', 'dist', '.git', 'data', 'test-support', 'acceptance')]
+        dirs[:] = [d for d in dirs if d not in ('node_modules', 'dist', '.git', 'data', 'test-support', '.acceptance-checks', '.editor-tmp', '.npm', '.cache', 'acceptance')]
         for name in dirs + files:
             if (Path(root) / name).is_symlink():
                 raise RuntimeError('Symlinks are not accepted in dashboard releases.')

@@ -100,10 +100,30 @@ function eventRecord(id: string) {
   };
 }
 
-async function sourceRecord(id: string) {
+export function relevantPassages(body: string, focus: string, maximum = 4_000) {
+  if (body.length <= maximum) return body;
+  const terms = [...new Set(focus.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [])]
+    .filter(term => !['the','and','what','with','from','about','this','that','should','views','opinions','language','structure'].includes(term));
+  const windows: { position: number; text: string; score: number }[] = [];
+  for (let position = 0; position < body.length; position += 900) {
+    const text = body.slice(position, position + 1_200);
+    const lower = text.toLowerCase();
+    windows.push({ position, text, score: terms.reduce((n, term) => n + (lower.includes(term) ? 1 : 0), 0) });
+  }
+  const chosen: typeof windows = [];
+  for (const window of windows.sort((a,b) => b.score - a.score || a.position - b.position)) {
+    if (chosen.some(item => Math.abs(item.position - window.position) < 1_200)) continue;
+    chosen.push(window);
+    if (chosen.length >= Math.floor(maximum / 1_250)) break;
+  }
+  return chosen.sort((a,b) => a.position - b.position).map(item => `[Excerpt at character ${item.position}]\n${item.text}`).join('\n\n');
+}
+
+async function sourceRecord(id: string, focus: string) {
   const source = tools.getSource(id) as any;
   if (!source) return null;
-  const content = await sourceContent(id, 5_000);
+  const indexed = one<{ body: string }>("SELECT body FROM search_index WHERE canonical_id=? AND kind='source' AND field='content' LIMIT 1", id)?.body;
+  const content = relevantPassages(indexed || await sourceContent(id, 1_000_000), focus, 4_000);
   return {
     id: source.source_id,
     kind: 'source',
@@ -204,7 +224,7 @@ export async function buildStudioContext(value: StudioDraftInput) {
     const record = hit.kind === 'event'
       ? eventRecord(hit.canonical_id)
       : hit.kind === 'source'
-        ? await sourceRecord(hit.canonical_id)
+        ? await sourceRecord(hit.canonical_id, input.focus)
         : null;
     if (!record) continue;
     seen.add(key);

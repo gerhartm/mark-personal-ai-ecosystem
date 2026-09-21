@@ -7,6 +7,8 @@ import { TopicDetail } from './screens/TopicDetail';
 import { Timeline } from './screens/Timeline';
 import { Prep } from './screens/Prep';
 import { CreatorBot } from './screens/CreatorBot';
+import { Sources, RetainedSource } from './screens/Sources';
+import { SavedWork, LegacySavedWork } from './screens/SavedWork';
 import { ControlCenter } from './screens/ControlCenter';
 import { Login, SessionChecking, WorkspaceOpening } from './screens/Login';
 import './styles/login.css';
@@ -68,6 +70,10 @@ export default function App() {
           <Route path="/prep" element={<Prep />} />
           <Route path="/haseeb" element={<CreatorBot key="haseeb" creator="Haseeb" />} />
           <Route path="/tarun" element={<CreatorBot key="tarun" creator="Tarun" />} />
+          <Route path="/sources" element={<Sources />} />
+          <Route path="/sources/:id" element={<RetainedSource />} />
+          <Route path="/saved" element={<SavedWork />} />
+          <Route path="/saved/:id" element={<LegacySavedWork />} />
           <Route path="/control-center" element={<ControlCenter />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -1,3 +1,4 @@
+import { useWorkflowRestore, WorkflowHistory } from './SavedWork';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { api, useQuery } from '../lib/api';
@@ -38,6 +39,13 @@ export function CreatorBot({ creator }: { creator: 'Haseeb' | 'Tarun' }) {
   const [feedback, setFeedback] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState<number | null>(null);
+  const copy = async (text: string, index: number) => {
+    try { await navigator.clipboard.writeText(text); setCopied(index); window.setTimeout(() => setCopied(null), 2500); }
+    catch { setError('Copy could not access the clipboard. Select the output text and copy it directly.'); }
+  };
+
+  const saved = useWorkflowRestore((result, input) => { if (result.creator !== creator) { setError('This saved draft belongs to another creator. Open it from Saved work.'); return; } setResult(result); setPrompt(input.prompt); setFormat(input.format); setCount(String(input.count)); setTone(input.tone); setLength(input.length); setCustomTone(input.customTone || ''); setFeedback(''); });
 
   const run = async (revision = '') => {
     if (!prompt.trim() || busy || (revision && !result?.outputs.length)) return;
@@ -59,7 +67,7 @@ export function CreatorBot({ creator }: { creator: 'Haseeb' | 'Tarun' }) {
           draft_id: revision ? result?.id : undefined,
         }),
       });
-      setResult(response);
+      setResult(response); saved.remember(response.id); saved.query.refetch();
       if (revision) setFeedback('');
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Generation failed');
@@ -73,6 +81,7 @@ export function CreatorBot({ creator }: { creator: 'Haseeb' | 'Tarun' }) {
   return (
     <section>
       <ViewHead title={`${creator} bot`} />
+      <WorkflowHistory id={result?.id} query={saved.query} />
       <div className="creator-bot-wrap">
         <div className="creator-bot-card">
           <Eyebrow>{creator === 'Haseeb' ? 'What should he tweet about?' : 'What should he write about?'}</Eyebrow>
@@ -116,7 +125,7 @@ export function CreatorBot({ creator }: { creator: 'Haseeb' | 'Tarun' }) {
               <div className="mb-2 flex items-center gap-2">
                 <span className="font-mono text-[9.5px] tracking-[0.09em] uppercase text-dim">{output.angle || `angle ${index + 1}`}</span>
                 <small className="ml-auto font-mono text-[9px] text-dim">{renderedFormat === 'blog' ? `${output.text.trim().split(/\s+/).length} words` : `${output.text.length}/280`}</small>
-                <button className="rounded border border-[var(--line)] px-2 py-[3px] font-mono text-[9px] text-muted-foreground transition-colors hover:border-[var(--brass)] hover:text-foreground" type="button" onClick={() => navigator.clipboard?.writeText(output.text)}>Copy</button>
+                <button className="rounded border border-[var(--line)] px-2 py-[3px] font-mono text-[9px] text-muted-foreground transition-colors hover:border-[var(--brass)] hover:text-foreground" type="button" onClick={() => copy(output.text, index)}>{copied === index ? 'Copied' : 'Copy'}</button>
               </div>
               {renderedFormat === 'blog' ? <BlogOutput text={output.text} /> : <p data-testid="creator-tweet" className="m-0 text-[15px] leading-[1.55] text-pretty text-foreground">{output.text}</p>}
             </article>

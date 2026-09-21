@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -16,6 +16,7 @@ const TEMP_DB = join(TEMP_DIR, 'crypto-intelligence.db');
 const resources = new Set<string>();
 const resourceContent = new Map<string, string>();
 const resourceBodies: Record<string, any>[] = [];
+const uploadedText = new Map<string, string>();
 let blockDeletes = false;
 
 let mock: Server;
@@ -117,7 +118,10 @@ beforeAll(async () => {
     request.on('end', () => {
       response.setHeader('content-type', 'application/json');
       if (request.method === 'POST' && url.pathname === '/api/v1/resources/temp_upload') {
-        response.end(JSON.stringify({ status: 'success', result: { temp_file_id: 'fixture-upload' } }));
+        const body = Buffer.concat(chunks).toString('utf8');
+        const id = `fixture-upload-${uploadedText.size}`;
+        uploadedText.set(id, body.slice(body.indexOf('\r\n\r\n') + 4, body.lastIndexOf('\r\n--')));
+        response.end(JSON.stringify({ status: 'success', result: { temp_file_id: id } }));
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/v1/resources') {
@@ -131,7 +135,7 @@ beforeAll(async () => {
           return;
         }
         resources.add(body.to);
-        resourceContent.set(body.to, 'Verified fixture source body with enough content to prove that acquisition stored the source itself, rather than only its URL or title.');
+        resourceContent.set(body.to, uploadedText.get(body.temp_file_id) ?? 'Verified fixture source body with enough content to prove that acquisition stored the source itself, rather than only its URL or title.');
         response.end(JSON.stringify({ status: 'success', result: { root_uri: body.to } }));
         return;
       }
@@ -149,6 +153,7 @@ beforeAll(async () => {
     env: {
       ...process.env,
       NODE_ENV: 'development',
+      SOURCE_PROCESSING_ENABLED: 'true',
       HOST: '127.0.0.1',
       PORT: String(appPort),
       CRYPTO_DB: TEMP_DB,
@@ -193,7 +198,7 @@ describe('authenticated source capture boundary', () => {
     const result = await postCapture({ kind: 'text', value: '# Panel briefing\n\nStablecoin evidence.' });
     expect(result.response.status).toBe(200);
     expect(result.body.status).toBe('ready');
-    expect(resourceBodies.some((body) => body.temp_file_id === 'fixture-upload')).toBe(true);
+    expect(resourceBodies.some((body) => uploadedText.has(body.temp_file_id))).toBe(true);
   });
 
   it('fails blocked social URLs honestly and asks for the source text', async () => {
@@ -244,4 +249,56 @@ describe('authenticated source capture boundary', () => {
       expect.arrayContaining(['ready', 'duplicate', 'failed']),
     );
   });
+});
+
+
+describe('persistent bulk import', () => {
+  it('rejects a malformed batch atomically', async () => {
+    const response = await fetch(`${base}/api/imports`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items: [{ kind: 'url', value: 'https://example.com/bulk-valid' }, { kind: 'url', value: 'http://127.0.0.1/private' }] }) });
+    expect(response.status).toBe(400);
+    const connection = new Database(TEMP_DB, { readonly: true });
+    expect(connection.prepare('SELECT count(*) n FROM import_items').get()).toEqual({ n: 0 });
+    connection.close();
+  });
+  it('retains accepted jobs and deduplicates repeated URLs through canonical capture', async () => {
+    const response = await fetch(`${base}/api/imports`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items: [{ kind: 'url', value: 'https://example.com/bulk-source', title: 'Bulk fixture' }, { kind: 'url', value: 'https://example.com/bulk-source?utm_source=test', title: 'Bulk duplicate' }] }) });
+    expect(response.status).toBe(202);
+    const receipt = await response.json() as any;
+    let jobs: any[] = [];
+    for (let attempt = 0; attempt < 65; attempt++) {
+      const status = await (await fetch(`${base}/api/processing`)).json() as any;
+      jobs = status.imports.filter((row: any) => row.batch_id === receipt.id);
+      if (jobs.length === 2 && jobs.every(row => row.status === 'ready')) break;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    expect(jobs.map(row => row.status)).toEqual(['ready','ready']);
+    expect(jobs[0].source_id).toBe(jobs[1].source_id);
+    expect(jobs.every(row => row.evidence_status === 'queued')).toBe(true);
+    const connection = new Database(TEMP_DB, { readonly: true });
+    expect(connection.prepare('SELECT payload_json FROM import_items WHERE batch_id=?').all(receipt.id)).toEqual([{payload_json:'{}'},{payload_json:'{}'}]);
+    connection.close();
+  }, 16000);
+  it('accepts Word and PDF over HTTP and retains their extracted content through memory and the dashboard', async () => {
+    const items = ['doc', 'docx', 'pdf'].map(extension => ({ kind: 'document', filename: `transcript.${extension}`, source_type: 'transcript', value: readFileSync(join(HERE, 'fixtures/documents', `transcript.${extension}`)).toString('base64') }));
+    const response = await fetch(`${base}/api/imports`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items }) });
+    expect(response.status).toBe(202);
+    const receipt = await response.json() as any;
+    expect(receipt.count).toBe(3);
+    let jobs: any[] = [];
+    for (let attempt = 0; attempt < 95; attempt++) {
+      const status = await (await fetch(`${base}/api/processing`)).json() as any;
+      jobs = status.imports.filter((row: any) => row.batch_id === receipt.id);
+      if (jobs.length === 3 && jobs.every(row => row.status === 'ready')) break;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    expect(jobs.map(row => row.status)).toEqual(['ready', 'ready', 'ready']);
+    for (const job of jobs) {
+      const retained = await (await fetch(`${base}/api/sources/${encodeURIComponent(job.source_id)}`)).json() as any;
+      expect(retained.content).toContain('Alice: The team discussed a fixed-rate lending vault.');
+      expect(retained.content).toContain('Bob: Preserve the source wording and speaker labels.');
+      expect(retained.source_type).toBe('transcript');
+      expect(job.evidence_status).toBe('queued');
+    }
+    expect(Array.from(resourceContent.values()).some(body => body.includes('Alice:'))).toBe(true);
+  }, 22000);
 });

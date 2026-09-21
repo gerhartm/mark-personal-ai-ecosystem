@@ -8,6 +8,8 @@
 import { all, one, db } from './db.js';
 import { buildSourceBrief, eventPresentation } from './presentation.js';
 import { activeTopicOrganization } from './prompt-controls.js';
+import { eventEditorial, RESEARCH_EVENT } from './editorial-store.js';
+import { repeats } from './editorial.js';
 
 /* ------------------------------------------------------------------ */
 /* filters                                                             */
@@ -36,8 +38,8 @@ const SORTS: Record<string, string> = {
   significance: 'e.significance DESC, subject_date DESC, e.id ASC',
 };
 
-/** Earliest subject-time pin for an event, falling back to capture time. */
-const SUBJECT_DATE = `COALESCE((SELECT MIN(d.sort_key) FROM event_dates d WHERE d.event_id = e.id), substr(e.timestamp,1,10))`;
+/** Event dates remain separate from capture timestamps, including undated records. */
+const SUBJECT_DATE = `(SELECT MIN(d.sort_key) FROM event_dates d WHERE d.event_id = e.id)`;
 
 /** Distinct retained sources connected to an event, including its own source. */
 const REFERENCE_COUNT = `(SELECT count(DISTINCT linked.source_id) FROM (
@@ -50,7 +52,7 @@ const REFERENCE_COUNT = `(SELECT count(DISTINCT linked.source_id) FROM (
 ) linked)`;
 
 export function findEvents(f: EventFilters = {}) {
-  const where: string[] = [];
+  const where: string[] = [RESEARCH_EVENT];
   const p: any[] = [];
 
   if (f.q?.trim()) {
@@ -225,8 +227,9 @@ export function getEvent(id: string) {
 
   const related = relatedEvents(id);
 
-  const presentation = eventPresentation({ ...event, insights });
-  return { ...event, source, insights, tags, secondary, entities, dates, connections, notes, pins, quiz, themes, media, related, presentation };
+  const editorial = eventEditorial(id);
+  const presentation = eventPresentation({ ...event, insights, editorial });
+  return { ...event, editorial, source, insights, tags, secondary, entities, dates, connections, notes, pins, quiz, themes, media, related, presentation };
 }
 
 /** The preserved relatedness rule: two or more shared entities. */
@@ -237,7 +240,7 @@ export function relatedEvents(id: string, minShared = 2, limit = 12) {
        FROM event_entities a
        JOIN event_entities b ON b.value = a.value AND b.entity_type = a.entity_type AND b.event_id <> a.event_id
        JOIN events e ON e.id = b.event_id
-      WHERE a.event_id = ?
+      WHERE a.event_id = ? AND ${RESEARCH_EVENT}
       GROUP BY e.id HAVING shared >= ?
       ORDER BY shared DESC, subject_date DESC LIMIT ?`,
     id,
@@ -254,7 +257,7 @@ export function getSource(id: string) {
             e.detailed_content, e.detailed_notes, e.raw_text,
             ${SUBJECT_DATE} AS subject_date,
             (SELECT group_concat(i.text, char(10)) FROM event_insights i WHERE i.event_id=e.id) AS insight_text
-       FROM events e WHERE e.source_id = ? ORDER BY subject_date DESC`,
+       FROM events e WHERE e.source_id = ? AND ${RESEARCH_EVENT} ORDER BY subject_date DESC`,
     id,
   );
   return { ...source, events, research_brief: buildSourceBrief(source, events) };
@@ -265,9 +268,9 @@ export function listSources() {
     `SELECT s.*, count(e.id) AS event_count,
             max(e.significance) AS max_significance,
             max(${SUBJECT_DATE}) AS latest_subject_date,
-            (SELECT count(*) FROM event_insights i JOIN events ie ON ie.id=i.event_id WHERE ie.source_id=s.source_id) AS insight_count,
-            (SELECT group_concat(DISTINCT t.tag) FROM event_tags t JOIN events te ON te.id=t.event_id WHERE te.source_id=s.source_id) AS tags
-       FROM sources s LEFT JOIN events e ON e.source_id = s.source_id
+            (SELECT count(*) FROM event_insights i JOIN events ie ON ie.id=i.event_id WHERE ie.source_id=s.source_id AND NOT EXISTS(SELECT 1 FROM event_editorial ed WHERE ed.event_id=ie.id AND ed.kind!='research')) AS insight_count,
+            (SELECT group_concat(DISTINCT t.tag) FROM event_tags t JOIN events te ON te.id=t.event_id WHERE te.source_id=s.source_id AND NOT EXISTS(SELECT 1 FROM event_editorial ed WHERE ed.event_id=te.id AND ed.kind!='research')) AS tags
+       FROM sources s LEFT JOIN events e ON e.source_id = s.source_id AND ${RESEARCH_EVENT}
       GROUP BY s.source_id ORDER BY event_count DESC, s.captured_at DESC`,
   );
 }
@@ -278,7 +281,7 @@ export function listSources() {
 
 export function timeline(from?: string, to?: string) {
   const p: any[] = [];
-  let clause = '';
+  let clause = `WHERE ${RESEARCH_EVENT}`;
   if (from || to) {
     const c: string[] = [];
     if (from) {
@@ -289,10 +292,11 @@ export function timeline(from?: string, to?: string) {
       c.push('d.sort_key <= ?');
       p.push(to);
     }
-    clause = `WHERE ${c.join(' AND ')}`;
+    clause += ` AND ${c.join(' AND ')}`;
   }
   const pins = all(
-    `SELECT d.event_id, d.position, d.date, d.precision, d.label, d.category,
+    `SELECT d.event_id, d.position, d.date, d.precision,
+            COALESCE((SELECT headline FROM event_editorial ed WHERE ed.event_id=e.id AND ed.kind='research'),d.label) AS label, d.category,
             d.sort_key, d.span_end, e.primary_category, e.significance, e.summary,
             e.detailed_content, e.source_id, s.title AS source_title,
             s.source_label, s.source_url,
@@ -305,12 +309,20 @@ export function timeline(from?: string, to?: string) {
   );
   const captures = all(
     `SELECT e.id, substr(e.timestamp,1,10) AS date, e.primary_category, e.significance, e.summary
-       FROM events e WHERE e.timestamp IS NOT NULL ORDER BY e.timestamp`,
+       FROM events e WHERE e.timestamp IS NOT NULL AND ${RESEARCH_EVENT} ORDER BY e.timestamp`,
   );
   const bounds = one<{ min: string; max: string }>(
-    'SELECT min(sort_key) AS min, max(span_end) AS max FROM event_dates',
+    `SELECT min(sort_key) AS min, max(span_end) AS max FROM event_dates d JOIN events e ON e.id=d.event_id WHERE ${RESEARCH_EVENT}`,
   )!;
-  return { pins, captures, bounds };
+  const undated = all(`SELECT e.id AS event_id,e.summary,e.primary_category,e.source_id,e.significance,
+    ${REFERENCE_COUNT} AS reference_count,
+    COALESCE((SELECT headline FROM event_editorial ed WHERE ed.event_id=e.id AND ed.kind='research'),e.summary) AS label,
+    s.title AS source_title,s.source_url,s.captured_at,
+    (SELECT quote FROM event_evidence proof WHERE proof.event_id=e.id) AS evidence_quote
+    FROM events e JOIN sources s ON s.source_id=e.source_id
+    WHERE ${RESEARCH_EVENT} AND NOT EXISTS(SELECT 1 FROM event_dates d WHERE d.event_id=e.id)
+    ORDER BY s.captured_at DESC,e.id`);
+  return { pins, captures, bounds, undated, event_count: new Set(pins.map((pin) => pin.event_id)).size };
 }
 
 function dossierParagraph(value: unknown, limit = 420) {
@@ -344,7 +356,10 @@ function dossierParagraph(value: unknown, limit = 420) {
  * database. This function selects and groups stored material, but never asks a
  * model to invent reactions, sources, or follow-up claims.
  */
-export function timelineDossier(id: string) {
+export function timelineDossier(id: string): any {
+  const editorial = eventEditorial(id);
+  if (editorial?.kind === 'source_metadata') return null;
+  if (editorial?.kind === 'duplicate' && editorial.related_event_id && editorial.related_event_id !== id) return timelineDossier(editorial.related_event_id);
   const event = one<any>(
     `SELECT e.*, ${SUBJECT_DATE} AS subject_date,
             ${REFERENCE_COUNT} AS reference_count
@@ -376,6 +391,7 @@ export function timelineDossier(id: string) {
        FROM related_ids r
        JOIN events e ON e.id = r.id
        JOIN sources s ON s.source_id = e.source_id
+      WHERE ${RESEARCH_EVENT}
       ORDER BY e.significance DESC, subject_date DESC, e.id`,
     id,
     id,
@@ -388,7 +404,7 @@ export function timelineDossier(id: string) {
           headline: source.title,
           outlet: source.source_label || source.source_channel || source.source_type,
           kind: source.source_type || event.source_type || 'source',
-          when: event.subject_date || source.captured_at,
+          when: source.captured_at,
           url: source.source_url || event.source_url || null,
           event_id: event.id,
         }
@@ -398,7 +414,7 @@ export function timelineDossier(id: string) {
       headline: row.source_title,
       outlet: row.source_label || row.source_channel || row.source_type,
       kind: row.source_type || 'source',
-      when: row.subject_date || row.captured_at,
+      when: row.captured_at,
       url: row.source_url || null,
       event_id: row.id,
     })),
@@ -427,21 +443,10 @@ export function timelineDossier(id: string) {
     )
     .slice(0, 6);
 
-  if (!reactions.length && source) {
-    for (const insight of insights.slice(0, 3)) {
-      reactions.push({
-        event_id: event.id,
-        source_id: source.source_id,
-        who: source.source_label || source.source_channel || source.title || 'Stored source',
-        stance: event.primary_category,
-        line: dossierParagraph(insight.text, 340),
-      });
-    }
-  }
-
-  const soWhat = insights[0]?.text || event.mark_notes || event.underlying_principle || null;
+  const soWhat = editorial?.why_it_matters || event.underlying_principle || event.business_signal || event.mark_notes
+    || insights.find(item => !repeats(item.text, event.summary))?.text || null;
   const normalizedSoWhat = String(soWhat ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-  const significance = [
+  const significance = editorial ? [editorial.explanation] : [
     event.summary,
     event.detailed_notes || event.mark_notes,
     event.underlying_principle || event.business_signal || event.detailed_content,
@@ -457,7 +462,7 @@ export function timelineDossier(id: string) {
   }).map((value) => dossierParagraph(value));
 
   const forwardLooking = /\b(watch|next|will|could|may|remains|depends|pending|expected|risk|determine|follow)\b/i;
-  const watch = insights
+  const watch = editorial ? editorial.watch.map(item => item.text) : insights
     .map((item) => item.text)
     .filter((text) => text && text !== soWhat && forwardLooking.test(text))
     .filter((text, index, rows) => rows.indexOf(text) === index)
@@ -466,7 +471,7 @@ export function timelineDossier(id: string) {
   return {
     event: {
       id: event.id,
-      title: event.summary,
+      title: editorial?.headline || event.summary,
       category: event.primary_category,
       date: event.subject_date,
       reference_count: event.reference_count,
@@ -474,9 +479,11 @@ export function timelineDossier(id: string) {
     },
     significance,
     so_what: soWhat,
-    reactions,
+    reactions: reactions.filter(row => row.event_id !== id && ![event.summary, ...significance, soWhat].some(text => repeats(row.line, text))),
     sources,
     watch,
+    analysis_labeled: Boolean(editorial),
+    evidence_quote: editorial?.evidence_excerpt || one<{ quote: string }>('SELECT quote FROM event_evidence WHERE event_id=?', id)?.quote || null,
     verified_at: source?.captured_at || event.ingested_at || event.timestamp || event.subject_date,
   };
 }
@@ -561,7 +568,7 @@ export function search(q: string, limit = 40) {
             COALESCE(e.significance, 0) AS significance,
             COALESCE((SELECT MIN(d.sort_key) FROM event_dates d WHERE d.event_id = si.canonical_id), '') AS subject_date
        FROM search_index si LEFT JOIN events e ON e.id = si.canonical_id
-      WHERE search_index MATCH ?
+      WHERE search_index MATCH ? AND ${RESEARCH_EVENT}
       ORDER BY score ASC, significance DESC, subject_date DESC, si.canonical_id ASC
       LIMIT ?`,
     ftsQuery(q),
@@ -579,14 +586,15 @@ export function search(q: string, limit = 40) {
 
 export function brief() {
   const counts = one<any>(
-    `SELECT (SELECT count(*) FROM events) events,
+    `SELECT (SELECT count(*) FROM events e WHERE ${RESEARCH_EVENT}) events,
             (SELECT count(*) FROM sources) sources,
             (SELECT count(*) FROM event_facets) facets,
             (SELECT count(*) FROM media_assets) media,
             (SELECT count(*) FROM content_drafts) drafts,
             (SELECT count(*) FROM quiz_sessions) quiz_sessions,
             (SELECT count(*) FROM conversation_sessions) conversations,
-            (SELECT count(*) FROM events WHERE origin='ingested') ingested_events`,
+            (SELECT count(*) FROM events e WHERE origin='ingested' AND ${RESEARCH_EVENT}) ingested_events,
+            (SELECT count(*) FROM event_editorial WHERE kind!='research') archived_source_records`,
   )!;
 
   const telegramSync = one<any>(
@@ -622,11 +630,11 @@ export function brief() {
             s.title AS source_title,
             (SELECT text FROM note_revisions n WHERE n.event_id = e.id ORDER BY n.revision DESC LIMIT 1) AS note
        FROM events e JOIN sources s ON s.source_id = e.source_id
-      WHERE e.significance >= 4 ORDER BY e.significance DESC, subject_date DESC LIMIT 8`,
+      WHERE e.significance >= 4 AND ${RESEARCH_EVENT} ORDER BY e.significance DESC, subject_date DESC LIMIT 8`,
   );
 
   const categories = all(
-    'SELECT primary_category AS category, count(*) AS count FROM events GROUP BY 1 ORDER BY 2 DESC',
+    `SELECT primary_category AS category, count(*) AS count FROM events e WHERE ${RESEARCH_EVENT} GROUP BY 1 ORDER BY 2 DESC`,
   );
 
   const captureByMonth = all(
@@ -654,8 +662,8 @@ export function brief() {
 
   const recentSources = all(
     `SELECT s.*, count(e.id) AS event_count,
-            (SELECT count(*) FROM event_insights i JOIN events ie ON ie.id=i.event_id WHERE ie.source_id=s.source_id) AS insight_count
-       FROM sources s LEFT JOIN events e ON e.source_id=s.source_id
+            (SELECT count(*) FROM event_insights i JOIN events ie ON ie.id=i.event_id WHERE ie.source_id=s.source_id AND NOT EXISTS(SELECT 1 FROM event_editorial ed WHERE ed.event_id=ie.id AND ed.kind!='research')) AS insight_count
+       FROM sources s LEFT JOIN events e ON e.source_id=s.source_id AND ${RESEARCH_EVENT}
       GROUP BY s.source_id ORDER BY s.captured_at DESC LIMIT 8`,
   );
   const recentQuestions = listAskHistory('', 5);
@@ -664,138 +672,82 @@ export function brief() {
   return { counts, telegram_sync: telegramSync, theme, themeCoverage, gaps, highSignal, categories, captureByMonth, subjectByYear, recentDrafts, lastRead, range, recentSources, recentQuestions, topics };
 }
 
-export function listTopics(limit = 80, selected?: string) {
+type TopicGroup = { key: string; title: string; description?: string; event_ids: string[]; tags: string[]; unfiled?: boolean };
+
+export function listTopics(limit?: number, selected?: string): any {
+  const records = all<any>(`SELECT e.id,e.source_id,e.primary_category,e.significance,
+    ${SUBJECT_DATE} AS subject_date,
+    (SELECT count(*) FROM event_insights i WHERE i.event_id=e.id) AS claim_count
+    FROM events e WHERE ${RESEARCH_EVENT}`);
+  const byId = new Map(records.map((row) => [row.id, row]));
   const organized = activeTopicOrganization();
-  if (organized?.topics.length) {
-    const visible = organized.topics.slice(0, Math.max(1, Math.min(limit, 80)));
-    const topics = visible.map((topic) => {
-      const placeholders = topic.event_ids.map(() => '?').join(',');
-      const stats = one<any>(
-        `SELECT count(DISTINCT e.id) AS event_count,
-                count(DISTINCT e.source_id) AS source_count,
-                count(DISTINCT e.primary_category) AS position_count,
-                max(${SUBJECT_DATE}) AS latest_subject_date,
-                max(e.significance) AS max_significance
-           FROM events e WHERE e.id IN (${placeholders})`,
-        ...topic.event_ids,
-      );
-      return {
-        tag: topic.key,
-        title: topic.title,
-        description: topic.description,
-        event_count: stats?.event_count ?? 0,
-        source_count: stats?.source_count ?? 0,
-        position_count: stats?.position_count ?? 0,
-        latest_subject_date: stats?.latest_subject_date ?? null,
-        max_significance: stats?.max_significance ?? 0,
-        tags: topic.tags,
-      };
-    });
-    if (!selected) return topics;
-    const chosen = organized.topics.find((topic) => topic.key === selected);
-    if (chosen) {
-      const placeholders = chosen.event_ids.map(() => '?').join(',');
-      const events = all<any>(
-        `SELECT e.id, e.origin, e.timestamp, e.primary_category, e.significance,
-                e.summary, e.business_signal, e.source_id, e.source_type, e.source_channel,
-                ${SUBJECT_DATE} AS subject_date,
-                s.title AS source_title, s.source_label, s.source_url
-           FROM events e JOIN sources s ON s.source_id=e.source_id
-          WHERE e.id IN (${placeholders})
-          ORDER BY subject_date DESC, e.significance DESC, e.id`,
-        ...chosen.event_ids,
-      ).map(withTags);
-      const sources = all(
-        `SELECT DISTINCT s.*, count(e2.id) AS event_count
-           FROM events e JOIN sources s ON s.source_id=e.source_id
-           LEFT JOIN events e2 ON e2.source_id=s.source_id
-          WHERE e.id IN (${placeholders})
-          GROUP BY s.source_id ORDER BY s.captured_at DESC`,
-        ...chosen.event_ids,
-      );
-      const claims = all(
-        `SELECT i.event_id, i.position, i.text, e.primary_category, e.significance,
-                ${SUBJECT_DATE} AS subject_date, e.source_id,
-                s.title AS source_title, s.source_label, s.source_channel, s.source_type, s.source_url
-           FROM events e JOIN event_insights i ON i.event_id=e.id
-           JOIN sources s ON s.source_id=e.source_id
-          WHERE e.id IN (${placeholders})
-          ORDER BY e.significance DESC, subject_date DESC, i.position`,
-        ...chosen.event_ids,
-      );
-      const relatedTags = all(
-        `SELECT t.tag, count(DISTINCT t.event_id) AS event_count
-           FROM event_tags t WHERE t.event_id IN (${placeholders})
-          GROUP BY t.tag ORDER BY event_count DESC, t.tag LIMIT 8`,
-        ...chosen.event_ids,
-      );
-      return {
-        topics,
-        selected,
-        topic_title: chosen.title,
-        topic_description: chosen.description,
-        events,
-        sources,
-        claims,
-        related_tags: relatedTags,
-      };
+  const groups: TopicGroup[] = (organized?.topics ?? []).map((topic) => ({ ...topic,
+    event_ids: topic.event_ids.filter((id) => byId.has(id)),
+  })).filter((topic) => topic.event_ids.length);
+  const assigned = new Set(groups.flatMap((topic) => topic.event_ids));
+  const learned = new Map<string, TopicGroup>();
+  for (const row of all<any>('SELECT topic_key,title,event_id FROM event_topics ORDER BY title')) {
+    if (!byId.has(row.event_id) || assigned.has(row.event_id)) continue;
+    const group: TopicGroup = learned.get(row.topic_key) ?? { key: row.topic_key, title: row.title, event_ids: [], tags: [] };
+    group.event_ids.push(row.event_id);
+    learned.set(row.topic_key, group);
+  }
+  for (const group of learned.values()) {
+    groups.push(group);
+    group.event_ids.forEach((id) => assigned.add(id));
+  }
+  if (!organized) {
+    const tagGroups = new Map<string, TopicGroup>();
+    for (const row of all<any>('SELECT tag,event_id FROM event_tags ORDER BY tag')) {
+      if (!byId.has(row.event_id)) continue;
+      const group: TopicGroup = tagGroups.get(row.tag) ?? { key: row.tag, title: row.tag, event_ids: [], tags: [] };
+      group.event_ids.push(row.event_id);
+      tagGroups.set(row.tag, group);
+    }
+    for (const group of tagGroups.values()) if (group.event_ids.length >= 2) {
+      groups.push(group);
+      group.event_ids.forEach((id) => assigned.add(id));
     }
   }
-  const topicRows = all<any>(
-    `SELECT t.tag, count(DISTINCT t.event_id) AS event_count,
-            count(DISTINCT e.source_id) AS source_count,
-            count(DISTINCT e.primary_category) AS position_count,
-            max(${SUBJECT_DATE}) AS latest_subject_date,
-            max(e.significance) AS max_significance
-       FROM event_tags t JOIN events e ON e.id=t.event_id
-      GROUP BY t.tag HAVING event_count >= 2
-      ORDER BY event_count DESC, source_count DESC, t.tag LIMIT ?`,
-    limit,
-  );
-  const topics = topicRows.map((topic) => ({
-    ...topic,
-    tags: all<{ tag: string; event_count: number }>(
-      `SELECT e.primary_category AS tag, count(DISTINCT e.id) AS event_count
-         FROM event_tags t JOIN events e ON e.id = t.event_id
-        WHERE t.tag = ?
-        GROUP BY e.primary_category
-        ORDER BY event_count DESC, e.primary_category
-        LIMIT 3`,
-      topic.tag,
-    ).map((item) => item.tag),
-  }));
-  if (!selected) return topics;
-  const events = findEvents({ tag: selected, sort: 'subject', limit: 100 }).events;
-  const sources = all(
-    `SELECT DISTINCT s.*, count(e2.id) AS event_count
-       FROM event_tags t JOIN events e ON e.id=t.event_id
-       JOIN sources s ON s.source_id=e.source_id
-       LEFT JOIN events e2 ON e2.source_id=s.source_id
-      WHERE t.tag=? GROUP BY s.source_id ORDER BY s.captured_at DESC`,
-    selected,
-  );
-  const claims = all(
-    `SELECT i.event_id, i.position, i.text, e.primary_category, e.significance,
-            ${SUBJECT_DATE} AS subject_date, e.source_id,
-            s.title AS source_title, s.source_label, s.source_channel, s.source_type, s.source_url
-       FROM event_tags t JOIN events e ON e.id=t.event_id
-       JOIN event_insights i ON i.event_id=e.id
-       JOIN sources s ON s.source_id=e.source_id
-      WHERE t.tag=? ORDER BY e.significance DESC, subject_date DESC, i.position`,
-    selected,
-  );
-  const relatedTags = all(
-    `SELECT related.tag, count(DISTINCT related.event_id) AS event_count
-       FROM event_tags chosen
-       JOIN event_tags related ON related.event_id = chosen.event_id
-      WHERE chosen.tag = ? AND related.tag <> ?
-      GROUP BY related.tag
-      ORDER BY event_count DESC, related.tag
-      LIMIT 8`,
-    selected,
-    selected,
-  );
-  return { topics, selected, events, sources, claims, related_tags: relatedTags };
+  const unfiled = records.filter((row) => !assigned.has(row.id)).map((row) => row.id);
+  if (unfiled.length) groups.push({ key: '__unfiled__', title: 'Additional retained evidence',
+    description: 'Source-backed claims that have not been grouped into a named topic yet.',
+    event_ids: unfiled, tags: [], unfiled: true });
+  const topics = groups.map((group) => {
+    const members = group.event_ids.map((id) => byId.get(id)).filter(Boolean);
+    const categories = [...new Set<string>(members.map((row) => row.primary_category).filter(Boolean))];
+    return { tag: group.key, title: group.title, description: group.description, unfiled: group.unfiled ?? false,
+      event_count: members.length, claim_count: members.reduce((n, row) => n + Number(row.claim_count), 0),
+      source_count: new Set(members.map((row) => row.source_id)).size,
+      category_count: categories.length, position_count: categories.length,
+      latest_subject_date: members.map((row) => row.subject_date).filter(Boolean).sort().at(-1) ?? null,
+      max_significance: Math.max(...members.map((row) => Number(row.significance) || 0), 0),
+      tags: group.tags.length ? group.tags : categories,
+    };
+  });
+  if (!selected) return limit == null ? topics : topics.slice(0, Math.max(1, limit));
+  let chosen = groups.find((group) => group.key === selected);
+  if (!chosen) {
+    const tagged = all<{ event_id: string }>('SELECT event_id FROM event_tags WHERE tag=?', selected);
+    chosen = { key: selected, title: selected, event_ids: tagged.map((row) => row.event_id).filter(id => byId.has(id)), tags: [] };
+  }
+  if (!chosen.event_ids.length) return { topics, selected, topic_title: chosen.title, events: [], claims: [], sources: [], related_tags: [] };
+  const placeholders = chosen.event_ids.map(() => '?').join(',');
+  const events = all<any>(`SELECT e.*,${SUBJECT_DATE} AS subject_date,
+    s.title AS source_title,s.source_label,s.source_url
+    FROM events e JOIN sources s ON s.source_id=e.source_id WHERE e.id IN (${placeholders})
+    ORDER BY subject_date DESC,e.significance DESC,e.id`, ...chosen.event_ids).map(withTags);
+  const claims = all<any>(`SELECT i.event_id,i.position,i.text,e.primary_category,e.significance,
+    ${SUBJECT_DATE} AS subject_date,e.source_id,s.title AS source_title,s.source_label,s.source_channel,s.source_type,s.source_url,
+    (SELECT quote FROM event_evidence proof WHERE proof.event_id=e.id) AS evidence_quote
+    FROM events e JOIN event_insights i ON i.event_id=e.id JOIN sources s ON s.source_id=e.source_id
+    WHERE e.id IN (${placeholders}) ORDER BY e.significance DESC,subject_date DESC,i.position`, ...chosen.event_ids);
+  const sources = all(`SELECT DISTINCT s.* FROM sources s JOIN events e ON e.source_id=s.source_id
+    WHERE e.id IN (${placeholders}) ORDER BY s.captured_at DESC`, ...chosen.event_ids);
+  const relatedTags = all(`SELECT tag,count(DISTINCT event_id) AS event_count FROM event_tags
+    WHERE event_id IN (${placeholders}) GROUP BY tag ORDER BY event_count DESC,tag LIMIT 8`, ...chosen.event_ids);
+  return { topics, selected, topic_title: chosen.title, topic_description: chosen.description,
+    events, sources, claims, related_tags: relatedTags };
 }
 
 export function listAskHistory(query = '', limit = 40) {

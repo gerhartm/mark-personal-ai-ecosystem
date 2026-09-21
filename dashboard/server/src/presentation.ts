@@ -76,8 +76,9 @@ export function eventPresentation(event: Record<string, any>) {
     .map((item: any) => bounded(item?.text, 520))
     .filter(Boolean));
   return {
-    what_happened: bounded(event.summary, 1_200),
-    source_context: bounded(event.detailed_content || event.raw_text, 2_400),
+    what_happened: bounded(event.editorial?.explanation || event.summary, 1_200),
+    source_context: bounded(event.editorial?.explanation || event.detailed_content || event.raw_text, 2_400),
+    why_it_matters: event.editorial?.why_it_matters ?? null,
     key_takeaways: takeaways.slice(0, 6),
   };
 }

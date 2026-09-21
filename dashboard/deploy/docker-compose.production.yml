@@ -1,6 +1,6 @@
 services:
   crypto-dashboard:
-    image: mark-crypto-dashboard:20260905T095230Z
+    image: mark-crypto-dashboard:20260910-timeline-quality
     container_name: crypto-dashboard
     restart: unless-stopped
     env_file:
@@ -32,6 +32,8 @@ services:
     networks:
       - personal-ai
     read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m,mode=1777
     cap_drop:
       - ALL
     security_opt:

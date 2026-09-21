@@ -85,7 +85,7 @@ describe('read routes', () => {
     expect(recon.unresolvedConnections).toBe(7);
     expect(recon.orphanEvents).toBe(0);
     expect(recon.foreignKeyErrors).toBe(0);
-    expect(recon.migrations.length).toBe(8);
+    expect(recon.migrations.length).toBe(10);
   });
 
   it('builds topics and source detail from the stored corpus', async () => {

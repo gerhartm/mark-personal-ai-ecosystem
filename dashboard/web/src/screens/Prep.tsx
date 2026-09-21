@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
+import { useWorkflowRestore, WorkflowHistory } from './SavedWork';
 import { api, useQuery } from '../lib/api';
 import { Eyebrow, ViewHead } from '../components/Desk';
 import { ExactDialog } from '../components/ExactDialog';
 import { compact, formatDate, sourceKind } from '../lib/desk';
 
-type Topic = { tag: string; event_count: number };
+type Topic = { tag: string; title?: string; event_count: number };
 type EvidenceSource = {
   id: string;
   kind: 'event' | 'source';
@@ -42,7 +43,7 @@ const LENS = [
 
 export function Prep() {
   const topicsQuery = useQuery<{ topics: Topic[] }>('/topics');
-  const [topic, setTopic] = useState('');
+  const [topic, setTopic] = useState(new URLSearchParams(window.location.search).get('topic') || '');
   const [lens, setLens] = useState(3);
   const [picked, setPicked] = useState<string[]>([]);
   const [custom, setCustom] = useState<string[]>([]);
@@ -53,13 +54,15 @@ export function Prep() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const saved = useWorkflowRestore((result, input) => { if (!Array.isArray(result.points)) { setError('Open this draft from Saved work to use its original format.'); return; } setResult(result); setTopic(input.topic); setLens(input.lens); setPicked(input.tangents || []); });
+
   const queryTokens = useMemo(() => topic.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length > 2), [topic]);
   const suggested = useMemo(() => {
     const scored = (topicsQuery.data?.topics ?? [])
       .filter((item) => item.tag.toLowerCase() !== topic.trim().toLowerCase())
       .map((item) => ({
-        label: item.tag,
-        score: queryTokens.reduce((sum, token) => sum + (item.tag.toLowerCase().includes(token) ? 2 : 0), 0) + Math.min(4, item.event_count / 4),
+        label: item.title || item.tag,
+        score: queryTokens.reduce((sum, token) => sum + ((item.title || item.tag).toLowerCase().includes(token) ? 2 : 0), 0) + Math.min(4, item.event_count / 4),
       }))
       .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))
       .slice(0, 4)
@@ -85,10 +88,11 @@ export function Prep() {
     setBusy(true);
     setError('');
     try {
-      setResult(await api<PrepResult>('/prep', {
+      const response = await api<PrepResult>('/prep', {
         method: 'POST',
         body: JSON.stringify({ topic: topic.trim(), lens, tangents: picked }),
-      }));
+      });
+      setResult(response); saved.remember(response.id);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Generation failed');
     } finally {
@@ -99,6 +103,7 @@ export function Prep() {
   return (
     <section>
       <ViewHead title="Prep" />
+      <WorkflowHistory id={result?.id} query={saved.query} />
       <div className="mb-[22px] rounded-[7px] border-2 border-[var(--line-strong)] bg-[var(--panel)] px-4 py-[13px]">
         <label htmlFor="prep-topic" className="mb-2 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Question or topic</label>
         <input

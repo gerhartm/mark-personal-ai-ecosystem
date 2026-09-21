@@ -6,7 +6,7 @@ crypto database for evidence. The application has its own shared-password
 login, signed sessions, and Cloudflare Turnstile verification. It does not
 modify Hermes, OpenViking, or the legacy platform.
 
-The visible interface follows Mark's latest Lovable export exactly. Its five
+The visible interface preserves Mark's approved Lovable design. Its five
 primary screens are:
 
 - **Topics:** the evidence-first home view, built only from real stored tags,
@@ -20,9 +20,17 @@ primary screens are:
 - **Tarun bot:** the second creator-reference workflow using the same verified
   evidence and citation boundary.
 
-The existing source, Ask, Quiz, Studio, Capture, and Satoshi synchronization
-capabilities remain in the backend for the dashboard workflows and other
-approved clients. They are intentionally not exposed as extra navigation tabs.
+**Sources and imports** and **Saved work** are utility links alongside Control
+center. Sources accepts batches of article URLs, pasted text, text/transcript
+files and Telegram JSON exports. Saved work reopens Prep and creator results,
+including citations, inputs and revisions; older drafts remain readable as text.
+The existing Ask, Quiz and Studio capabilities remain available in the backend.
+
+Topics and Timeline refresh every ten seconds while visible, and on focus.
+Successful source registration queues evidence extraction through native Hermes;
+received, processing, ready and failed states are shown separately. Timeline uses
+supported event dates with their actual precision and lists undated evidence
+separately. Capture time is never substituted for an unknown event date.
 
 ## Run it
 
@@ -51,6 +59,7 @@ Environment, all optional, all by name only:
 | `HERMES_DASHBOARD_USERNAME` | Hermes dashboard service account name |
 | `HERMES_DASHBOARD_PASSWORD_FILE` | mounted file containing the Hermes dashboard password |
 | `INTELLIGENCE_AUTO_REFRESH_HOURS` | minimum interval between scheduled live intelligence reviews, defaults to `24` |
+| `SOURCE_PROCESSING_ENABLED` | set to `false` to pause source extraction and bulk workers; enabled by default, extraction also requires Hermes |
 | `OPENVIKING_BASE_URL` | private OpenViking service origin. Unset leaves Capture explicitly unavailable |
 | `OPENVIKING_API_KEY_FILE` | read-only mounted file containing the tenant-scoped OpenViking key |
 | `OPENVIKING_ACCOUNT_ID`, `OPENVIKING_USER_ID`, `OPENVIKING_AGENT_ID` | non-secret tenant identity used by the native resource API |
@@ -70,7 +79,7 @@ Environment, all optional, all by name only:
 
 ## Production deployment
 
-The accepted application release is `20260905T084059Z`. Its reproducible runtime contract
+The accepted application release is `20260910-completion-r3`. Its runtime contract
 is in `deploy/docker-compose.production.yml`; secrets remain in the owner-only
 server environment file referenced there. The service publishes only
 `127.0.0.1:9330`, joins the existing private Hermes network, runs non-root with a
@@ -78,13 +87,13 @@ read-only root filesystem, and receives no model-provider credential. Capture
 receives only a tenant-scoped OpenViking key through a read-only file mount; the
 credential is absent from the image, environment, logs, and repository.
 
-The application login is live on the private origin through a local Caddy
-gateway at `127.0.0.1:9331`. Cloudflare Access remains in front of the public
-hostname until a real Turnstile widget for `crypto.forkedbrain.fyi` replaces the
-official test widget used for staged acceptance. Never remove Access while the
-always-pass test widget is installed. Once real keys are installed, the accepted
+The application login is live through a local Caddy gateway at
+`127.0.0.1:9331`. The September 5 cutover installed a real Turnstile widget and
+removed only `crypto.forkedbrain.fyi` from the shared Access application. The
 public boundary is the custom login, server-side Turnstile verification, and a
-Secure HttpOnly signed session.
+Secure HttpOnly signed session. The other application hostnames retain Access.
+The guarded cutover script below is retained for recovery, not a step to rerun
+on an already accepted deployment.
 
 The guarded removal script updates only the existing Access application,
 verifies the exact policy and all existing hostnames, and restores Access
@@ -188,14 +197,15 @@ existing database. The generated body is revision 0; each browser edit appends
 a new revision and leaves the original body untouched. This adds no second
 agent, model provider, memory service, or reasoning layer.
 
-The Capture screen submits only a URL or pasted text to the authenticated
+Sources and imports submits URLs or retained text to the authenticated
 backend. The backend computes a stable source identity, prevents exact replay,
 and calls OpenViking's native acquisition path. It registers the source and a
 receipt in the existing database only after native acceptance. If OpenViking
 materialises a target before its embedding provider fails, the backend removes
 that exact remote-only target or reports it as still processing; it never marks
-the source ready. There is no custom scraper, queue, vector store, memory engine,
-or second agent.
+the source ready. The dashboard's SQLite queues coordinate capture and evidence
+extraction; acquisition and memory remain native OpenViking operations. There is
+no custom scraper, vector store, memory engine or second agent.
 
 After Satoshi completes a Crypto ingestion, its native Crypto skill calls the
 small `sync_dashboard_source.py` helper. The helper acknowledges one deterministic
@@ -205,6 +215,33 @@ one registration at a time, retries bounded transient failures, and reads the
 full retained source from OpenViking. Replaying the same external identity or
 canonical source does not create another source.
 
+After registration, a separate durable source-processing queue extracts bounded
+chunks using native Hermes. Exact retained passages back each new claim. All
+chunks validate before a source's records are published atomically; checkpoints
+survive restarts and fingerprints prevent exact replay duplicates. Unsupported
+dates are omitted. Three failed processing attempts stop with a visible retry
+action. A five-second worker tick schedules work; it is not a promise that a
+document finishes in five seconds. Provider availability and document length
+determine completion time and processing consumes the existing model allowance.
+
+Bulk requests accept up to 100 items each, with a persistent per-item queue. The
+UI splits larger selections into bounded requests. Supported uploads are TXT,
+MD, SRT, VTT, CSV and Telegram JSON (5 MB per file; 250,000 characters per imported
+text item). Each retained source can be processed up to 1,000,000 characters;
+oversize sources fail visibly rather than silently losing their ending. Audio,
+video and PDFs need text/transcript conversion first. Import-ready means the
+source was retained; evidence status separately reports extraction completion.
+
+Control center exposes the daily intelligence output and schedule toggle. The
+24-hour default remains unchanged; disabling the schedule prevents future
+scheduled runs and does not cancel a run already in progress.
+
+Topic rebuilds run as persistent background jobs and return an immediate queue
+acknowledgment. Status survives leaving or refreshing the page; repeated clicks
+reuse the active job. All batches validate before the new organization replaces
+the old one. An interrupted active rebuild is marked failed at startup for an
+explicit retry, avoiding an unnoticed repeat of paid generation.
+
 ## Deliberate boundaries
 
 - No second database, vector service, or memory provider.
@@ -213,5 +250,15 @@ canonical source does not create another source.
   are the tenant-scoped OpenViking key and Satoshi registration service secret,
   both supplied by read-only file mounts.
 - No direct public origin listener. Production binds to VPS loopback and is
-  published only through the existing Cloudflare tunnel and Access policy.
+  published only through the existing Cloudflare tunnel and dashboard login.
 - No change to `intel.forkedbrain.fyi`; it remains the isolated legacy service.
+
+### Timeline content quality
+
+New source processing stores separate validated headline, explanation and
+significance fields in `event_editorial`. The dossier labels inferred significance
+as analysis and keeps supporting passages and full sources inspectable. Source
+metadata and duplicate claims remain archived and resolvable, while research
+views exclude them. Undated items open complete dossiers without invented dates.
+The reviewed September 10 repair and recovery instructions are documented in
+`../docs/infrastructure/state/2026-09-10-timeline-quality.md`.

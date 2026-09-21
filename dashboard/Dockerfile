@@ -29,6 +29,10 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=5183
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends poppler-utils antiword \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system --gid 1001 dashboard \
   && useradd --system --uid 1001 --gid dashboard --home-dir /app dashboard
 

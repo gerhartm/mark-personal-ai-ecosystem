@@ -1,3 +1,4 @@
+import { DailyIntelligence } from '../components/DailyIntelligence';
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorState, Eyebrow, LoadingRows, ViewHead } from '../components/Desk';
 import { api, invalidate, useQuery } from '../lib/api';
@@ -26,11 +27,15 @@ type Revision = {
   created_at: string;
 };
 
+type TopicJob = { status: 'idle' | 'queued' | 'running' | 'ready' | 'failed'; updated_at?: string; topic_count?: number; error?: string };
+
 const MAX_LENGTH = 4_000;
 const MIN_LENGTH = 80;
 
 export function ControlCenter() {
   const controls = useQuery<{ controls: Control[] }>('/prompt-controls');
+  const topicJob = useQuery<TopicJob>('/prompt-controls/topics/rebuild/status', [], 5_000);
+  const rebuildBusy = topicJob.data?.status === 'queued' || topicJob.data?.status === 'running';
   const [selected, setSelected] = useState('topics');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'restoring' | 'rebuilding' | 'rebuilt' | 'error'>('idle');
@@ -47,6 +52,10 @@ export function ControlCenter() {
     setMessage('');
     setConfirmRestore(false);
   }, [selected]);
+
+  useEffect(() => {
+    if (topicJob.data?.status === 'ready') invalidate('/topics');
+  }, [topicJob.data?.status, topicJob.data?.updated_at]);
 
   const updated = useMemo(() => {
     if (!control?.updated_at) return 'Default instruction';
@@ -96,14 +105,14 @@ export function ControlCenter() {
   };
 
   const rebuild = async () => {
-    if (!control || control.id !== 'topics' || dirty || state === 'rebuilding') return;
+    if (!control || control.id !== 'topics' || dirty || state === 'rebuilding' || rebuildBusy) return;
     setState('rebuilding');
     setMessage('');
     try {
-      const result = await api<{ topics: unknown[] }>('/prompt-controls/topics/rebuild', { method: 'POST' });
-      invalidate('/topics');
-      setState('rebuilt');
-      setMessage(`${result.topics.length} focused topics are now live.`);
+      await api<TopicJob>('/prompt-controls/topics/rebuild', { method: 'POST' });
+      topicJob.refetch();
+      setState('idle');
+      setMessage('Topic rebuild queued. You can leave this page; progress is saved here.');
     } catch (error) {
       setState('error');
       setMessage(error instanceof Error ? error.message : 'Topics could not be rebuilt.');
@@ -116,6 +125,7 @@ export function ControlCenter() {
   return (
     <section>
       <ViewHead title="Control center">Review and fine tune the instructions that shape generated content. Source records, citations, validation, and evidence rules remain fixed.</ViewHead>
+      <DailyIntelligence />
       <div className="grid overflow-hidden rounded-[7px] border-2 border-[var(--line-strong)] bg-[var(--panel)] md:grid-cols-[196px_1fr]" data-testid="control-center">
         <aside className="border-b border-[var(--line)] p-2.5 md:border-r md:border-b-0">
           <Eyebrow>Pages</Eyebrow>
@@ -193,8 +203,12 @@ export function ControlCenter() {
                   {control.id === 'topics' ? (
                     <div className="mt-5 border-t border-[var(--line)] pt-4">
                       <Eyebrow>Apply organization</Eyebrow>
-                      <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">Rebuild Topics after saving. This makes one low-reasoning Hermes generation request, validates every event reference, and changes only the topic organization. Stored sources and evidence remain untouched.</p>
-                      <button type="button" className="desk-button secondary" onClick={rebuild} disabled={dirty || state === 'rebuilding'}>{state === 'rebuilding' ? 'Rebuilding Topics' : 'Rebuild Topics'}</button>
+                      <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">Rebuild Topics after saving. Hermes reviews the collection in batches and validates every event reference. Larger collections can take several minutes. Progress is saved, so you can leave this page and return later.</p>
+                      <button type="button" className="desk-button secondary" onClick={rebuild} disabled={dirty || rebuildBusy || state === 'rebuilding'}>{rebuildBusy || state === 'rebuilding' ? 'Rebuilding Topics' : topicJob.data?.status === 'failed' ? 'Retry topic rebuild' : 'Rebuild Topics'}</button>
+                      {topicJob.error ? <p role="alert" className="mt-3 font-mono text-[9.5px] text-[var(--rose)]">Rebuild status is unavailable. Refresh to check before retrying.</p> : null}
+                      {topicJob.data?.status !== 'idle' && topicJob.data ? <p role={topicJob.data.status === 'failed' ? 'alert' : 'status'} className={`mt-3 font-mono text-[9.5px] leading-relaxed ${topicJob.data.status === 'failed' ? 'text-[var(--rose)]' : 'text-[var(--sage)]'}`}>
+                        {topicJob.data.status === 'queued' ? 'Queued. The rebuild will start shortly.' : topicJob.data.status === 'running' ? 'Rebuilding the topic organization. The current Topics remain available.' : topicJob.data.status === 'ready' ? `${topicJob.data.topic_count} focused topics are now live.` : topicJob.data.error}
+                      </p> : null}
                     </div>
                   ) : null}
 

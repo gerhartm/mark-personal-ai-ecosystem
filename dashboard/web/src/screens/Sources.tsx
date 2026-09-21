@@ -24,6 +24,7 @@ export function telegramItems(raw: any, filename: string): Item[] {
   }).filter((item): item is Item => Boolean(item));
 }
 
+// dashboard-revert-acceptance-20260921
 export function Sources() {
   const sources = useQuery<any>('/sources', [], 10_000);
   const processing = useQuery<any>('/processing', [], 5_000);

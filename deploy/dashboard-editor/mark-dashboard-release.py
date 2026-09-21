@@ -125,6 +125,13 @@ def perform(request):
         shutil.copy(EDITOR / 'test-support/baseline.db', work / 'dashboard/data/crypto-intelligence.db')
         frozen = work / '.work/crypto-v2/dashboard-handoff-20260803T010000Z'
         shutil.copytree(EDITOR / 'test-support/frozen', frozen)
+        # Give native file-edit verification a real local diff without exposing
+        # the host repository, GitHub credentials or remote publishing rights.
+        dashboard = work / 'dashboard'
+        cmd(['git', 'init', '-q', str(dashboard)])
+        (dashboard / '.git/info/exclude').write_text('data/\nnode_modules/\ndist/\ntest-support/\n.editor-tmp/\n.acceptance-checks/\n.npm/\n.cache/\n._*\n*.tsbuildinfo\n')
+        cmd(['git', '-C', str(dashboard), 'add', '-A'])
+        cmd(['git', '-C', str(dashboard), '-c', 'user.name=darshanahirrao', '-c', 'user.email=02darsh@gmail.com', '-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'Published dashboard baseline ' + history['current_commit']])
         # Native Hermes tools run as uid/gid 10000, not docker-exec root.
         for directory, dirs, files in os.walk(work):
             os.chown(directory, 10000, 10000)

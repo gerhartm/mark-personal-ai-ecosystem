@@ -125,6 +125,10 @@ def perform(request):
         shutil.copy(EDITOR / 'test-support/baseline.db', work / 'dashboard/data/crypto-intelligence.db')
         frozen = work / '.work/crypto-v2/dashboard-handoff-20260803T010000Z'
         shutil.copytree(EDITOR / 'test-support/frozen', frozen)
+        # Native Hermes tools run as uid/gid 10000, not docker-exec root.
+        for directory, dirs, files in os.walk(work):
+            os.chown(directory, 10000, 10000)
+            for name in files: os.chown(Path(directory) / name, 10000, 10000)
         save(folder / 'base.json', {'commit': history['current_commit']})
         return {'status': 'prepared', 'base_commit': history['current_commit']}
     release = BASE / 'releases' / f'editor-{run_id}'

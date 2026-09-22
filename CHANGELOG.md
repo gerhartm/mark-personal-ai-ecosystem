@@ -1,5 +1,11 @@
 # Change record
 
+## 22 September 2026: repository transfer preparation
+
+- Confirmed receiving GitHub account `gerhartm`.
+- Added the installed stale-quota recovery helper, service units and tests to the source inventory. Script/unit hashes match the host.
+- Recorded the retained-copy and post-acceptance release-access checks. Ownership transfer remains subject to recipient acceptance.
+
 ## 22 September 2026: current source and handover documentation
 
 - Added a current project homepage and dashboard README.

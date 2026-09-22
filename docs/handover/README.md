@@ -2,9 +2,9 @@
 
 [Documentation](../README.md) / Handover
 
-## Current stage: owner review
+## Current stage: transfer preparation
 
-The repository remains private under `darshanahirrao`. The default `main` branch contains the latest published dashboard source and the handover documentation. Review it before any ownership transfer. Updating the repository does not transfer accounts or deploy the application.
+The repository is private. The authorised receiving GitHub account is [`gerhartm`](https://github.com/gerhartm). Ownership remains with `darshanahirrao` until the transfer is accepted. The default `main` branch contains the latest published dashboard source and the handover documentation. Review it before any ownership transfer. Updating the repository does not transfer accounts or deploy the application.
 
 ## Review the package
 
@@ -17,10 +17,10 @@ The repository remains private under `darshanahirrao`. The default `main` branch
 
 | Item | Required confirmation |
 | --- | --- |
-| Repository destination | Correct username/organisation and authorised recipient. |
+| Repository destination | Confirmed receiving account: `gerhartm` (personal GitHub user). |
 | Default and release branches | `main` provides the current source and documentation. Preserve the separate `satoshi-dashboard` release-helper branch/ledger contract. |
 | Integration URLs | Review hardcoded GitHub owner/repository references in editor/release scripts and private Git credentials. |
-| Source completeness | Reconcile installed helpers, skills and deployment definitions with Git; the quota-recovery helper is still only in the operator workspace/installed host in this branch. |
+| Source completeness | The recovery helper and units are now included and match the installed files by SHA-256. Private configuration, data and credentials remain separate. |
 | VPS and service ownership | Recipient can access the hosting account, approved SSH, Cloudflare, Coolify and the Telegram bot administration where required. |
 | Provider billing | Owner knows which configured accounts fund Hermes and OpenViking. |
 | Private recovery materials | Deliver credentials, persistent data backups and the matching OpenViking key through a separate agreed channel. |
@@ -36,3 +36,9 @@ Do not treat GitHub redirect behaviour as a substitute for validating the releas
 Prepared for Mark Gerhart by Darshan Ahirrao
 
 Contact: [darshan@growthforgeai.com](mailto:darshan@growthforgeai.com)
+
+## Retained developer copy
+
+Before initiating transfer, preserve all Git branches and tags in a separate private repository named `darshanahirrao/mark-personal-ai-ecosystem-backup` and in a verified local Git bundle. This is a source-history snapshot, not a production database or VPS backup. Do not recreate the original repository path after transfer: it is needed for the existing GitHub redirect.
+
+The repository-specific write deploy key currently used by the host must remain attached through transfer. After acceptance, verify access, update repository URLs/remotes and confirm the release branch still matches the live ledger before attempting a release.

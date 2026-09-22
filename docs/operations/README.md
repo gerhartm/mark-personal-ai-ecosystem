@@ -22,7 +22,7 @@ An external timer recognises a specific stale quota state. It checks every two m
 
 It does not replenish credits, repair invalid credentials, replay interrupted jobs or rewrite old Telegram messages. One incident receives at most one reset attempt. A running session may re-persist stale in-memory status; that case requires an operator. A small successful request does not prove a much larger job fits rate limits.
 
-The installed recovery helper is documented in the private operational inventory. Its source currently exists in the operator workspace but is not present under `deploy/hermes-recovery/` in this review branch. Include its reviewed source and deployment state in the final engineering handover before treating Git as a complete code inventory.
+The recovery helper, service units and tests are versioned in [`deploy/hermes-recovery/`](../../deploy/hermes-recovery/). On 22 September 2026, the script and both units matched the installed host files by SHA-256. Its credential selector is an internal record identifier, not an API key; secret values remain outside Git.
 
 ## Backups and restore
 

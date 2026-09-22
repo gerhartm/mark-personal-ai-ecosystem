@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Satoshi saved quota state without probing healthy credentials
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=2min
+AccuracySec=10s
+Unit=mark-hermes-recovery.service
+
+[Install]
+WantedBy=timers.target

@@ -1,5 +1,8 @@
 # Mark Personal AI Ecosystem — Infrastructure Record
 
+> Historical reference. For the current 22 September 2026 documentation, start with the [documentation index](../README.md). Verify older interface, release and authentication details before acting on them.
+
+
 This directory is the source of truth for the V2 server build. It records what changed, why it changed, how it was verified, how to reverse it, and what remains unfinished.
 
 A non-secret recovery mirror is stored on the server at `/root/mark-v2-docs/`. The local project copy remains authoritative; refresh and hash-check the mirror after every completed documentation change.

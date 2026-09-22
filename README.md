@@ -1,38 +1,71 @@
-# Personal AI Ecosystem V2 Workspace
+# Crypto Intelligence
 
-This is the active engineering workspace for Mark's V2 system.
+A research workspace for collecting sources, exploring evidence, preparing for interviews and creating source-backed writing with Satoshi.
 
-## Structure
+[Open the dashboard](https://crypto.forkedbrain.fyi/) · [Start using it](docs/handbook/quick-start.md) · [Documentation](docs/README.md) · [Dashboard code](dashboard/README.md)
 
-- `docs/architecture/` — accepted system diagrams and technical design.
-- `docs/decisions/` — architecture and product decision records.
-- `docs/infrastructure/` — authoritative server build log, operations ledger, runbook, and redacted credential register.
-- `docs/migration/` — folder migration records, checksums, and old-to-new data migration plans.
-- `docs/security/` — redacted security and credential inventories safe for normal project use.
-- `tools/audit/` — read-only credential and system audit utilities.
-- `tools/documents/` — reproducible document builders.
-- `src/` — V2 application and integration source code.
-- `tests/` — automated verification and acceptance tests.
-- `.work/` — disposable generated assets; never authoritative.
+![Sources and imports: article links and document uploads with background processing](docs/handbook/assets/sources.png)
 
-The private raw credentials and old-VPS payload are one level above under `.secrets/`.
+## What you can do
 
-## Current checkpoint
+| Workflow | What the current system provides |
+| --- | --- |
+| Collect research | Article URLs, pasted text, Word, PDF, text transcripts and Telegram JSON exports. Accepted website imports continue on the server after you leave. |
+| Inspect evidence | Topics, retained sources, supporting passages and a Timeline built from supported dates. |
+| Prepare and write | Prep, Haseeb bot and Tarun bot workflows, with saved outputs and writing revisions. |
+| Work through Satoshi | Research conversations, retained memory, source registration and controlled dashboard edit requests. |
+| Change the dashboard | A dedicated GPT-6 Astra High editing session, checked Git commits, release records and a restore path. |
 
-ForkedBrain release `20260811T132229Z` and Crypto Intelligence release `20260811T132229Z` are live at `https://forkedbrain.fyi/` and `https://crypto.forkedbrain.fyi/` behind the same exact-email Cloudflare Access boundary. ForkedBrain routes its active Crypto branch to the current Crypto Intelligence application, and both the Memory Graph logo and Back control return to the main brain overview. The Crypto Intelligence logo returns to its own dashboard home. The hardened loopback-only dashboard now uses the verified 66-event, 49-source, and 89-media corpus, streams private media, and sends bounded canonical evidence to the existing Hermes central brain. The Brief is a daily command center with a sourced live market review, attention items, changes, watchlists, suggested actions, stored signals, and direct routes into Ask, Quiz, Content Studio, Speaking Preparation, and Library. Content Studio offers Mark and Creator Reference writing lenses while preserving the same verified evidence and citations. Native Hermes skills provide Crypto context, Creator Reference context, routing, and a restrained final writing pass without adding another agent, database, model, or memory service. Dashboard Capture and completed Satoshi Crypto ingestions both use OpenViking's native resource path and the same deterministic identity, duplicate prevention, receipt, audit, search, and Library registration contract. Hermes natively uses OpenAI API `gpt-5.6-sol` with high reasoning; no model key or parallel memory/reasoning layer exists in the dashboard.
+Start with the [Quick Start](docs/handbook/quick-start.md). Read [formats and limits](docs/guides/uploads.md) before a large import. A queued source, retained source and processed source are different stages.
 
-The separate semantic-memory import is complete: native OpenViking contains all 131 source/artifact packets and 66 event packets, for 197 deterministic identities. An independent replay skipped all 197 with zero creates or failures, representative deep reads preserved provenance, and production Crypto Ask returned four canonical citations that all resolved. OpenViking is healthy with an idle zero-error queue. The checksum-verified post-import backup also passed a disposable restore test. See [`docs/migration/CRYPTO-V2-MIGRATION-REVIEW.md`](docs/migration/CRYPTO-V2-MIGRATION-REVIEW.md) for the acceptance record and recovery point.
+## How it fits together
 
-## Documentation entry points
+```mermaid
+flowchart LR
+    U[Dashboard user] --> D[React interface and Fastify API]
+    T[Telegram user] --> H[Hermes / Satoshi]
+    D --> Q[Durable import and evidence queues]
+    Q --> O[OpenViking retained research]
+    Q --> H
+    H --> O
+    H -->|Source registration| D
+    D --> S[(SQLite records and saved work)]
+    H --> E[Dedicated Astra High editor]
+    E --> R[Host checks, GitHub and release helper]
+    R -->|Dashboard service only| D
+```
 
-- [`docs/OPTION-1-SYSTEM-HANDBOOK.md`](docs/OPTION-1-SYSTEM-HANDBOOK.md) — authoritative client-safe system, workflow, security, recovery, and remaining-work handbook.
-- [`docs/architecture/SYSTEM-ARCHITECTURE.md`](docs/architecture/SYSTEM-ARCHITECTURE.md) — technical components, data contracts, request paths, failure behavior, and expansion rules.
-- [`docs/operations/USER-GUIDE.md`](docs/operations/USER-GUIDE.md) — step-by-step guide for Mark and approved staff.
-- [`docs/acceptance/CURRENT-STATUS-AND-ACCEPTANCE.md`](docs/acceptance/CURRENT-STATUS-AND-ACCEPTANCE.md) — verified capability matrix and Option 1 closeout checklist.
+The custom dashboard, integrations, project skills and release/recovery workflows use existing Hermes, OpenViking and infrastructure components. Those third-party systems are integrated here, not authored by this project. [Read the architecture](docs/architecture/README.md).
 
-The Satoshi synchronization gap is closed. After a Crypto source finishes native
-OpenViking ingestion, Satoshi submits only its safe metadata and OpenViking URI
-to a durable FIFO registration queue. The dashboard reads the complete retained
-content from OpenViking, applies the existing canonical identity and duplicate
-rules, and makes the source available to Library, full-text search, and bounded
-ForkedBrain graph search. Replays return the original canonical record.
+## Find your way around
+
+| Location | What belongs here |
+| --- | --- |
+| [`dashboard/`](dashboard/README.md) | Frontend, backend, database migrations, import processing and application tests. |
+| [`deploy/hermes/`](deploy/hermes/) | Hermes deployment contract, identity and project skills. |
+| [`deploy/dashboard-editor/`](deploy/dashboard-editor/) | Dedicated editing wrapper, host release helper and boundary tests. |
+| [`deploy/openviking/`](deploy/openviking/) | Memory service deployment references. |
+| [`docs/`](docs/README.md) | User guides, architecture, development, operations, verification and handover. |
+| [`forkedbrain/`](forkedbrain/) | Earlier application source retained for historical reference. |
+
+## Review and release status
+
+This is the documentation review edition dated **22 September 2026**. The implementation reference is published commit [`209133f`](https://github.com/darshanahirrao/mark-personal-ai-ecosystem/commit/209133f4460771752e37e4de2c1f3747c85c82c5) on `satoshi-dashboard`.
+
+- `docs/github-handover-review` holds this documentation preview.
+- `satoshi-dashboard` is the branch used by the existing release helper.
+- `main` contains an older project checkpoint and is not the source of the current deployed dashboard.
+
+A documentation commit does not deploy the application. The release helper checks its branch against the live ledger, so changes to that branch must be coordinated with the release process. The [handover checklist](docs/handover/README.md) records what remains before ownership transfer.
+
+The current system does not promise Telegram batch-capture mode, native OCR, direct audio/video transcription or unrestricted VPS administration by Satoshi. Historical test evidence and its limits are listed in [Verification](docs/verification/README.md).
+
+## Start reading
+
+- **Using the product:** [Quick Start](docs/handbook/quick-start.md) and [User Guide](docs/handbook/user-guide.md).
+- **Maintaining the product:** [Development](docs/development/README.md), [Operations](docs/operations/README.md) and [Technical Handover](docs/handbook/technical-handover.md).
+- **Reviewing ownership and support:** [Handover](docs/handover/README.md), [Support](SUPPORT.md) and [Security](SECURITY.md).
+
+Prepared for Mark Gerhart by Darshan Ahirrao
+
+Contact: [darshan@growthforgeai.com](mailto:darshan@growthforgeai.com)

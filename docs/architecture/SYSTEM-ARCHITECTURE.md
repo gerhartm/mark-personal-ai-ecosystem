@@ -1,5 +1,8 @@
 # Personal AI Ecosystem V2 — Technical Architecture
 
+> Historical reference. For the current 22 September 2026 documentation, start with the [documentation index](../README.md). Verify older interface, release and authentication details before acting on them.
+
+
 **Applies to:** Mark Gerhart, Crypto Intelligence Option 1
 **Architecture principle:** one Hermes brain, one OpenViking semantic memory,
 one Crypto structured database, and thin product surfaces

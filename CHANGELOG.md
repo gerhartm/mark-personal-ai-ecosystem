@@ -1,6 +1,6 @@
 # Change record
 
-## 22 September 2026: GitHub documentation review
+## 22 September 2026: current source and handover documentation
 
 - Added a current project homepage and dashboard README.
 - Organised user, architecture, development, operations, verification and handover documentation.
@@ -8,7 +8,7 @@
 - Distinguished current implementation from historical records and unverified capabilities.
 - Added contribution, support and security guidance.
 
-This is a documentation-only review. It does not publish a new application image, transfer ownership or change the live dashboard.
+The default `main` branch now includes the previously published dashboard implementation plus these documentation changes. This repository update does not publish a new application image, transfer ownership or change the live dashboard.
 
 ## 21 September 2026: recorded implementation reference
 

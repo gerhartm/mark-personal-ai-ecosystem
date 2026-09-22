@@ -4,7 +4,7 @@ This is a private client project. Contributions should preserve research integri
 
 ## Before a change
 
-Read the [documentation index](docs/README.md), [development instructions](docs/development/README.md) and [release controls](docs/operations/dashboard-editing.md). Use the current published source as the reference; `main` is an older checkpoint at this review date.
+Read the [documentation index](docs/README.md), [development instructions](docs/development/README.md) and [release controls](docs/operations/dashboard-editing.md). Start from `main` for the current source and documentation. Before a production release, also compare `satoshi-dashboard` with the live release ledger.
 
 Create a separate branch. Keep code, documentation and test changes focused on the requested behaviour. Do not commit private data, `.env` files, provider keys, chat exports, runtime databases or production fixtures.
 

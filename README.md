@@ -35,15 +35,15 @@ The custom dashboard, integrations, project skills and release/recovery workflow
 | [`docs/`](docs/README.md) | User guides, architecture, development, operations, verification and handover. |
 | [`forkedbrain/`](forkedbrain/) | Earlier application source retained for historical reference. |
 
-## Review and release status
+## Source and release status
 
-This is the documentation review edition dated **22 September 2026**. The implementation reference is published commit [`209133f`](https://github.com/darshanahirrao/mark-personal-ai-ecosystem/commit/209133f4460771752e37e4de2c1f3747c85c82c5) on `satoshi-dashboard`.
+This is the documentation edition dated **22 September 2026**. The implementation reference is published commit [`209133f`](https://github.com/darshanahirrao/mark-personal-ai-ecosystem/commit/209133f4460771752e37e4de2c1f3747c85c82c5) on `satoshi-dashboard`.
 
-- `docs/github-handover-review` holds this documentation preview.
-- `satoshi-dashboard` is the branch used by the existing release helper.
-- `main` contains an older project checkpoint and is not the source of the current deployed dashboard.
+- `main` is the default branch with the latest published dashboard source and reviewed documentation.
+- `satoshi-dashboard` tracks the production release helper and its live release ledger.
+- Feature branches hold proposed changes before they are integrated.
 
-A documentation commit does not deploy the application. The release helper checks its branch against the live ledger, so changes to that branch must be coordinated with the release process. The [handover checklist](docs/handover/README.md) records what remains before ownership transfer.
+Updating `main` does not deploy the application. The release helper checks its branch against the live ledger, so changes to that branch must be coordinated with the release process. The [handover checklist](docs/handover/README.md) records what remains before ownership transfer.
 
 The current system does not promise Telegram batch-capture mode, native OCR, direct audio/video transcription or unrestricted VPS administration by Satoshi. Historical test evidence and its limits are listed in [Verification](docs/verification/README.md).
 

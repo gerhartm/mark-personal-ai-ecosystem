@@ -4,7 +4,7 @@
 
 ## Current stage: owner review
 
-The repository remains private under `darshanahirrao`. The `docs/github-handover-review` branch contains the proposed GitHub presentation and documentation. Review it before any ownership transfer. No account transfer is performed by publishing this branch or its draft pull request.
+The repository remains private under `darshanahirrao`. The default `main` branch contains the latest published dashboard source and the handover documentation. Review it before any ownership transfer. Updating the repository does not transfer accounts or deploy the application.
 
 ## Review the package
 
@@ -18,7 +18,7 @@ The repository remains private under `darshanahirrao`. The `docs/github-handover
 | Item | Required confirmation |
 | --- | --- |
 | Repository destination | Correct username/organisation and authorised recipient. |
-| Default and release branches | Decide how the latest source becomes the default view while preserving the release helper's branch/ledger contract. |
+| Default and release branches | `main` provides the current source and documentation. Preserve the separate `satoshi-dashboard` release-helper branch/ledger contract. |
 | Integration URLs | Review hardcoded GitHub owner/repository references in editor/release scripts and private Git credentials. |
 | Source completeness | Reconcile installed helpers, skills and deployment definitions with Git; the quota-recovery helper is still only in the operator workspace/installed host in this branch. |
 | VPS and service ownership | Recipient can access the hosting account, approved SSH, Cloudflare, Coolify and the Telegram bot administration where required. |

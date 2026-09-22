@@ -20,20 +20,7 @@ Start with the [Quick Start](docs/handbook/quick-start.md). Read [formats and li
 
 ## How it fits together
 
-```mermaid
-flowchart LR
-    U[Dashboard user] --> D[React interface and Fastify API]
-    T[Telegram user] --> H[Hermes / Satoshi]
-    D --> Q[Durable import and evidence queues]
-    Q --> O[OpenViking retained research]
-    Q --> H
-    H --> O
-    H -->|Source registration| D
-    D --> S[(SQLite records and saved work)]
-    H --> E[Dedicated Astra High editor]
-    E --> R[Host checks, GitHub and release helper]
-    R -->|Dashboard service only| D
-```
+![Research ingestion and the separate controlled dashboard editing path](docs/handbook/assets/architecture.png)
 
 The custom dashboard, integrations, project skills and release/recovery workflows use existing Hermes, OpenViking and infrastructure components. Those third-party systems are integrated here, not authored by this project. [Read the architecture](docs/architecture/README.md).
 

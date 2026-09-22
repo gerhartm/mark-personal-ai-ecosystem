@@ -38,7 +38,7 @@ async function recordFor(hit: EvidenceHit) {
       title: text(source.title ?? source.source_label),
       label: text(source.source_label),
       type: source.source_type,
-      captured_at: source.timestamp,
+      captured_at: source.captured_at,
       content: text(content, 8_000),
       events: list(source.events, 6).map((event: any) => ({
         id: event.id,

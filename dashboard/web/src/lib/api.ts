@@ -37,12 +37,13 @@ const cache = new Map<string, unknown>();
  * Loading holds the previous render rather than blanking the layout, so
  * nothing jumps when data arrives and a fast refetch never flashes.
  */
-export function useQuery<T = any>(path: string | null, deps: unknown[] = []): QueryState<T> {
+export function useQuery<T = any>(path: string | null, deps: unknown[] = [], refreshMs = 0): QueryState<T> {
   const [data, setData] = useState<T | null>(() => (path ? ((cache.get(path) as T) ?? null) : null));
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(Boolean(path));
   const [nonce, setNonce] = useState(0);
   const alive = useRef(true);
+  const previousPath = useRef(path);
 
   useEffect(() => {
     alive.current = true;
@@ -56,18 +57,23 @@ export function useQuery<T = any>(path: string | null, deps: unknown[] = []): Qu
       setLoading(false);
       return;
     }
+    let current = true;
+    const controller = new AbortController();
     const cached = cache.get(path) as T | undefined;
     if (cached !== undefined) setData(cached);
+    else if (previousPath.current !== path) setData(null);
+    previousPath.current = path;
     setLoading(true);
     setError(null);
-    api<T>(path)
+    api<T>(path, { signal: controller.signal })
       .then((d) => {
-        if (!alive.current) return;
+        if (!alive.current || !current) return;
         cache.set(path, d);
         setData(d);
       })
-      .catch((e) => alive.current && setError(e as Error))
-      .finally(() => alive.current && setLoading(false));
+      .catch((e) => alive.current && current && setError(e as Error))
+      .finally(() => alive.current && current && setLoading(false));
+    return () => { current = false; controller.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, nonce, ...deps]);
 
@@ -76,6 +82,14 @@ export function useQuery<T = any>(path: string | null, deps: unknown[] = []): Qu
     setNonce((n) => n + 1);
   }, [path]);
 
+  useEffect(() => {
+    if (!refreshMs || !path) return;
+    const refresh = () => { if (document.visibilityState === 'visible') refetch(); };
+    const timer = window.setInterval(refresh, refreshMs);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };
+  }, [path, refreshMs, refetch]);
   return { data, error, loading, refetch };
 }
 

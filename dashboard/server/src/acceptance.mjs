@@ -90,9 +90,16 @@ const blogText = (creator) => {
 };
 
 async function installGenerationMocks(context, source) {
+  const saved = new Map();
+  await context.route('**/api/workflows/draft-browser*', async route => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-1);
+    const entry = saved.get(id);
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revisions: entry ? [entry] : [] }) });
+  });
   await context.route('**/api/prep', async (route) => {
     if (route.request().method() !== 'POST') return route.continue();
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(prepResponse(source)) });
+    const result = prepResponse(source); saved.set(result.id, { revision: 0, result, input: route.request().postDataJSON() });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
   });
   await context.route('**/api/creator', async (route) => {
     if (route.request().method() !== 'POST') return route.continue();
@@ -105,7 +112,9 @@ async function installGenerationMocks(context, source) {
       text: request.format === 'blog' ? blogText(request.creator) : tweetText(request.creator, index, revised),
       citations: [{ id: source.id, quote: 'retained evidence', inference: 'This source supplied the factual mechanism while Creator Reference memory supplied the voice.', source }],
     }));
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: request.draft_id || `draft-browser-${request.creator}`, revision: revised ? 1 : 0, creator: request.creator, format: request.format, outputs }) });
+    const result = { id: request.draft_id || `draft-browser-${request.creator}`, revision: revised ? 1 : 0, creator: request.creator, format: request.format, outputs };
+    saved.set(result.id, { revision: result.revision, result, input: request });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
   });
 }
 
@@ -119,7 +128,7 @@ async function instrument(page) {
 }
 
 async function checkViewport(page, label) {
-  const dimensions = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: window.innerWidth }));
+  const dimensions = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
   check(dimensions.width <= dimensions.viewport + 1, `${label} has no horizontal overflow`, `${dimensions.width}px document in ${dimensions.viewport}px viewport`);
 }
 
@@ -152,9 +161,9 @@ async function desktopPass(browser) {
   const syncText = await syncStatus.innerText();
   const normalizedSyncText = syncText.toLowerCase().replace(/\s+/g, ' ');
   check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.received} received`), 'Sidebar shows the live Telegram received count', syncText);
-  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.synced} synced`), 'Sidebar shows the live Telegram synced count', syncText);
-  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.processing} processing`), 'Sidebar shows the live Telegram processing count', syncText);
-  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.failed} failed`), 'Sidebar shows the live Telegram failed count', syncText);
+  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.evidence_processing.ready} processed`), 'Sidebar shows evidence processing completion', syncText);
+  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.processing + liveBrief.evidence_processing.processing} processing`), 'Sidebar shows the live Telegram processing count', syncText);
+  check(Boolean(liveBrief.telegram_sync) && normalizedSyncText.includes(`${liveBrief.telegram_sync.failed + liveBrief.evidence_processing.failed} failed`), 'Sidebar shows the live Telegram failed count', syncText);
   check((await page.locator('nav a').allTextContents()).length === 5, 'Navigation contains exactly Mark’s five screens');
   check(await page.getByRole('link', { name: 'Control center', exact: true }).isVisible(), 'Control Center is a separate utility link');
   check(await page.getByRole('heading', { name: 'Topics', exact: true }).isVisible(), 'Topics opens as the home screen');
@@ -169,9 +178,9 @@ async function desktopPass(browser) {
   await page.getByTestId('topic-claim').first().waitFor();
   check((await page.getByTestId('topic-claim').count()) > 0, 'Topic detail shows readable claims');
   check(!(await bodyHasRawMarkdown(page.locator('main'))), 'Topic detail has no raw Markdown');
-  for (const label of ['Transcripts', 'Tweet', 'Blog post', 'Your notes']) {
-    check(await page.getByRole('button', { name: new RegExp(`^${label}\\s+\\d+$`) }).isVisible(), `Topic source filter always exposes ${label}`);
-  }
+  const actualSourceTypes = await page.getByTestId('topic-layout').locator('aside > div').last().locator('button').allTextContents();
+  check(actualSourceTypes.length > 0 && actualSourceTypes.every(label => !/\s0$/.test(label.trim())), 'Topic source filters reflect the retained source types');
+  check(!(await page.locator('main').innerText()).includes('Actively contested'), 'Topic categories do not imply a disagreement');
   const sourceFilter = page.getByTestId('topic-layout').locator('aside > div').first().locator('button').nth(1);
   if (await sourceFilter.count()) {
     await sourceFilter.click();
@@ -203,16 +212,23 @@ async function desktopPass(browser) {
   check((await page.locator('[data-testid="timeline-category"][aria-pressed="true"]').count()) === 1, 'Clicking a month color filters its category');
   const firstEvent = page.getByTestId('timeline-event').first();
   check(await firstEvent.isVisible(), 'Timeline category filter retains relevant events');
+  const dossierResponse = page.waitForResponse(response => /\/api\/timeline\/[^/]+\/dossier$/.test(new URL(response.url()).pathname));
   await firstEvent.click();
+  const dossierData = await (await dossierResponse).json();
   await page.getByTestId('timeline-dossier').waitFor();
   await page.getByTestId('timeline-dossier-sources').waitFor();
   check(await page.getByTestId('timeline-dossier').isVisible(), 'Timeline event opens Mark’s full evidence dossier');
   check(await page.getByTestId('timeline-dossier').getByText('Mentions', { exact: true }).isVisible(), 'Timeline dossier shows mention volume');
-  check(await page.getByTestId('timeline-dossier-reactions').isVisible(), 'Timeline dossier exposes sourced reactions');
+  check(await page.getByTestId('timeline-dossier-reactions').isVisible() === Boolean(dossierData.reactions?.length), 'Timeline shows related claims only when distinct supporting records exist');
   check(await page.getByTestId('timeline-dossier-sources').isVisible(), 'Timeline dossier exposes supporting sources');
   check((await page.getByTestId('timeline-dossier-source').count()) > 0, 'Timeline dossier contains real source cards');
-  check(await page.getByText('What to watch', { exact: true }).isVisible(), 'Timeline dossier exposes forward-looking evidence');
-  check(await page.getByTestId('timeline-dossier-footer').getByRole('button').isVisible(), 'Timeline dossier exposes next-signal navigation');
+  check(await page.getByText('What to watch', { exact: true }).isVisible() === Boolean(dossierData.watch?.length), 'Timeline shows watch points only when retained evidence supports them');
+  const timelineData = await (await page.request.get(`${BASE}/api/timeline`, { headers: HEADERS })).json();
+  const selectedYearValue = await page.locator('[data-testid="timeline-year"][aria-selected="true"]').getAttribute('data-year');
+  const selectedYearText = await page.locator('[data-testid="timeline-year"][aria-selected="true"]').innerText();
+  const selectedYearNumber = selectedYearValue || selectedYearText.match(/\b(?:19|20)\d{2}\b/)?.[0];
+  const hasNext = timelineData.pins.some(pin => pin.sort_key.startsWith(selectedYearNumber) && pin.primary_category === dossierData.event.category && pin.event_id !== dossierData.event.id);
+  check(await page.getByTestId('timeline-dossier-footer').getByRole('button').isVisible() === hasNext, 'Timeline next-signal navigation requires another event in the category');
   check(!(await bodyHasRawMarkdown(page.getByTestId('timeline-dossier'))), 'Timeline evidence dossier has no raw Markdown');
   await page.screenshot({ path: join(OUT, '02-timeline-event.png'), fullPage: false });
   await page.getByRole('button', { name: 'Close event details' }).click();
@@ -330,6 +346,8 @@ async function mobilePass(browser) {
     ['/haseeb', 'Haseeb bot'],
     ['/tarun', 'Tarun bot'],
     ['/control-center', 'Control center'],
+    ['/sources', 'Sources and imports'],
+    ['/saved', 'Saved work'],
   ];
   for (const [path, heading] of routes) {
     await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });

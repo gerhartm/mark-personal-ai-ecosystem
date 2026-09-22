@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { db, one, run, audit } from './db.js';
 import { runHermesAgent } from './hermes-client.js';
+import { queueSource } from './source-queue.js';
 
 const TRACKING_PARAMETERS = new Set([
   'dclid',
@@ -23,6 +24,7 @@ export type CaptureRequest = {
   kind?: CaptureKind;
   value?: string;
   title?: string;
+  source_type?: 'note' | 'transcript' | 'telegram' | 'article';
 };
 
 export type PreparedSource = {
@@ -233,6 +235,7 @@ export function prepareSource(input: CaptureRequest): PreparedSource {
     };
   }
 
+  if (input.source_type && !['note', 'transcript', 'telegram', 'article'].includes(input.source_type)) throw new CaptureInputError('invalid_source_type', 'Choose transcript, notes, article or Telegram text.');
   const text = normalizeText(value);
   if (text.length > 250_000) {
     throw new CaptureInputError('text_too_long', 'Pasted text is limited to 250,000 characters.');
@@ -241,7 +244,7 @@ export function prepareSource(input: CaptureRequest): PreparedSource {
   return {
     kind,
     sourceId,
-    sourceType: 'note',
+    sourceType: input.source_type || 'note',
     title,
     capturedAt,
     text,
@@ -335,7 +338,7 @@ type OpenVikingTreeItem = {
 /** Read the human-visible files beneath one native OpenViking resource root. */
 export async function readOpenVikingResource(rootUri: string, limit = 24_000) {
   if (!rootUri || !ingestionConfigured()) return '';
-  const boundedLimit = Math.max(1_000, Math.min(limit, 1_000_000));
+  const boundedLimit = Math.max(1_000, Math.min(limit, 1_000_001));
   try {
     const tree = await openVikingRequest(
       `/api/v1/fs/tree?uri=${encodeURIComponent(rootUri)}&depth=4`,
@@ -503,7 +506,7 @@ async function ingestYoutube(source: PreparedSource): Promise<OpenVikingResult &
       throw new OpenVikingRequestError(502, 'transcript_unavailable', 'Hermes did not verify a usable YouTube transcript');
     }
     const rootUri = String(payload?.memory_uri ?? source.targetUri);
-    const content = await readOpenVikingResource(rootUri, 120_000);
+    const content = await readOpenVikingResource(rootUri, 1_000_001);
     if (content.length < 100) {
       throw new OpenVikingRequestError(502, 'transcript_unavailable', 'The stored YouTube transcript could not be read back');
     }
@@ -649,6 +652,7 @@ function registerSource(
     replaceSearchBody(source.sourceId, source.title, content || source.normalizedUrl || source.text || '');
   });
   save();
+  queueSource(source.sourceId);
   return { sourceId: source.sourceId, duplicate };
 }
 
@@ -681,6 +685,7 @@ export function registerExistingOpenVikingSource(input: {
 }
 
 function publicFailure(error: unknown) {
+  if (error instanceof CaptureInputError) return { code: error.code, message: error.message };
   const message = String(error instanceof Error ? error.message : error);
   const code = error instanceof OpenVikingRequestError ? error.code : 'memory_unavailable';
   if (/insufficient_quota|quota|no credits|billing/i.test(message)) {
@@ -723,13 +728,14 @@ export async function captureSource(input: CaptureRequest, actor: string) {
     source.sourceId,
   );
   if (existing) {
+    queueSource(source.sourceId);
     if (source.sourceType === 'youtube') {
-      const before = await sourceContent(source.sourceId, 120_000);
+      const before = await sourceContent(source.sourceId, 1_000_001);
       if (!hasTranscriptContent(before)) {
         const receiptId = insertReceipt(source, 'processing');
         try {
           const upgraded = await ingestYoutube(source);
-          const content = await readOpenVikingResource(upgraded.rootUri, 120_000);
+          const content = await readOpenVikingResource(upgraded.rootUri, 1_000_001);
           if (!hasTranscriptContent(content)) {
             throw new OpenVikingRequestError(502, 'transcript_unavailable', 'A complete transcript could not be verified');
           }
@@ -802,7 +808,8 @@ export async function captureSource(input: CaptureRequest, actor: string) {
     const result = source.sourceType === 'youtube'
       ? await ingestYoutube(source)
       : await writeToOpenViking(source);
-    const content = source.text ?? await readOpenVikingResource(result.rootUri, 120_000);
+    const content = source.text ?? await readOpenVikingResource(result.rootUri, 1_000_001);
+    if (content.length > 1_000_000) throw new CaptureInputError('source_too_large', 'This source exceeds one million characters. Split it into smaller documents.');
     if (source.kind === 'url' && content.trim().length < 80) {
       throw new OpenVikingRequestError(502, 'source_content_unavailable', 'The source body could not be verified');
     }

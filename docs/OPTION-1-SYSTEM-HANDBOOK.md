@@ -1,5 +1,8 @@
 # Mark's Personal AI Ecosystem — Option 1 System Handbook
 
+> Historical reference. For the current 22 September 2026 documentation, start with the [documentation index](README.md). Verify older interface, release and authentication details before acting on them.
+
+
 **Document status:** Authoritative, client-safe operational overview
 **System covered:** Personal AI Ecosystem V2 and Crypto Intelligence Option 1
 **Production checkpoint:** Crypto Intelligence release `20260902T084905Z` and ForkedBrain release `20260811T132229Z`

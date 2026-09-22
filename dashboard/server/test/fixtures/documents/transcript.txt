@@ -1,0 +1,4 @@
+DOCUMENT IMPORT TEST ONLY
+Meeting transcript
+Alice: The team discussed a fixed-rate lending vault.
+Bob: Preserve the source wording and speaker labels.

@@ -48,7 +48,6 @@ import {
   getPromptControl,
   listPromptControls,
   promptHistory,
-  rebuildTopics,
   restorePromptControl,
   savePromptControl,
 } from './prompt-controls.js';
@@ -68,6 +67,11 @@ import {
   telegramSyncJob,
 } from './telegram-sync.js';
 import * as t from './tools.js';
+import { processingSummary, sourceProcessingRows, retrySource } from './source-queue.js';
+import { startSourceProcessor } from './source-processor.js';
+import { enqueueImport, listImports, retryImport, startImportWorker } from './imports.js';
+import { queueTopicRebuild, topicRebuildStatus, startTopicRebuildWorker } from './topic-jobs.js';
+
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = resolve(HERE, '..', '..', 'web', 'dist');
@@ -245,6 +249,7 @@ app.get('/api/brief', async () => {
   const brief = t.brief();
   return {
     ...brief,
+    evidence_processing: processingSummary(),
     telegram_sync: {
       ...brief.telegram_sync,
       configured: telegramSyncConfigured(),
@@ -288,6 +293,39 @@ app.get('/api/events/:id', async (req, reply) => {
   return event;
 });
 
+app.get('/api/processing', async () => ({ summary: processingSummary(), sources: sourceProcessingRows(), imports: listImports() }));
+app.post('/api/processing/:id/retry', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  if (!one('SELECT 1 FROM sources WHERE source_id=?', id)) return reply.code(404).send({ error: 'not_found' });
+  return { retried: retrySource(id) };
+});
+app.post('/api/imports', { bodyLimit: 8_000_000 }, async (req, reply) => {
+  try { return reply.code(202).send(enqueueImport((req.body as any)?.items, requestActor(req))); }
+  catch (error) {
+    if (error instanceof CaptureInputError) return reply.code(400).send({ error: error.code, message: error.message });
+    throw error;
+  }
+});
+app.post('/api/imports/:id/retry', async (req) => ({ retried: retryImport(Number((req.params as any).id)) }));
+app.get('/api/workflows', async () => ({ results: all(`SELECT d.id,d.focus,d.template_type,d.updated_at,
+  w.kind,w.revision,json_extract(w.response_json,'$.creator') AS creator,json_extract(w.response_json,'$.format') AS format
+  FROM content_drafts d LEFT JOIN workflow_results w ON w.draft_id=d.id
+  AND w.revision=(SELECT max(revision) FROM workflow_results WHERE draft_id=d.id) ORDER BY d.updated_at DESC`) }));
+app.get('/api/workflows/:id', async (req, reply) => {
+  const id = (req.params as any).id;
+  const draft = t.getDraft(id);
+  if (!draft) return reply.code(404).send({ error: 'not_found' });
+  const revisions = all<any>('SELECT * FROM workflow_results WHERE draft_id=? ORDER BY revision DESC', id)
+    .map(row => ({ revision: row.revision, kind: row.kind, input: JSON.parse(row.input_json), result: JSON.parse(row.response_json) }));
+  return { draft, revisions };
+});
+app.put('/api/intelligence/settings', async (req, reply) => {
+  const enabled = (req.body as any)?.enabled;
+  if (typeof enabled !== 'boolean') return reply.code(400).send({ message: 'Choose whether scheduled briefs are enabled.' });
+  run("INSERT OR REPLACE INTO app_settings(key,value) VALUES ('intelligence.enabled',?)", String(enabled));
+  audit(requestActor(req), 'intelligence.schedule_changed', 'intelligence', { enabled });
+  return intelligenceStatus();
+});
 app.get('/api/sources', async () => ({ sources: t.listSources() }));
 app.get('/api/sources/:id', async (req, reply) => {
   const source = t.getSource((req.params as { id: string }).id);
@@ -295,14 +333,14 @@ app.get('/api/sources/:id', async (req, reply) => {
   let content = '';
   try {
     const { sourceContent } = await import('./ingestion.js');
-    content = await sourceContent((source as any).source_id, 40_000);
+    content = await sourceContent((source as any).source_id, 1_000_001);
   } catch {}
-  return { ...source, content };
+  return { ...source, content: content.slice(0, 1_000_000), content_truncated: content.length > 1_000_000, processing: one('SELECT * FROM source_processing WHERE source_id=?', (source as any).source_id) };
 });
 
 app.get('/api/topics', async (req) => {
   const q = req.query as Record<string, string>;
-  return q.tag ? t.listTopics(80, q.tag) : { topics: t.listTopics(80) };
+  return q.tag ? t.listTopics(undefined, q.tag) : { topics: t.listTopics() };
 });
 
 app.get('/api/prompt-controls', async () => ({ controls: listPromptControls() }));
@@ -355,6 +393,7 @@ app.post('/api/prompt-controls/:page/restore', async (req, reply) => {
   }
 });
 
+app.get('/api/prompt-controls/topics/rebuild/status', async () => topicRebuildStatus());
 app.post('/api/prompt-controls/topics/rebuild', async (req, reply) => {
   const actor = requestActor(req);
   const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
@@ -362,7 +401,7 @@ app.post('/api/prompt-controls/topics/rebuild', async (req, reply) => {
     return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before rebuilding Topics again.' });
   }
   try {
-    return await rebuildTopics(actor);
+    return reply.code(202).send(queueTopicRebuild(actor));
   } catch (error) {
     if (error instanceof PromptControlError) {
       return reply.code(error.status).send({ error: error.code, message: error.message });
@@ -463,10 +502,10 @@ app.put('/api/events/:id/notes', async (req, reply) => {
     body.text.trim(),
     requestActor(req),
     new Date().toISOString(),
-    'pending',
+    'local_only',
   );
   audit(requestActor(req), 'note.append', id, { revision: next });
-  return { event_id: id, revision: next, memory_state: 'pending' };
+  return { event_id: id, revision: next, memory_state: 'local_only' };
 });
 
 app.post('/api/views', async (req, reply) => {
@@ -866,6 +905,9 @@ if (existsSync(WEB_DIST)) {
 if (process.env.NODE_ENV !== 'test') {
   await app.listen({ port: PORT, host: HOST });
   startTelegramSyncWorker();
+  startSourceProcessor();
+  startImportWorker();
+  startTopicRebuildWorker();
   startIntelligenceScheduler();
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);
   console.log(`  media archive: ${MEDIA_ROOT ? 'mounted' : 'not mounted (degraded, documented)'}`);

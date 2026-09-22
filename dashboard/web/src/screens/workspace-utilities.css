@@ -1,0 +1,24 @@
+.workspace-utilities { font-size: 13px; line-height: 1.6; min-width: 0; }
+.workspace-utilities h2 { font-size: 15px; font-weight: 500; margin-bottom: 12px; }
+.workspace-utilities a { color: var(--brass); overflow-wrap: anywhere; }
+.utility-panel { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 18px; margin: 18px 0; }
+.utility-panel summary { cursor: pointer; font-weight: 500; }
+.utility-panel p { margin-top: 9px; }
+.workspace-utilities input:not([type=checkbox]), .workspace-utilities textarea, .workspace-utilities select { border: 1px solid var(--line); border-radius: 5px; padding: 9px 11px; background: var(--panel-2); color: inherit; font: inherit; max-width: 100%; }
+.workspace-utilities textarea, .utility-panel > input { width: 100%; margin: 8px 0; }
+.workspace-utilities button:not(.desk-button) { border: 1px solid var(--line); border-radius: 5px; padding: 7px 11px; font: inherit; cursor: pointer; }
+.workspace-utilities button[aria-pressed=true] { border-color: var(--brass); color: var(--brass); }
+.workspace-utilities button:disabled { opacity: .45; cursor: default; }
+.workspace-utilities :focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+.utility-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 12px 0; }
+.utility-actions h2 { margin: 0; margin-right: auto; }
+.utility-muted { font-size: 11px; color: var(--dim); }
+.utility-error { color: var(--rose); font-size: 12px; }
+.utility-row { display: flex; gap: 15px; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.utility-row > div { min-width: 0; }
+.utility-row button { flex-shrink: 0; }
+.utility-scroll { max-height: 340px; overflow: auto; padding-right: 8px; }
+.source-document { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.8; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 20px; margin-top: 20px; }
+.file-label { display: block; margin-top: 12px; }
+.file-label input { display: block; width: 100%; margin-top: 6px; }
+@media(max-width: 600px) { .utility-row { align-items: flex-start; flex-direction: column; gap: 8px; } .utility-panel { padding: 14px; } }

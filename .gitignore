@@ -44,3 +44,7 @@ acceptance/
 .DS_Store
 .idea/
 .vscode/
+
+# Dashboard release artifacts stay on the deployment host.
+dashboard/acceptance/
+dashboard/test-support/

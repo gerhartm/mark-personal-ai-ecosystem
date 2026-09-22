@@ -101,6 +101,10 @@ beforeAll(async () => {
       }
       if (request.method === 'prompt.submit') {
         lastPrompt = request.params.text;
+        if (generated === 'STRUCTURED_PREP') {
+          const evidenceId = lastPrompt.match(/"id":"(\d{4}-\d{2}-\d{2}-\d{4}|sha256:[a-f0-9]{64})"/)?.[1];
+          generated = JSON.stringify({ overview: 'The retained sources identify a specific operating constraint in protocol lending. The preparation brief keeps the mechanism and the remaining uncertainty visible.', suggested_tangents: ['liquidity', 'governance'], points: Array.from({length:3}, (_, n) => ({ title: `Supported mechanism ${n+1}`, body: 'The retained source supports a narrow mechanism in protocol lending and leaves broader market effects uncertain.', detail: ['A specific retained record supports this mechanism and provides context for the claim.'], counter: 'The record does not establish whether the effect persists across market cycles.', citations: [{ id: evidenceId, quote: null, inference: 'The retained record supplies the mechanism described in this point.' }] })) });
+        }
         socket.send(JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { status: 'accepted' } }));
         socket.send(JSON.stringify({
           jsonrpc: '2.0',
@@ -267,5 +271,25 @@ describe('Hermes-powered Studio boundary', () => {
     const finalDb = new Database(TEMP_DB, { readonly: true });
     expect((finalDb.prepare('SELECT count(*) count FROM draft_revisions WHERE draft_id = ?').get(draft.id) as any).count).toBe(2);
     finalDb.close();
+  });
+});
+
+
+describe('saved structured workflows', () => {
+  it('persists complete panels, citations and inputs for reopening a brief', async () => {
+    generated = 'STRUCTURED_PREP';
+    const response = await fetch(`${base}/api/prep`, { method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': '198.51.100.201' }, body: JSON.stringify({ topic: 'Aave protocol risk', lens: 1, tangents: ['liquidity'] }) });
+    const result = await response.json() as any;
+    expect(response.status, JSON.stringify(result)).toBe(200);
+    const stored = await (await fetch(`${base}/api/workflows/${result.id}`)).json() as any;
+    expect(stored.revisions[0].result).toEqual(result);
+    expect(stored.revisions[0].input).toMatchObject({ topic: 'Aave protocol risk', lens: 1, tangents: ['liquidity'] });
+    expect(stored.draft.revisions[0].body).toContain(result.points[0].title);
+    const list = await (await fetch(`${base}/api/workflows`)).json() as any;
+    expect(list.results.find((row: any) => row.id === result.id).kind).toBe('prep');
+    const connection = new Database(TEMP_DB, { readonly: true });
+    expect(connection.prepare('SELECT count(*) n FROM workflow_results WHERE draft_id=?').get(result.id)).toEqual({ n: 1 });
+    expect(connection.pragma('foreign_key_check')).toEqual([]);
+    connection.close();
   });
 });

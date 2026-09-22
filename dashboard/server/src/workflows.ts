@@ -119,28 +119,40 @@ export function parseHermesJson<T>(raw: string): T {
   }
 }
 
-function evidencePayload(records: EvidenceRecord[], maximum = 18_000) {
-  const rows: string[] = [];
+export function selectEvidence(records: EvidenceRecord[], maximum = 18_000) {
   let size = 0;
-  for (const record of records) {
-    const row = JSON.stringify(record);
-    if (size + row.length > maximum) continue;
-    rows.push(row);
-    size += row.length;
-  }
-  return rows.join('\n');
+  return records.filter(record => {
+    const length = JSON.stringify(record).length + 1;
+    if (size + length > maximum) return false;
+    size += length;
+    return true;
+  });
+}
+
+const evidencePayload = (records: EvidenceRecord[]) => records.map(record => JSON.stringify(record)).join('\n');
+
+export function creatorEvidence(topic: EvidenceRecord[], creator: EvidenceRecord[]) {
+  const reference = selectEvidence(creator.slice(0, 4), 7_000);
+  const ids = new Set(reference.map(record => record.id));
+  return [...reference, ...selectEvidence(topic.filter(record => !ids.has(record.id)), 11_000)];
+}
+
+export function saveWorkflowResult(kind: 'prep' | 'creator', result: PrepBrief | CreatorDraft, input: unknown) {
+  db.prepare('INSERT INTO workflow_results(draft_id,revision,kind,response_json,input_json,created_at) VALUES (?,?,?,?,?,?)')
+    .run(result.id, result.revision, kind, JSON.stringify(result), JSON.stringify(input), new Date().toISOString());
+  return result;
 }
 
 function evidenceMap(records: EvidenceRecord[]) {
   return new Map(records.map((record) => [record.id, record]));
 }
 
-function sourceCard(id: string): EvidenceCard | null {
+export function sourceCard(id: string): EvidenceCard | null {
   if (id.startsWith('sha256:')) {
     const source = one<any>(
       `SELECT source_id AS id, COALESCE(NULLIF(title,''), NULLIF(source_label,''), 'Stored source') AS title,
               COALESCE(NULLIF(source_channel,''), NULLIF(source_label,''), 'Stored source') AS who,
-              COALESCE(NULLIF(captured_at,''), NULLIF(timestamp,''), '') AS date_value,
+              COALESCE(captured_at, '') AS date_value,
               COALESCE(source_type, 'source') AS source_type, COALESCE(source_url, '') AS url
          FROM sources WHERE source_id = ?`,
       id,
@@ -287,7 +299,7 @@ export async function generatePrepBrief(value: PrepInput, actor: string): Promis
     writing_lens: 'mark',
     source_ids: [],
   });
-  const records = context.evidenceRecords as EvidenceRecord[];
+  const records = selectEvidence(context.evidenceRecords as EvidenceRecord[]);
   const prompt = [
     '/crypto-intelligence /humanized-content',
     'Build a speaking preparation brief for Mark from the supplied corpus evidence only.',
@@ -306,7 +318,7 @@ export async function generatePrepBrief(value: PrepInput, actor: string): Promis
     reasoningEffort: 'low',
     timeoutMs: 180_000,
   });
-  let rawText = (await generate(prompt.slice(0, 32_000))).text;
+  let rawText = (await generate(prompt)).text;
   let raw = parseHermesJson<RawPrep>(rawText);
   let issues = prepIssues(raw, records, input.pointCount);
   if (issues.length) {
@@ -315,7 +327,7 @@ export async function generatePrepBrief(value: PrepInput, actor: string): Promis
       'Correct the previous JSON once. Keep valid content, fix every issue below, and return only the corrected JSON.',
       issues.map((issue) => `* ${issue}`).join('\n'),
       `PREVIOUS JSON\n${rawText}`,
-    ].join('\n\n').slice(0, 38_000))).text;
+    ].join('\n\n'))).text;
     raw = parseHermesJson<RawPrep>(rawText);
     issues = prepIssues(raw, records, input.pointCount);
   }
@@ -348,6 +360,7 @@ export async function generatePrepBrief(value: PrepInput, actor: string): Promis
   const overview = trim(raw.overview, 800);
   const usedIds = [...new Set(points.flatMap((point) => point.sources))];
   const sources = usedIds.map(sourceCard).filter((card): card is EvidenceCard => Boolean(card));
+  return db.transaction(() => {
   const saved = saveWorkflowDraft({
     template: 'speaking_prep',
     focus,
@@ -356,13 +369,16 @@ export async function generatePrepBrief(value: PrepInput, actor: string): Promis
     actor,
     evidenceCount: records.length,
   });
-  return {
+  const result: PrepBrief = {
     ...saved,
     overview,
     suggested_tangents: (raw.suggested_tangents as unknown[]).map((item) => trim(item, 80)).filter(Boolean).slice(0, 6),
     points,
     sources,
   };
+  saveWorkflowResult('prep', result, input);
+  return result;
+  })();
 }
 
 function creatorInput(value: CreatorInput) {
@@ -469,10 +485,13 @@ export async function generateCreatorDraft(value: CreatorInput, actor: string): 
   if (!creatorRecords.length) {
     throw new StudioInputError('creator_reference_unavailable', `${input.creator} source material is not available in Creator Reference memory yet.`, 422);
   }
-  const records = [
-    ...(context.evidenceRecords as EvidenceRecord[]).map((record) => ({ ...record, context_role: 'topic_evidence' })),
-    ...creatorRecords,
-  ].filter((record, index, allRecords) => allRecords.findIndex((candidate) => candidate.id === record.id) === index).slice(0, 18);
+  const records = creatorEvidence(
+    (context.evidenceRecords as EvidenceRecord[]).map(record => ({ ...record, context_role: 'topic_evidence' })),
+    creatorRecords,
+  );
+  if (!records.some(record => record.context_role === 'creator_reference')) {
+    throw new StudioInputError('creator_reference_unavailable', 'Creator material could not fit in the evidence context.', 422);
+  }
   const voiceRules = input.creator === 'Haseeb'
     ? 'Use Haseeb Qureshi material from the Creator Reference memory. Be direct, analytical, mechanism-first, and willing to correct a lazy consensus view. Do not imitate private or unsupported personal details.'
     : 'Use Tarun Chitra material from the Creator Reference memory. Be calm, first-principles, and precise about incentives, power, legitimacy, and who captures value. Do not imitate private or unsupported personal details.';
@@ -505,7 +524,7 @@ export async function generateCreatorDraft(value: CreatorInput, actor: string): 
     reasoningEffort: 'low',
     timeoutMs: 180_000,
   });
-  let rawText = (await generate(prompt.slice(0, 34_000))).text;
+  let rawText = (await generate(prompt)).text;
   if (rawText.includes('CREATOR_REFERENCE_UNAVAILABLE')) {
     throw new StudioInputError('creator_reference_unavailable', `${input.creator} source material is not available in Creator Reference memory yet.`, 422);
   }
@@ -517,7 +536,7 @@ export async function generateCreatorDraft(value: CreatorInput, actor: string): 
       'Correct the previous JSON once. Keep valid content and everything not criticized, fix every issue below, and return only corrected JSON.',
       issues.map((issue) => `* ${issue}`).join('\n'),
       `PREVIOUS JSON\n${rawText}`,
-    ].join('\n\n').slice(0, 40_000))).text;
+    ].join('\n\n'))).text;
     raw = parseHermesJson<RawCreator>(rawText);
     issues = creatorIssues(raw, records, input);
   }
@@ -533,6 +552,7 @@ export async function generateCreatorDraft(value: CreatorInput, actor: string): 
       source: sourceCard(citation.id) as EvidenceCard,
     })),
   }));
+  return db.transaction(() => {
   const saved = saveWorkflowDraft({
     template: input.format === 'tweet' ? 'x_post' : 'linkedin_post',
     focus: input.prompt,
@@ -542,5 +562,8 @@ export async function generateCreatorDraft(value: CreatorInput, actor: string): 
     evidenceCount: records.length,
     draftId: input.draftId || undefined,
   });
-  return { ...saved, creator: input.creator, format: input.format, outputs };
+  const result = { ...saved, creator: input.creator, format: input.format, outputs };
+  saveWorkflowResult('creator', result, input);
+  return result;
+  })();
 }

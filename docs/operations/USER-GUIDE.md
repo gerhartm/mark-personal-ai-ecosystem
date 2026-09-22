@@ -1,5 +1,8 @@
 # Satoshi and Crypto Intelligence User Guide
 
+> Historical reference. For the current 22 September 2026 documentation, start with the [documentation index](../README.md). Verify older interface, release and authentication details before acting on them.
+
+
 **Audience:** Mark and approved staff
 **Reviewed:** 2026-08-10
 

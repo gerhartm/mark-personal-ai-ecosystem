@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { creatorIssues, parseHermesJson, prepIssues } from '../src/workflows.js';
+import { creatorIssues, parseHermesJson, prepIssues, sourceCard } from '../src/workflows.js';
+import { one } from '../src/db.js';
 
 const evidence = [{
   id: 'event-1',
@@ -23,6 +24,18 @@ const validPoint = {
 };
 
 describe('structured workflow validation', () => {
+  it('resolves source citations using the actual sources schema and capture date', () => {
+    const source = one<{ source_id: string; captured_at: string }>(
+      "SELECT source_id, captured_at FROM sources WHERE source_id LIKE 'sha256:%' LIMIT 1",
+    );
+    expect(source).toBeTruthy();
+    expect(sourceCard(source!.source_id)).toMatchObject({
+      id: source!.source_id,
+      kind: 'source',
+      when: source!.captured_at,
+    });
+  });
+
   it('extracts JSON without exposing code-fence formatting', () => {
     expect(parseHermesJson<{ ok: boolean }>('```json\n{"ok":true}\n```')).toEqual({ ok: true });
   });
@@ -59,5 +72,26 @@ describe('structured workflow validation', () => {
 
     const leakedCitation = { outputs: [{ text: `${tweet} [event-1]`, angle: 'Leaked citation', citations: [citation] }] };
     expect(creatorIssues(leakedCitation, evidence, { format: 'tweet', length: 'medium', count: 1 }).join(' ')).toMatch(/internal evidence IDs/);
+  });
+});
+
+describe('complete evidence selection', () => {
+  it('reserves actual prompt space for creator reference records', async () => {
+    const { creatorEvidence, selectEvidence } = await import('../src/workflows.js');
+    const topics = Array.from({ length: 18 }, (_, n) => ({ id: `topic-${n}`, kind: 'event' as const, content: 't'.repeat(1400), context_role: 'topic_evidence' }));
+    const reference = [{ id: 'creator', kind: 'source' as const, content: 'Tarun Chitra '.repeat(200), context_role: 'creator_reference' }];
+    const selected = creatorEvidence(topics, reference);
+    expect(selected[0].id).toBe('creator');
+    expect(selected.some(record => record.context_role === 'topic_evidence')).toBe(true);
+    expect(selected.reduce((n, record) => n + JSON.stringify(record).length + 1, 0)).toBeLessThanOrEqual(18000);
+    expect(selectEvidence(selected)).toEqual(selected);
+  });
+  it('retrieves relevant passages near the end of a long document', async () => {
+    const { relevantPassages } = await import('../src/studio.js');
+    const target = 'Fixed rate lending uses maturity markets and borrowing caps.';
+    const source = 'Unrelated introductory prose. '.repeat(2200) + target + ' Closing context.'.repeat(100);
+    const selected = relevantPassages(source, 'fixed rate lending maturity');
+    expect(selected).toContain(target);
+    expect(selected.length).toBeLessThanOrEqual(4000);
   });
 });

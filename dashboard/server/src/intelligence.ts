@@ -211,6 +211,7 @@ export function intelligenceStatus() {
     : null;
   return {
     connected: intelligenceConfigured(),
+    enabled: scheduledEnabled(),
     refresh_hours: refreshHours(),
     stale: isStale(brief),
     next_refresh_at: nextRefreshAt,
@@ -313,9 +314,14 @@ export async function refreshIntelligence(actor: string, trigger: 'manual' | 'sc
   }
 }
 
+function scheduledEnabled() {
+  return one<{ value: string }>("SELECT value FROM app_settings WHERE key='intelligence.enabled'")?.value !== 'false';
+}
+
 export function startIntelligenceScheduler() {
   if (!intelligenceConfigured()) return () => {};
   const check = () => {
+    if (!scheduledEnabled()) return;
     const latest = latestBrief();
     if (!isStale(latest) || inFlight) return;
     const lastAttempt = lastAttemptAt();

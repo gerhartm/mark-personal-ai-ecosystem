@@ -1,0 +1,66 @@
+{
+  "status": "passed",
+  "original_dashboard_tree": "ba817491260cb7bd30d0c2c7aa4dbdf6ce9ba28d",
+  "restored_dashboard_tree": "ba817491260cb7bd30d0c2c7aa4dbdf6ce9ba28d",
+  "exact_source_restoration": true,
+  "edit_run": "155052c212844779b1324883d8370197",
+  "restore_run": "584accecb8f04787840b64fe2aa12629",
+  "edit_commit": "69854008365b3d5482bb83ea000000668c457f99",
+  "restore_commit": "209133f4460771752e37e4de2c1f3747c85c82c5",
+  "verified_astra_high_requests": 6,
+  "backend_tests_each_release": 137,
+  "document_tests": 8,
+  "http_ingestion_tests": 9,
+  "research": {
+    "sources": {
+      "count": 75,
+      "all_rows_unchanged": true
+    },
+    "events": {
+      "count": 402,
+      "all_rows_unchanged": true
+    },
+    "event_dates": {
+      "count": 180,
+      "all_rows_unchanged": true
+    },
+    "import_items": {
+      "count": 17,
+      "all_rows_unchanged": true
+    },
+    "source_processing": {
+      "count": 28,
+      "all_rows_unchanged": true
+    },
+    "content_drafts": {
+      "count": 53,
+      "all_rows_unchanged": true
+    }
+  },
+  "database_integrity": "ok",
+  "http_health": 200,
+  "containers": [
+    {
+      "name": "/crypto-dashboard",
+      "started": "2026-09-21T17:17:37.961959667Z",
+      "restarts": 0,
+      "health": "healthy"
+    },
+    {
+      "name": "/hermes-27am3wgv7vkohkenprml4s3p",
+      "started": "2026-09-09T19:28:22.550268213Z",
+      "restarts": 0,
+      "health": null
+    },
+    {
+      "name": "/openviking-27am3wgv7vkohkenprml4s3p",
+      "started": "2026-08-05T11:40:27.4817551Z",
+      "restarts": 0,
+      "health": "healthy"
+    }
+  ],
+  "recovery_timer": "active",
+  "telegram_test": false,
+  "hermes_gateway_message_edit_and_restore": true,
+  "synthetic_production_sources_created": 0
+}

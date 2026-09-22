@@ -8,3 +8,6 @@ server/src/screenshots.mjs
 docs
 *.log
 .DS_Store
+test-support
+.git
+**/._*

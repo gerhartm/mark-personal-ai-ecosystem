@@ -115,6 +115,67 @@ if (!hasMigration('008')) db.transaction(() => {
   ).run(new Date().toISOString());
 })();
 
+if (!hasMigration('009')) db.transaction(() => {
+  db.exec(`
+    CREATE TABLE source_processing (
+      source_id TEXT PRIMARY KEY REFERENCES sources(source_id),
+      status TEXT NOT NULL CHECK(status IN ('queued','processing','ready','failed')),
+      stage TEXT NOT NULL DEFAULT 'queued', attempts INTEGER NOT NULL DEFAULT 0,
+      not_before TEXT NOT NULL, updated_at TEXT NOT NULL,
+      content_hash TEXT, chunks_total INTEGER NOT NULL DEFAULT 0,
+      chunks_done INTEGER NOT NULL DEFAULT 0, event_count INTEGER NOT NULL DEFAULT 0,
+      dated_count INTEGER NOT NULL DEFAULT 0, last_error TEXT
+    );
+    CREATE TABLE source_processing_chunks (
+      source_id TEXT NOT NULL REFERENCES sources(source_id), position INTEGER NOT NULL,
+      content TEXT NOT NULL, content_hash TEXT NOT NULL, result_json TEXT,
+      PRIMARY KEY(source_id, position)
+    );
+    CREATE TABLE event_evidence (
+      event_id TEXT PRIMARY KEY REFERENCES events(id), source_id TEXT NOT NULL REFERENCES sources(source_id),
+      fingerprint TEXT NOT NULL UNIQUE, quote TEXT NOT NULL, date_evidence_json TEXT NOT NULL DEFAULT '[]'
+    );
+    CREATE TABLE event_topics (
+      event_id TEXT NOT NULL REFERENCES events(id), topic_key TEXT NOT NULL, title TEXT NOT NULL,
+      PRIMARY KEY(event_id, topic_key)
+    );
+    CREATE INDEX event_topics_key ON event_topics(topic_key);
+    CREATE TABLE workflow_results (
+      draft_id TEXT NOT NULL REFERENCES content_drafts(id), revision INTEGER NOT NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('prep','creator')), response_json TEXT NOT NULL,
+      input_json TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY(draft_id, revision)
+    );
+    CREATE TABLE import_batches (id TEXT PRIMARY KEY, actor TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE import_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id TEXT NOT NULL REFERENCES import_batches(id),
+      position INTEGER NOT NULL, title TEXT NOT NULL, payload_json TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('queued','processing','ready','failed')),
+      attempts INTEGER NOT NULL DEFAULT 0, not_before TEXT NOT NULL, updated_at TEXT NOT NULL,
+      source_id TEXT REFERENCES sources(source_id), last_error TEXT,
+      UNIQUE(batch_id, position)
+    );
+    CREATE INDEX import_items_queue ON import_items(status, not_before);
+    CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  `);
+  const now = new Date().toISOString();
+  db.prepare(`INSERT INTO source_processing(source_id,status,not_before,updated_at)
+              SELECT source_id,'queued',?,? FROM sources WHERE origin='ingested'`).run(now, now);
+  db.prepare('INSERT INTO schema_migrations(id,name,applied_at) VALUES (?,?,?)')
+    .run('009', 'source_processing_and_saved_work', now);
+})();
+
+if (!hasMigration('010')) db.transaction(() => {
+  db.exec(`CREATE TABLE event_editorial (
+    event_id TEXT PRIMARY KEY REFERENCES events(id),
+    kind TEXT NOT NULL CHECK(kind IN ('research','source_metadata','duplicate')),
+    headline TEXT NOT NULL, content_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL, updated_by TEXT NOT NULL
+  )`);
+  db.prepare('INSERT INTO schema_migrations(id,name,applied_at) VALUES (?,?,?)')
+    .run('010', 'research_editorial_quality', new Date().toISOString());
+})();
+
 /** The private media archive. Unset means media is unavailable in this environment. */
 export const MEDIA_ROOT = process.env.CRYPTO_MEDIA_ROOT ?? null;
 

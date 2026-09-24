@@ -46,13 +46,3 @@ This is the documentation edition dated **22 September 2026**. The implementatio
 Updating `main` does not deploy the application. The release helper checks its branch against the live ledger, so changes to that branch must be coordinated with the release process. The [handover checklist](docs/handover/README.md) records what remains before ownership transfer.
 
 The current system does not promise Telegram batch-capture mode, native OCR, direct audio/video transcription or unrestricted VPS administration by Satoshi. Historical test evidence and its limits are listed in [Verification](docs/verification/README.md).
-
-## Start reading
-
-- **Using the product:** [Quick Start](docs/handbook/quick-start.md) and [User Guide](docs/handbook/user-guide.md).
-- **Maintaining the product:** [Development](docs/development/README.md), [Operations](docs/operations/README.md) and [Technical Handover](docs/handbook/technical-handover.md).
-- **Reviewing ownership and support:** [Handover](docs/handover/README.md), [Support](SUPPORT.md) and [Security](SECURITY.md).
-
-Prepared for Mark Gerhart by Darshan Ahirrao
-
-Contact: [darshan@growthforgeai.com](mailto:darshan@growthforgeai.com)

@@ -43,6 +43,6 @@ This is the documentation edition dated **22 September 2026**. The implementatio
 - `satoshi-dashboard` tracks the production release helper and its live release ledger.
 - Feature branches hold proposed changes before they are integrated.
 
-Updating `main` does not deploy the application. The release helper checks its branch against the live ledger, so changes to that branch must be coordinated with the release process. The [handover checklist](docs/handover/README.md) records what remains before ownership transfer.
+Updating `main` does not deploy the application. The release helper checks its branch against the live ledger, so changes to that branch must be coordinated with the release process.
 
 The current system does not promise Telegram batch-capture mode, native OCR, direct audio/video transcription or unrestricted VPS administration by Satoshi. Historical test evidence and its limits are listed in [Verification](docs/verification/README.md).

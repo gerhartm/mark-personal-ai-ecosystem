@@ -27,6 +27,24 @@ The working copy is not an OS sandbox. Scope instructions prohibit changes outsi
 
 A restore creates a forward commit using a previously published code version. It does not delete history or restore an old database. Schema compatibility and failures can require operator intervention. Preserve the run ID and failed check instead of repeatedly trying unrelated restores.
 
+## Operator releases from a reviewed branch
+
+An operator logged in to the host can release dashboard work prepared outside the editor. It goes through the same checks, backup, versioned commit, health check, automatic recovery and ledger as an editor release:
+
+```bash
+tmux new -s release
+mark-dashboard-release operator check  --branch ux/layout-pass-1 --commit <full commit ID>
+mark-dashboard-release operator deploy --branch ux/layout-pass-1 --commit <full commit ID> --summary "Layout pass 1"
+mark-dashboard-release operator revert --to previous
+mark-dashboard-release operator history
+```
+
+- The branch must be named `ux/…`, `operator/…` or `release/…`, be based on the published `satoshi-dashboard` commit, change only `dashboard/`, and the commit must be the branch tip on GitHub.
+- Changes to `dashboard/server/src/db.ts` are refused unless `--allow-schema-change` is given after a compatibility review.
+- `deploy` and `revert` must run inside tmux or screen and ask the operator to type a confirmation word (`--yes` skips the prompt).
+- The published commit on `satoshi-dashboard` contains the branch's `dashboard/` tree; the receipt records the source branch and commit. Satoshi's editor workspace is refreshed afterwards, so later editor runs build on the new version.
+- Operator commands are refused when invoked through a restricted SSH forced command.
+
 ## Branch consistency matters
 
 The helper expects the Git branch, remote and release ledger to agree. Do not merge unrelated work directly into `satoshi-dashboard` and assume the next agent edit will work. Coordinate documentation/code integration with the operator and reconcile the accepted release state through the established process.

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { EmptyState, ErrorState, Eyebrow, LoadingRows, Provenance } from '../components/Desk';
 import { useQuery } from '../lib/api';
-import { compact, formatDate, sourceKind, titleCase } from '../lib/desk';
+import { compact, formatDate, plural, sourceKind, titleCase } from '../lib/desk';
 import './topics.css';
 
 type Claim = {
@@ -37,6 +37,7 @@ export function TopicDetail() {
   const [speaker, setSpeaker] = useState('Everyone');
   const [sourceType, setSourceType] = useState<string | null>(null);
   const [window, setWindow] = useState('All time');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const claims: Claim[] = result.data?.claims ?? [];
   const relatedTags: RelatedTag[] = result.data?.related_tags ?? [];
 
@@ -92,11 +93,11 @@ export function TopicDetail() {
 
   return (
     <section>
-      <Link className="mb-4 inline-block font-mono text-[10px] text-dim hover:text-[var(--brass)]" to="/">← all topics</Link>
+      <Link className="mb-4 inline-block font-mono text-[11.5px] text-dim hover:text-[var(--accent-text)]" to="/">← All topics</Link>
       <div className="mb-5 border-b border-[var(--line)] pb-4">
-        <h1 className="mb-[7px] text-[26px] font-medium tracking-[-0.025em] text-foreground">{result.data?.topic_title ?? titleCase(topic)}</h1>
-        <p className="font-mono text-[10px] text-dim">
-          {claims.length} claims · {new Set(claims.map(claimSpeaker)).size} source labels · {result.data?.sources?.length ?? 0} sources
+        <h1 className="mb-[7px] text-[23px] leading-tight font-medium tracking-[-0.025em] text-foreground md:text-[26px]">{result.data?.topic_title ?? titleCase(topic)}</h1>
+        <p className="font-mono text-[11px] text-dim">
+          {plural(claims.length, 'claim')} · {plural(new Set(claims.map(claimSpeaker)).size, 'source label')} · {plural(result.data?.sources?.length ?? 0, 'source')}
           {coverage ? ` · ${coverage}` : ''}
         </p>
       </div>
@@ -104,31 +105,36 @@ export function TopicDetail() {
       {relatedTags.length ? (
         <div className="mb-5 flex flex-wrap items-center gap-1.5">
           {relatedTags.slice(0, 6).map((item) => (
-            <span key={item.tag} className="rounded-[3px] bg-surface-800 px-2 py-1 font-mono text-[10px] text-muted-foreground">
+            <span key={item.tag} className="rounded-[3px] bg-surface-800 px-2 py-1 font-mono text-[11px] text-muted-foreground">
               {item.tag}
             </span>
           ))}
         </div>
       ) : null}
 
-      <div data-testid="topic-layout" className="grid items-start gap-7 lg:grid-cols-[1fr_214px]">
-        <div>
+      <button type="button" aria-expanded={filtersOpen} aria-controls="claim-filters" onClick={() => setFiltersOpen((open) => !open)} className="mb-5 flex w-full cursor-pointer items-center justify-between rounded-lg border border-[var(--line-strong)] px-3.5 py-2.5 text-left text-[13.5px] lg:hidden">
+        <span>Filter claims <span className="font-mono text-[11px] text-dim">· {[speaker, window, sourceType].filter((value) => value && value !== 'Everyone' && value !== 'All time').join(' · ') || 'none applied'}</span></span>
+        <span aria-hidden="true" className="font-mono text-[15px] text-dim">{filtersOpen ? '−' : '+'}</span>
+      </button>
+      <div data-testid="topic-layout" className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_214px]">
+        <div className="min-w-0">
           <Eyebrow>Evidence by category</Eyebrow>
-          <p className="mb-6 text-[12px] text-muted-foreground">Categories organize the retained claims. Read the evidence to assess agreement, disagreement, and uncertainty.</p>
+          <p className="mb-6 text-[13px] text-muted-foreground">Categories organize the retained claims. Read the evidence to assess agreement, disagreement, and uncertainty.</p>
 
-          {filtered ? <div className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[9.5px] text-dim"><span>showing {visible.length} of {claims.length} filed claims</span><button className="rounded-[3px] bg-surface-800 px-[6px] py-[2px] text-[9.5px] text-[var(--brass)]" type="button" onClick={() => { setSpeaker('Everyone'); setSourceType(null); setWindow('All time'); }}>clear filters</button></div> : null}
+          {filtered ? <div className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-dim"><span>showing {visible.length} of {claims.length} filed claims</span><button className="cursor-pointer rounded-[3px] bg-surface-800 px-[6px] py-[2px] text-[11px] text-[var(--accent-text)]" type="button" onClick={() => { setSpeaker('Everyone'); setSourceType(null); setWindow('All time'); }}>clear filters</button></div> : null}
 
           {visible.length === 0 ? (
             <EmptyState title="No claims match those filters">Choose another source, window, or source type.</EmptyState>
           ) : groups.map((group, groupIndex) => (
             <div className="mb-6 border-l-2 pl-4" style={{ borderLeftColor: ['var(--cat-red)', 'var(--cat-blue)', 'var(--cat-green)', 'var(--cat-gold)'][groupIndex % 4] }} key={group.category}>
               <h2 className="mb-[5px] text-[14.5px] font-medium tracking-tight text-foreground">{titleCase(group.category)}</h2>
-              <p className="mb-3 flex flex-wrap items-center gap-2 font-mono text-[9.5px] text-dim"><span className="text-[var(--brass)]">{new Set(group.items.map(claimSpeaker)).size} source labels</span> · {group.items.length} claims · grounded in stored sources</p>
+              {/* Separators end each item so a wrapped line never starts with one. */}
+              <p className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[11px] text-dim"><span><span className="text-[var(--accent-text)]">{plural(new Set(group.items.map(claimSpeaker)).size, 'source label')}</span> ·</span><span>{plural(group.items.length, 'claim')} ·</span><span>grounded in stored sources</span></p>
               {group.items.map((claim) => (
                 <article data-testid="topic-claim" className="mb-3 border-b border-[var(--line)] pb-3 last:mb-0 last:border-0 last:pb-0" key={`${claim.event_id}-${claim.position}`}>
                   <p className="mb-[7px] font-serif text-[15px] leading-relaxed text-pretty text-foreground">{claim.text}</p>
-                  {claim.evidence_quote ? <details className="mb-2 text-[12px] text-muted-foreground"><summary className="cursor-pointer">Supporting passage</summary><blockquote className="mt-2 border-l-2 border-[var(--brass)] pl-3">{claim.evidence_quote}</blockquote></details> : null}
-                  <Link to={`/sources/${encodeURIComponent(claim.source_id)}`} className="mb-2 inline-block font-mono text-[10px] text-[var(--brass)]">Read retained source</Link>
+                  {claim.evidence_quote ? <details className="mb-2 text-[13px] text-muted-foreground"><summary className="cursor-pointer">Supporting passage</summary><blockquote className="mt-2 border-l-2 border-[var(--brass)] pl-3">{claim.evidence_quote}</blockquote></details> : null}
+                  <Link to={`/sources/${encodeURIComponent(claim.source_id)}`} className="mb-2 inline-block font-mono text-[11.5px] text-[var(--accent-text)] underline decoration-[var(--line-strong)] underline-offset-2 hover:decoration-current">Read retained source</Link>
                   {claim.source_url ? <a href={claim.source_url} target="_blank" rel="noreferrer" aria-label={`Open original source for ${claimSpeaker(claim)}`} className="block no-underline"><Provenance source={claimSpeaker(claim)} kind={sourceKind(claim.source_type)} when={formatDate(claim.subject_date)} /></a> : <Provenance source={claimSpeaker(claim)} kind={sourceKind(claim.source_type)} when={formatDate(claim.subject_date)} />}
                 </article>
               ))}
@@ -136,7 +142,7 @@ export function TopicDetail() {
           ))}
         </div>
 
-        <aside className="lg:sticky lg:top-[34px]">
+        <aside id="claim-filters" aria-label="Filter claims" className={`${filtersOpen ? 'block' : 'hidden'} order-first lg:order-none lg:sticky lg:top-[34px] lg:block`}>
           <Filter label="Filter by source" values={speakers} active={speaker} setActive={setSpeaker} />
           <Filter label="Window" values={windows} active={window} setActive={setWindow} />
           <Filter label="Source type" values={sourceTypes} active={sourceType ?? ''} setActive={(value) => setSourceType(value === sourceType ? null : value)} />
@@ -148,8 +154,9 @@ export function TopicDetail() {
 
 function Filter({ label, values, active, setActive }: { label: string; values: FilterItem[]; active: string; setActive: (value: string) => void }) {
   return (
-    <div className="mb-[18px]">
+    <div className="mb-3 lg:mb-[18px]">
       <Eyebrow>{label}</Eyebrow>
+      <div className="flex flex-wrap gap-1.5 lg:block">
       {values.map((item) => {
         const selected = active === item.label;
         return (
@@ -157,13 +164,15 @@ function Filter({ label, values, active, setActive }: { label: string; values: F
             key={item.label}
             type="button"
             onClick={() => setActive(item.label)}
-            className={`flex w-full items-baseline justify-between gap-2 rounded px-2 py-[5px] text-left text-[12.5px] transition-colors ${selected ? 'bg-[var(--panel-2)] text-foreground' : 'text-muted-foreground hover:bg-[var(--panel)] hover:text-foreground'}`}
+            aria-pressed={selected}
+            className={`flex max-w-full cursor-pointer items-baseline justify-between gap-2 rounded border px-2.5 py-[6px] text-left text-[13px] transition-colors lg:w-full lg:border-transparent lg:px-2 lg:py-[5px] lg:text-[12.5px] ${selected ? 'border-[var(--brass)] bg-[var(--panel-2)] text-foreground' : 'border-[var(--line-strong)] text-muted-foreground hover:bg-[var(--panel)] hover:text-foreground'}`}
           >
             <span className="min-w-0 truncate">{item.label}</span>
-            <span className="shrink-0 font-mono text-[9.5px] text-dim">{item.n}</span>
+            <span className="shrink-0 font-mono text-[11px] text-dim">{item.n}</span>
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

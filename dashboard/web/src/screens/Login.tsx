@@ -110,7 +110,7 @@ export function Login({ turnstile, turnstileSiteKey, unavailable = false, onAuth
         <div className="login-brand">
           <span className="login-mark" aria-hidden="true"><i /><i /></span>
           <div>
-            <p className="login-name">Crypto Intelligence</p>
+            <p className="login-name">Intel Desk</p>
             <p className="login-private">Private / Single seat</p>
           </div>
         </div>
@@ -209,7 +209,7 @@ export function WorkspaceOpening() {
   return (
     <main className="login-opening" aria-live="polite" data-testid="workspace-opening">
       <div className="login-opening-mark" aria-hidden="true"><i /><i /></div>
-      <p>Crypto Intelligence</p>
+      <p>Intel Desk</p>
       <h1>Opening your workspace</h1>
       <div className="login-opening-rule" aria-hidden="true"><span /></div>
     </main>

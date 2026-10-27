@@ -172,7 +172,7 @@ async function desktopPass(browser) {
   check(await firstTopicTag.isVisible(), 'Topics exposes Mark’s tag filter rail');
   await firstTopicTag.click();
   check((await page.locator('main a[href^="/topics/"]').count()) > 0, 'Topic tag filter works');
-  await page.getByRole('button', { name: 'all', exact: true }).click();
+  await page.getByRole('button', { name: 'All', exact: true }).click();
   await page.locator('main a[href^="/topics/"]').first().click();
   await page.waitForURL(/\/topics\//);
   await page.getByTestId('topic-claim').first().waitFor();
@@ -235,7 +235,7 @@ async function desktopPass(browser) {
   await checkViewport(page, 'Timeline desktop');
 
   await page.getByRole('link', { name: /Prep/ }).click();
-  const prepAction = page.getByRole('button', { name: 'Generate with Hermes' });
+  const prepAction = page.getByRole('button', { name: 'Generate brief' });
   await prepAction.waitFor();
   check(await prepAction.isVisible(), 'Prep exposes its primary generation action');
   await page.locator('#prep-topic').fill('How does distribution shape value capture in lending protocols?');

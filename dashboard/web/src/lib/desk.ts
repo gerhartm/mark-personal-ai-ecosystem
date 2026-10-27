@@ -1,6 +1,17 @@
+// Industry acronyms keep their usual spelling when tags are turned into labels.
+const ACRONYMS: Record<string, string> = {
+  ai: 'AI', aml: 'AML', amm: 'AMM', api: 'API', apy: 'APY', b2b: 'B2B', btc: 'BTC', cefi: 'CeFi', cftc: 'CFTC',
+  dao: 'DAO', defi: 'DeFi', depin: 'DePIN', dex: 'DEX', etf: 'ETF', etfs: 'ETFs', eth: 'ETH', etp: 'ETP', eu: 'EU',
+  evm: 'EVM', fx: 'FX', ip: 'IP', ipo: 'IPO', kyc: 'KYC', l1: 'L1', l2: 'L2', llm: 'LLM', lp: 'LP', mev: 'MEV',
+  mica: 'MiCA', nft: 'NFT', otc: 'OTC', rwa: 'RWA', rwas: 'RWAs', sec: 'SEC', tge: 'TGE', tvl: 'TVL', uk: 'UK',
+  us: 'US', usd: 'USD', usdc: 'USDC', usdt: 'USDT', zk: 'ZK',
+};
+
 export const titleCase = (value: string) => value
   .replace(/[_-]+/g, ' ')
-  .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  .replace(/\b[\w']+\b/g, (word) => ACRONYMS[word.toLowerCase()] ?? word.charAt(0).toUpperCase() + word.slice(1));
+
+export const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
 export const sourceKind = (value?: string | null) => {
   const kind = String(value ?? '').toLowerCase();

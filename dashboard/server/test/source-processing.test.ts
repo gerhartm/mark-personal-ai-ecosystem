@@ -90,24 +90,23 @@ describe('source-to-dashboard pipeline', () => {
     expect(detail.subject_date).toBeNull();
   });
   it('does not present capture dates as event dates when rebuilding topic groups', async () => {
-    const supplied: Array<{ id: string; subject_date: string }> = [];
+    // Claims are supplied one per line; a claim ID is its event ID plus the claim position.
+    const supplied: Array<{ id: string; date?: string }> = [];
     const client = await import('../src/hermes-client.js');
     vi.mocked(client.generateWithHermes).mockImplementation(async (prompt) => {
-      const records = prompt.split('\n').filter(line => line.startsWith('{')).map(line => JSON.parse(line));
+      const records = prompt.split('\n').filter(line => line.startsWith('{"id"')).map(line => JSON.parse(line));
       supplied.push(...records);
-      const count = Math.min(24, Math.max(Math.min(6, Math.floor(records.length / 2)), Math.ceil(records.length / 12)));
-      const width = Math.max(2, Math.ceil(records.length / count));
-      return JSON.stringify({ topics: Array.from({ length: count }, (_, index) => ({
-        title: `Stored evidence group ${index + 1} connects related research claims`,
-        description: 'These retained research records describe related mechanisms reported by their original sources.',
-        event_ids: Array.from({ length: width }, (_, offset) => records[(index * width + offset) % records.length].id),
-      })) });
+      return JSON.stringify({ claims: records.map(record => ({ id: record.id, category: 'defi', round: null })), topics: [], unsorted: records.map(record => record.id) });
     });
     const { rebuildTopics } = await import('../src/prompt-controls.js');
     await rebuildTopics('test');
     const undatedIds = database.all<{ id: string }>(`SELECT e.id FROM events e
       WHERE e.source_id=? AND NOT EXISTS(SELECT 1 FROM event_dates d WHERE d.event_id=e.id)`, sourceId).map(row => row.id);
     expect(undatedIds.length).toBeGreaterThan(0);
-    for (const id of undatedIds) expect(supplied.find(row => row.id === id)?.subject_date).toBe('');
+    for (const id of undatedIds) {
+      const rows = supplied.filter(row => row.id.startsWith(`${id}:`));
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every(row => row.date === undefined)).toBe(true);
+    }
   });
 });

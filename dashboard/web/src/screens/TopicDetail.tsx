@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { EmptyState, ErrorState, Eyebrow, LoadingRows, Provenance } from '../components/Desk';
 import { useQuery } from '../lib/api';
-import { compact, formatDate, plural, sourceKind, titleCase } from '../lib/desk';
+import { categoryColor, categoryLabel, compact, formatDate, plural, sourceKind, titleCase } from '../lib/desk';
 import './topics.css';
 
 type Claim = {
@@ -33,13 +33,16 @@ const sourceFilterLabel = (claim: Claim) => {
 export function TopicDetail() {
   const { tag = '' } = useParams();
   const topic = decodeURIComponent(tag);
-  const result = useQuery<any>(`/topics?tag=${encodeURIComponent(topic)}`, [topic], 10_000);
+  const result = useQuery<any>(`/topics?tag=${encodeURIComponent(topic)}`, [topic], 30_000);
   const [speaker, setSpeaker] = useState('Everyone');
   const [sourceType, setSourceType] = useState<string | null>(null);
   const [window, setWindow] = useState('All time');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const claims: Claim[] = result.data?.claims ?? [];
   const relatedTags: RelatedTag[] = result.data?.related_tags ?? [];
+  const category: string | null = result.data?.version === 2 ? result.data?.category ?? null : null;
+  const dek: string = result.data?.topic_dek ?? '';
+  const description: string = result.data?.topic_description ?? '';
 
   const speakers = useMemo<FilterItem[]>(() => {
     const counts = new Map<string, number>();
@@ -73,13 +76,15 @@ export function TopicDetail() {
     }
     return true;
   });
-  const groups = useMemo(
-    () => Array.from(new Set(visible.map((claim) => claim.primary_category))).map((category) => ({
-      category,
-      items: visible.filter((claim) => claim.primary_category === category),
-    })),
-    [visible],
-  );
+  // Topics built from categories hold one category, so their evidence reads best grouped by source.
+  const bySource = result.data?.version === 2;
+  const groups = useMemo(() => {
+    const keyOf = (claim: Claim) => (bySource ? claim.source_id : claim.primary_category);
+    return Array.from(new Set(visible.map(keyOf))).map((key) => {
+      const items = visible.filter((claim) => keyOf(claim) === key);
+      return { key, heading: bySource ? compact(items[0].source_title, 110) || claimSpeaker(items[0]) : titleCase(key), items };
+    });
+  }, [visible, bySource]);
   const filtered = speaker !== 'Everyone' || sourceType !== null || window !== 'All time';
   const years = claims.map((claim) => Number(claim.subject_date?.slice(0, 4))).filter(Boolean);
   const coverage = years.length
@@ -93,11 +98,23 @@ export function TopicDetail() {
 
   return (
     <section>
-      <Link className="mb-4 inline-block font-mono text-[11.5px] text-dim hover:text-[var(--accent-text)]" to="/">← All topics</Link>
+      {category ? (
+        <Link className="mb-4 inline-block font-mono text-[11.5px] text-dim hover:text-[var(--accent-text)]" to={`/?category=${encodeURIComponent(category)}`}>← {categoryLabel(category)} topics</Link>
+      ) : (
+        <Link className="mb-4 inline-block font-mono text-[11.5px] text-dim hover:text-[var(--accent-text)]" to="/">← All topics</Link>
+      )}
       <div className="mb-5 border-b border-[var(--line)] pb-4">
+        {category ? (
+          <p className="mb-2 flex items-center gap-1.5 font-mono text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
+            <span aria-hidden="true" className="size-[7px] rounded-full" style={{ background: categoryColor(category) }} />
+            {categoryLabel(category)}
+          </p>
+        ) : null}
         <h1 className="mb-[7px] text-[23px] leading-tight font-medium tracking-[-0.025em] text-foreground md:text-[26px]">{result.data?.topic_title ?? titleCase(topic)}</h1>
+        {dek ? <p className="mb-2.5 max-w-[70ch] font-serif text-[16px] leading-relaxed text-pretty text-muted-foreground">{dek}</p> : null}
         <p className="font-mono text-[11px] text-dim">
-          {plural(claims.length, 'claim')} · {plural(new Set(claims.map(claimSpeaker)).size, 'source label')} · {plural(result.data?.sources?.length ?? 0, 'source')}
+          {plural(claims.length, 'claim')}
+          {bySource ? '' : ` · ${plural(new Set(claims.map(claimSpeaker)).size, 'source label')}`} · {plural(result.data?.sources?.length ?? 0, 'source')}
           {coverage ? ` · ${coverage}` : ''}
         </p>
       </div>
@@ -118,18 +135,24 @@ export function TopicDetail() {
       </button>
       <div data-testid="topic-layout" className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_214px]">
         <div className="min-w-0">
-          <Eyebrow>Evidence by category</Eyebrow>
-          <p className="mb-6 text-[13px] text-muted-foreground">Categories organize the retained claims. Read the evidence to assess agreement, disagreement, and uncertainty.</p>
+          <Eyebrow>{bySource ? 'Evidence by source' : 'Evidence by category'}</Eyebrow>
+          <p className="mb-6 max-w-[72ch] text-[13px] leading-relaxed text-muted-foreground">{bySource
+            ? description || 'Each source\'s claims are listed together. Read them to judge agreement, disagreement and uncertainty.'
+            : 'Categories organize the retained claims. Read the evidence to assess agreement, disagreement, and uncertainty.'}</p>
 
           {filtered ? <div className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-dim"><span>showing {visible.length} of {claims.length} filed claims</span><button className="cursor-pointer rounded-[3px] bg-surface-800 px-[6px] py-[2px] text-[11px] text-[var(--accent-text)]" type="button" onClick={() => { setSpeaker('Everyone'); setSourceType(null); setWindow('All time'); }}>clear filters</button></div> : null}
 
           {visible.length === 0 ? (
             <EmptyState title="No claims match those filters">Choose another source, window, or source type.</EmptyState>
           ) : groups.map((group, groupIndex) => (
-            <div className="mb-6 border-l-2 pl-4" style={{ borderLeftColor: ['var(--cat-red)', 'var(--cat-blue)', 'var(--cat-green)', 'var(--cat-gold)'][groupIndex % 4] }} key={group.category}>
-              <h2 className="mb-[5px] text-[14.5px] font-medium tracking-tight text-foreground">{titleCase(group.category)}</h2>
+            <div className="mb-6 border-l-2 pl-4" style={{ borderLeftColor: ['var(--cat-red)', 'var(--cat-blue)', 'var(--cat-green)', 'var(--cat-gold)'][groupIndex % 4] }} key={group.key}>
+              <h2 className="mb-[5px] text-[14.5px] font-medium tracking-tight text-foreground">{group.heading}</h2>
               {/* Separators end each item so a wrapped line never starts with one. */}
-              <p className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[11px] text-dim"><span><span className="text-[var(--accent-text)]">{plural(new Set(group.items.map(claimSpeaker)).size, 'source label')}</span> ·</span><span>{plural(group.items.length, 'claim')} ·</span><span>grounded in stored sources</span></p>
+              {bySource ? (
+                <p className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[11px] text-dim"><span>{plural(group.items.length, 'claim')} ·</span><span>{sourceKind(group.items[0].source_type)}</span></p>
+              ) : (
+                <p className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[11px] text-dim"><span><span className="text-[var(--accent-text)]">{plural(new Set(group.items.map(claimSpeaker)).size, 'source label')}</span> ·</span><span>{plural(group.items.length, 'claim')} ·</span><span>grounded in stored sources</span></p>
+              )}
               {group.items.map((claim) => (
                 <article data-testid="topic-claim" className="mb-3 border-b border-[var(--line)] pb-3 last:mb-0 last:border-0 last:pb-0" key={`${claim.event_id}-${claim.position}`}>
                   <p className="mb-[7px] font-serif text-[15px] leading-relaxed text-pretty text-foreground">{claim.text}</p>

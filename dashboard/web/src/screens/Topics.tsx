@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Chip, ErrorState, LoadingRows, ViewHead } from '../components/Desk';
+import { FundingRounds } from '../components/FundingRounds';
 import { useQuery } from '../lib/api';
-import { plural, titleCase } from '../lib/desk';
+import { CATEGORIES } from '../lib/categories';
+import { categoryColor, categoryLabel, formatDate, plural, titleCase } from '../lib/desk';
 
-type Topic = {
+type LegacyTopic = {
   tag: string;
   title?: string;
   unfiled?: boolean;
@@ -15,29 +17,210 @@ type Topic = {
   max_significance: number;
   tags: string[];
 };
-type Sort = 'claims' | 'sources' | 'az';
+
+type CategoryTopic = {
+  tag: string;
+  title: string;
+  dek: string;
+  description?: string;
+  category: string;
+  claim_count: number;
+  source_count: number;
+  latest_subject_date: string | null;
+  latest_added_at: string | null;
+};
+
+type CategorySummary = { id: string; label: string; scope: string; topic_count: number; claim_count: number; unsorted_count: number };
+type WaitingClaim = { ref: string; source_id: string; text: string; source: string; category: string; added_at: string | null };
+type TopicsPayload =
+  | { version: 2; categories: CategorySummary[]; topics: CategoryTopic[]; unsorted: WaitingClaim[] }
+  | { version?: undefined; topics: LegacyTopic[] };
 
 const PAGE = 60;
 const TOP_TAGS = 12;
-const SORTS: Record<Sort, string> = { claims: 'Most claims', sources: 'Most sources', az: 'A to Z' };
+const searchField = 'w-full min-w-0 rounded-md border border-[var(--line-strong)] bg-[var(--panel)] px-3 py-2 text-[13px] text-foreground placeholder:text-dim sm:w-72';
+const moreButton = 'mt-4 w-full cursor-pointer rounded-lg border border-[var(--line-strong)] py-2.5 font-mono text-[12px] text-muted-foreground hover:border-[var(--brass)] hover:text-foreground';
+const accentLink = 'cursor-pointer text-[var(--accent-text)] underline-offset-2 hover:underline';
 
-const titleOf = (topic: Topic) => topic.title ?? titleCase(topic.tag);
-const compare: Record<Sort, (a: Topic, b: Topic) => number> = {
+export function Topics() {
+  const result = useQuery<TopicsPayload>('/topics', [], 30_000);
+  if (result.loading && !result.data) return <LoadingRows rows={8} />;
+  if (result.error) return <ErrorState error={result.error} retry={result.refetch} />;
+  if (result.data?.version === 2) return <CategoryTopics data={result.data} />;
+  return <LegacyTopics topics={(result.data?.topics ?? []) as LegacyTopic[]} />;
+}
+
+/* ------------------------------------------------------------------ *
+ * Topics organized into the thirteen research categories
+ * ------------------------------------------------------------------ */
+
+type Sort = 'claims' | 'recent' | 'sources' | 'az';
+const SORTS: Record<Sort, string> = { claims: 'Most claims', recent: 'Recently added', sources: 'Most sources', az: 'A to Z' };
+const sorters: Record<Sort, (a: CategoryTopic, b: CategoryTopic) => number> = {
+  claims: (a, b) => b.claim_count - a.claim_count || b.source_count - a.source_count || a.title.localeCompare(b.title),
+  recent: (a, b) => String(b.latest_added_at).localeCompare(String(a.latest_added_at)) || b.claim_count - a.claim_count,
+  sources: (a, b) => b.source_count - a.source_count || b.claim_count - a.claim_count || a.title.localeCompare(b.title),
+  az: (a, b) => a.title.localeCompare(b.title),
+};
+
+function CategoryTopics({ data }: { data: Extract<TopicsPayload, { version: 2 }> }) {
+  const [params, setParams] = useSearchParams();
+  const requested = params.get('category');
+  const category = CATEGORIES.some((item) => item.id === requested) ? requested! : 'all';
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<Sort>('claims');
+  const [shown, setShown] = useState(PAGE);
+  const [waitingOpen, setWaitingOpen] = useState(false);
+  const [waitingShown, setWaitingShown] = useState(PAGE);
+  const query = search.trim().toLowerCase();
+
+  const chips = useMemo(() => [...data.categories].sort((a, b) => b.topic_count - a.topic_count
+    || CATEGORIES.findIndex((item) => item.id === a.id) - CATEGORIES.findIndex((item) => item.id === b.id)), [data.categories]);
+  const scope = data.categories.find((item) => item.id === category)?.scope;
+  const topics = useMemo(() => data.topics
+    .filter((topic) => category === 'all' || topic.category === category)
+    .filter((topic) => !query || `${topic.title} ${topic.dek} ${topic.description ?? ''} ${categoryLabel(topic.category)}`.toLowerCase().includes(query))
+    .sort(sorters[sort]), [data.topics, category, query, sort]);
+  const waiting = useMemo(() => data.unsorted
+    .filter((claim) => category === 'all' || claim.category === category)
+    .filter((claim) => !query || `${claim.text} ${claim.source}`.toLowerCase().includes(query))
+    .sort((a, b) => String(b.added_at).localeCompare(String(a.added_at))), [data.unsorted, category, query]);
+  const filtering = category !== 'all' || Boolean(query);
+  const showWaiting = waitingOpen || (filtering && topics.length === 0 && waiting.length > 0);
+
+  const resetPaging = () => { setShown(PAGE); setWaitingShown(PAGE); };
+  const choose = (id: string) => {
+    const next = new URLSearchParams(params);
+    if (id === 'all' || id === category) next.delete('category'); else next.set('category', id);
+    setParams(next, { replace: true });
+    resetPaging();
+  };
+  const clearFilters = () => { setSearch(''); choose('all'); };
+
+  return (
+    <section>
+      <ViewHead
+        title="Topics"
+        actions={<input type="search" aria-label="Search topics" placeholder="Search topics" value={search} onChange={(event) => { setSearch(event.target.value); resetPaging(); }} className={searchField} />}
+      >
+        {plural(data.topics.length, 'topic')} across {CATEGORIES.length} categories{data.unsorted.length ? `, plus ${plural(data.unsorted.length, 'new claim')} waiting for a topic` : ''}.
+      </ViewHead>
+
+      <div aria-label="Filter by category" className="no-scrollbar -mx-5 mb-3 flex items-center gap-1.5 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>button]:shrink-0">
+        <Chip active={category === 'all'} onClick={() => choose('all')}>All</Chip>
+        {chips.map((item) => (
+          <Chip key={item.id} active={category === item.id} onClick={() => choose(item.id)} label={`${item.label}, ${plural(item.topic_count, 'topic')}`}>
+            <span aria-hidden="true" className="size-[7px] shrink-0 rounded-full" style={{ background: categoryColor(item.id) }} />
+            {item.label} <span className="text-dim">{item.topic_count}</span>
+          </Chip>
+        ))}
+      </div>
+      {scope ? <p className="mb-3 max-w-[72ch] font-serif text-[14px] leading-relaxed text-muted-foreground">{scope}</p> : null}
+
+      <div className="mb-5 flex items-center justify-between gap-4 border-b border-[var(--line)] pb-3 font-mono text-[11px] text-dim">
+        <p role="status" className="min-w-0">
+          {filtering
+            ? <>{plural(topics.length, 'topic')} and {plural(waiting.length, 'waiting claim')} match · <button type="button" onClick={clearFilters} className={accentLink}>Clear filters</button></>
+            : <span className="hidden sm:inline">New claims are filed as sources finish processing · <Link className={accentLink} to="/sources">Sources and processing</Link></span>}
+        </p>
+        <label className="flex shrink-0 items-center gap-2">
+          <span>Sort</span>
+          <select value={sort} onChange={(event) => { setSort(event.target.value as Sort); resetPaging(); }} className="rounded-md border border-[var(--line-strong)] bg-[var(--panel)] px-2 py-1 font-mono text-[11.5px] text-foreground">
+            {(Object.keys(SORTS) as Sort[]).map((key) => <option key={key} value={key}>{SORTS[key]}</option>)}
+          </select>
+        </label>
+      </div>
+
+      {category === 'venture' ? <FundingRounds search={query} /> : null}
+
+      {topics.length === 0 ? (
+        <p className="mb-6 rounded-lg border border-dashed border-[var(--line-strong)] p-5 text-[13.5px] text-muted-foreground">
+          {filtering ? 'No topics match.' : 'No topics yet.'} {waiting.length ? 'Matching claims that are waiting for a topic are listed below.' : ''}
+        </p>
+      ) : (
+        <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {topics.slice(0, shown).map((topic) => (
+            <li key={topic.tag} className="flex">
+              <Link to={`/topics/${encodeURIComponent(topic.tag)}`} className="group flex min-h-[150px] w-full flex-col rounded-lg border-2 border-[var(--line-strong)] bg-card p-4 transition-colors hover:border-[var(--brass)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--brass)]">
+                <p className="mb-2 flex items-center gap-1.5 font-mono text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
+                  <span aria-hidden="true" className="size-[7px] shrink-0 rounded-full" style={{ background: categoryColor(topic.category) }} />
+                  {categoryLabel(topic.category)}
+                </p>
+                <h2 className="text-[15px] leading-snug font-medium tracking-tight text-foreground">{topic.title}</h2>
+                {topic.dek ? <p className="mt-1.5 font-serif text-[14px] leading-relaxed text-muted-foreground">{topic.dek}</p> : null}
+                <div className="mt-auto flex items-baseline justify-between gap-3 pt-3 font-mono text-[11px] text-dim">
+                  <span><b className="font-medium text-muted-foreground">{topic.claim_count}</b> {topic.claim_count === 1 ? 'claim' : 'claims'} · {plural(topic.source_count, 'source')}</span>
+                  {topic.latest_added_at ? <span>Added {formatDate(topic.latest_added_at)}</span> : null}
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      {topics.length > shown ? (
+        <button type="button" onClick={() => setShown((count) => count + PAGE)} className={moreButton}>
+          Show {Math.min(PAGE, topics.length - shown)} more of {topics.length - shown} remaining topics
+        </button>
+      ) : null}
+
+      {waiting.length ? (
+        <section className="mt-10 border-t border-[var(--line)] pt-5" aria-labelledby="waiting-heading">
+          <h2 id="waiting-heading" className="text-[15px] font-medium text-foreground">
+            <button type="button" aria-expanded={showWaiting} aria-controls="waiting-claims" onClick={() => setWaitingOpen(!showWaiting)} className="flex w-full cursor-pointer items-center justify-between gap-4 text-left">
+              <span>Claims waiting for a topic <span className="font-normal text-dim">({waiting.length})</span></span>
+              <span aria-hidden="true" className="font-mono text-[15px] text-dim">{showWaiting ? '−' : '+'}</span>
+            </button>
+          </h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">Each is filed under its category. It joins a topic when another claim tells the same story.</p>
+          {showWaiting ? (
+            <>
+              <ul id="waiting-claims" className="mt-4 divide-y divide-[var(--line)] border-y border-[var(--line)]">
+                {waiting.slice(0, waitingShown).map((claim) => (
+                  <li key={claim.ref}>
+                    <Link to={`/sources/${encodeURIComponent(claim.source_id)}`} className="block py-2.5 hover:text-[var(--accent-text)]">
+                      <span className="block text-[13.5px] leading-relaxed text-foreground">{claim.text}</span>
+                      <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-dim">
+                        <span aria-hidden="true" className="size-[6px] shrink-0 rounded-full" style={{ background: categoryColor(claim.category) }} />
+                        {categoryLabel(claim.category)} · {claim.source}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {waiting.length > waitingShown ? (
+                <button type="button" onClick={() => setWaitingShown((count) => count + PAGE)} className={moreButton}>
+                  Show {Math.min(PAGE, waiting.length - waitingShown)} more of {waiting.length - waitingShown} remaining
+                </button>
+              ) : null}
+            </>
+          ) : null}
+        </section>
+      ) : null}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Earlier organization, shown until the first rebuild with categories
+ * ------------------------------------------------------------------ */
+
+type LegacySort = 'claims' | 'sources' | 'az';
+const LEGACY_SORTS: Record<LegacySort, string> = { claims: 'Most claims', sources: 'Most sources', az: 'A to Z' };
+const titleOf = (topic: LegacyTopic) => topic.title ?? titleCase(topic.tag);
+const legacyCompare: Record<LegacySort, (a: LegacyTopic, b: LegacyTopic) => number> = {
   claims: (a, b) => b.claim_count - a.claim_count || b.source_count - a.source_count || titleOf(a).localeCompare(titleOf(b)),
   sources: (a, b) => b.source_count - a.source_count || b.claim_count - a.claim_count || titleOf(a).localeCompare(titleOf(b)),
   az: (a, b) => titleOf(a).localeCompare(titleOf(b)),
 };
 
-export function Topics() {
-  const result = useQuery<{ topics: Topic[] }>('/topics', [], 10_000);
+function LegacyTopics({ topics }: { topics: LegacyTopic[] }) {
   const [active, setActive] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<Sort>('claims');
+  const [sort, setSort] = useState<LegacySort>('claims');
   const [shown, setShown] = useState(PAGE);
   const [allTags, setAllTags] = useState(false);
   const [singlesOpen, setSinglesOpen] = useState(false);
   const [singlesShown, setSinglesShown] = useState(PAGE);
-  const topics = result.data?.topics ?? [];
 
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -55,7 +238,7 @@ export function Topics() {
   const filtered = useMemo(() => topics
     .filter((topic) => active.length === 0 || active.some((tag) => topic.tags.includes(tag)))
     .filter((topic) => !query || `${titleOf(topic)} ${topic.tags.map(titleCase).join(' ')}`.toLowerCase().includes(query))
-    .sort(compare[sort]), [topics, active, query, sort]);
+    .sort(legacyCompare[sort]), [topics, active, query, sort]);
   // A topic groups two or more claims; one-claim entries are evidence the last
   // Topics rebuild has not grouped yet, so they get their own section.
   const grouped = filtered.filter((topic) => topic.claim_count > 1 && !topic.unfiled);
@@ -73,14 +256,11 @@ export function Topics() {
   };
   const clearFilters = () => { setActive([]); setSearch(''); resetPaging(); };
 
-  if (result.loading && !result.data) return <LoadingRows rows={8} />;
-  if (result.error) return <ErrorState error={result.error} retry={result.refetch} />;
-
   return (
     <section>
       <ViewHead
         title="Topics"
-        actions={<input type="search" aria-label="Search topics and tags" placeholder="Search topics and tags" value={search} onChange={(event) => { setSearch(event.target.value); resetPaging(); }} className="w-full min-w-0 rounded-md border border-[var(--line-strong)] bg-[var(--panel)] px-3 py-2 text-[13px] text-foreground placeholder:text-dim sm:w-72" />}
+        actions={<input type="search" aria-label="Search topics and tags" placeholder="Search topics and tags" value={search} onChange={(event) => { setSearch(event.target.value); resetPaging(); }} className={searchField} />}
       >
         {plural(groupedTotal, 'topic')} grouped from your sources, plus {plural(singlesTotal, 'single claim')} not yet grouped.
       </ViewHead>
@@ -100,13 +280,13 @@ export function Topics() {
       <div className="mb-5 flex items-center justify-between gap-4 border-b border-[var(--line)] pb-3 font-mono text-[11px] text-dim">
         <p role="status" className="min-w-0">
           {filtering
-            ? <>{plural(grouped.length, 'topic')} and {plural(singles.length, 'single claim')} match · <button type="button" onClick={clearFilters} className="cursor-pointer text-[var(--accent-text)] underline-offset-2 hover:underline">Clear filters</button></>
-            : <span className="hidden sm:inline">Updates as sources finish processing · <Link className="text-[var(--accent-text)] underline-offset-2 hover:underline" to="/sources">Sources and processing</Link></span>}
+            ? <>{plural(grouped.length, 'topic')} and {plural(singles.length, 'single claim')} match · <button type="button" onClick={clearFilters} className={accentLink}>Clear filters</button></>
+            : <span className="hidden sm:inline">Updates as sources finish processing · <Link className={accentLink} to="/sources">Sources and processing</Link></span>}
         </p>
         <label className="flex shrink-0 items-center gap-2">
           <span>Sort</span>
-          <select value={sort} onChange={(event) => { setSort(event.target.value as Sort); resetPaging(); }} className="rounded-md border border-[var(--line-strong)] bg-[var(--panel)] px-2 py-1 font-mono text-[11.5px] text-foreground">
-            {(Object.keys(SORTS) as Sort[]).map((key) => <option key={key} value={key}>{SORTS[key]}</option>)}
+          <select value={sort} onChange={(event) => { setSort(event.target.value as LegacySort); resetPaging(); }} className="rounded-md border border-[var(--line-strong)] bg-[var(--panel)] px-2 py-1 font-mono text-[11.5px] text-foreground">
+            {(Object.keys(LEGACY_SORTS) as LegacySort[]).map((key) => <option key={key} value={key}>{LEGACY_SORTS[key]}</option>)}
           </select>
         </label>
       </div>
@@ -134,7 +314,7 @@ export function Topics() {
         </ul>
       )}
       {grouped.length > shown ? (
-        <button type="button" onClick={() => setShown((count) => count + PAGE)} className="mt-4 w-full cursor-pointer rounded-lg border border-[var(--line-strong)] py-2.5 font-mono text-[12px] text-muted-foreground hover:border-[var(--brass)] hover:text-foreground">
+        <button type="button" onClick={() => setShown((count) => count + PAGE)} className={moreButton}>
           Show {Math.min(PAGE, grouped.length - shown)} more of {grouped.length - shown} remaining topics
         </button>
       ) : null}
@@ -161,11 +341,11 @@ export function Topics() {
                 ))}
               </ul>
               {singles.length > singlesShown ? (
-                <button type="button" onClick={() => setSinglesShown((count) => count + PAGE)} className="mt-3 w-full cursor-pointer rounded-lg border border-[var(--line-strong)] py-2.5 font-mono text-[12px] text-muted-foreground hover:border-[var(--brass)] hover:text-foreground">
+                <button type="button" onClick={() => setSinglesShown((count) => count + PAGE)} className={moreButton}>
                   Show {Math.min(PAGE, singles.length - singlesShown)} more of {singles.length - singlesShown} remaining
                 </button>
               ) : null}
-              <p className="mt-3 font-mono text-[11px] text-dim"><Link className="text-[var(--accent-text)] underline-offset-2 hover:underline" to="/control-center">Open Control center to rebuild Topics</Link></p>
+              <p className="mt-3 font-mono text-[11px] text-dim"><Link className={accentLink} to="/control-center">Open Control center to rebuild Topics</Link></p>
             </>
           ) : null}
         </section>

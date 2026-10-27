@@ -169,9 +169,9 @@ async function desktopPass(browser) {
   check(await page.getByRole('heading', { name: 'Topics', exact: true }).isVisible(), 'Topics opens as the home screen');
   check((await page.locator('main a[href^="/topics/"]').count()) > 0, 'Topics uses live topic records');
   const firstTopicTag = page.locator('main button').nth(1);
-  check(await firstTopicTag.isVisible(), 'Topics exposes Mark’s tag filter rail');
+  check(await firstTopicTag.isVisible(), 'Topics exposes the category or tag filter rail');
   await firstTopicTag.click();
-  check((await page.locator('main a[href^="/topics/"]').count()) > 0, 'Topic tag filter works');
+  check((await page.locator('main a[href^="/topics/"]').count()) > 0, 'Topic category or tag filter works');
   await page.getByRole('button', { name: 'All', exact: true }).click();
   await page.locator('main a[href^="/topics/"]').first().click();
   await page.waitForURL(/\/topics\//);

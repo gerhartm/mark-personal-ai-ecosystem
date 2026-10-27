@@ -29,15 +29,6 @@
   --color-border: var(--line);
   --color-ring: var(--brass);
   --color-ring-offset-background: var(--background);
-  --color-cat-stablecoins: var(--cat-stablecoins);
-  --color-cat-rwas: var(--cat-rwas);
-  --color-cat-security: var(--cat-security);
-  --color-cat-macro: var(--cat-macro);
-  --color-cat-chains: var(--cat-chains);
-  --color-cat-ai-crypto: var(--cat-ai-crypto);
-  --color-cat-payments: var(--cat-payments);
-  --color-cat-tradfi: var(--cat-tradfi);
-  --color-cat-defi: var(--cat-defi);
 }
 
 :root {
@@ -60,6 +51,10 @@
   /* Text-safe versions of the accent colours: the bright accents stay for
      borders, bars and fills; text uses these to meet 4.5:1 contrast. */
   --accent-text: #b45309;
+  /* Research categories: one distinct hue each, used for dots and bars beside text labels. */
+  --cat-stablecoins: #1d4ed8; --cat-payments: #0e7490; --cat-rwas: #6d28d9; --cat-defi: #15803d;
+  --cat-markets: #c2410c; --cat-venture: #be185d; --cat-institutions: #475569; --cat-chains: #4d7c0f;
+  --cat-security: #b91c1c; --cat-regulation: #a16207; --cat-macro: #78350f; --cat-ai: #a21caf; --cat-tokens: #4338ca;
   --date-text: #2367a8;
   --danger-text: #b42318;
   --panel: var(--surface-900);
@@ -72,6 +67,9 @@
   --card:var(--surface-900); --muted-foreground:#aab3ac; --dim:#879189;
   --line:rgba(232,240,234,.12); --line-strong:rgba(232,240,234,.23);
   --accent-text:#f39c12; --date-text:#5dade2; --danger-text:#f1948a;
+  --cat-stablecoins:#60a5fa; --cat-payments:#22d3ee; --cat-rwas:#a78bfa; --cat-defi:#4ade80;
+  --cat-markets:#fb923c; --cat-venture:#f472b6; --cat-institutions:#94a3b8; --cat-chains:#2dd4bf;
+  --cat-security:#f87171; --cat-regulation:#facc15; --cat-macro:#d6a26b; --cat-ai:#e879f9; --cat-tokens:#818cf8;
 }
 .desk-eyebrow{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-foreground)}
 .desk-rise{animation:lovable-rise .34s cubic-bezier(.2,.7,.3,1)}

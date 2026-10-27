@@ -9,8 +9,10 @@ modify Hermes, OpenViking, or the legacy platform.
 The visible interface preserves Mark's approved Lovable design. Its five
 primary screens are:
 
-- **Topics:** the evidence-first home view, built only from real stored tags,
-  events, sources, and extracted claims.
+- **Topics:** the evidence-first home view. Individual claims are grouped into
+  topics inside 13 fixed research categories; each topic has a specific title
+  and a one-line context. Venture adds a funding-rounds table built only from
+  names and amounts written in the stored claims.
 - **Timeline:** the uniform category and date view Mark designed, populated from
   real stored events and distinct supporting-source reference counts.
 - **Prep:** readable theses, supporting points, evidence, counterarguments, and
@@ -26,7 +28,7 @@ files and Telegram JSON exports. Saved work reopens Prep and creator results,
 including citations, inputs and revisions; older drafts remain readable as text.
 The existing Ask, Quiz and Studio capabilities remain available in the backend.
 
-Topics and Timeline refresh every ten seconds while visible, and on focus.
+Topics refresh every 30 seconds and Timeline every ten seconds while visible, and on focus.
 Successful source registration queues evidence extraction through native Hermes;
 received, processing, ready and failed states are shown separately. Timeline uses
 supported event dates with their actual precision and lists undated evidence
@@ -232,15 +234,41 @@ oversize sources fail visibly rather than silently losing their ending. Audio,
 video and PDFs need text/transcript conversion first. Import-ready means the
 source was retained; evidence status separately reports extraction completion.
 
-Control center exposes the daily intelligence output and schedule toggle. The
-24-hour default remains unchanged; disabling the schedule prevents future
-scheduled runs and does not cancel a run already in progress.
+### Topics and categories
 
-Topic rebuilds run as persistent background jobs and return an immediate queue
-acknowledgment. Status survives leaving or refreshing the page; repeated clicks
-reuse the active job. All batches validate before the new organization replaces
-the old one. An interrupted active rebuild is marked failed at startup for an
-explicit retry, avoiding an unnoticed repeat of paid generation.
+The 13 categories are fixed in `server/src/topic-organization.ts` and mirrored
+for display in `web/src/lib/categories.ts`. A rebuild runs two passes through
+Hermes: it sorts every claim into one category, then groups claims into topics
+within each category and writes their titles and context lines from the Topics
+instruction in Control center. Every answer is validated against the stored
+claims, and any figure in a title or context line must appear in that topic's
+claims. A topic that still fails validation after one correction is dropped and
+its claims wait under their category; the rest of the batch is kept.
+
+A rebuild saves nothing when Hermes stops responding, when more than a tenth of
+the claims cannot be categorized, or when more than a quarter of the grouping
+batches fail. The result is stored as `topics.organization.v2` in
+`generation_meta`, and each event's `primary_category` becomes the main category
+of its claims. Before that, the categories and organization from before the
+rebuild are saved (`topics.categories.previous`) so Control center can undo the
+last rebuild, each event's first-ever label is kept once
+(`topics.categories.original`), and earlier labels are added as tags. Until the
+first rebuild, Topics shows the earlier organization unchanged.
+
+Preview runs the same two passes on about 70 claims from the largest earlier
+topics and changes nothing. Rebuilds and previews run as persistent background
+jobs with saved progress; repeated clicks reuse the active job, and an
+interrupted job is marked failed at startup for an explicit retry, avoiding an
+unnoticed repeat of paid generation.
+
+Once a rebuild exists, a filing worker checks every minute for claims that are
+not yet organized, including claims committed during a rebuild or before a
+restart, and files up to 40 at a time with one Hermes call: they join an
+existing topic, start a new topic with another waiting claim, or wait under
+their category. Filing never blocks source processing and pauses for 15 minutes
+when Hermes is unavailable. Funding rounds are kept only when the company and
+amount appear as whole words in the retained evidence passage (or the stored
+claim when no passage was kept), in `venture.rounds.v1`.
 
 ## Deliberate boundaries
 

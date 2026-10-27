@@ -8,6 +8,7 @@
 import { all, one, db } from './db.js';
 import { buildSourceBrief, eventPresentation } from './presentation.js';
 import { activeTopicOrganization } from './prompt-controls.js';
+import { activeOrganizationV2, listTopicsV2 } from './topic-organization.js';
 import { eventEditorial, RESEARCH_EVENT } from './editorial-store.js';
 import { repeats } from './editorial.js';
 
@@ -674,7 +675,19 @@ export function brief() {
 
 type TopicGroup = { key: string; title: string; description?: string; event_ids: string[]; tags: string[]; unfiled?: boolean };
 
+/** The Topics page payload: categories and unsorted claims once Topics use the newer organization. */
+export function topicsPayload(): any {
+  const organized = activeOrganizationV2();
+  return organized ? listTopicsV2(organized) : { topics: listTopics() };
+}
+
 export function listTopics(limit?: number, selected?: string): any {
+  const organizedV2 = activeOrganizationV2();
+  if (organizedV2) {
+    const payload = listTopicsV2(organizedV2, selected);
+    if (!selected) return limit == null ? payload.topics : payload.topics.slice(0, Math.max(1, limit));
+    if (payload) return payload;
+  }
   const records = all<any>(`SELECT e.id,e.source_id,e.primary_category,e.significance,
     ${SUBJECT_DATE} AS subject_date,
     (SELECT count(*) FROM event_insights i WHERE i.event_id=e.id) AS claim_count

@@ -1,3 +1,4 @@
+import { knownCategory } from './categories';
 // Industry acronyms keep their usual spelling when tags are turned into labels.
 const ACRONYMS: Record<string, string> = {
   ai: 'AI', aml: 'AML', amm: 'AMM', api: 'API', apy: 'APY', b2b: 'B2B', btc: 'BTC', cefi: 'CeFi', cftc: 'CFTC',
@@ -48,7 +49,16 @@ export const formatDate = (value?: string | null) => {
   return new Intl.DateTimeFormat('en', { year: 'numeric', month: 'short', day: value.length === 4 ? undefined : 'numeric', timeZone: 'UTC' }).format(date);
 };
 
+/** Readable name for a research category; older free-form labels fall back to title case. */
+export const categoryLabel = (category: string | null | undefined) => {
+  if (!category) return 'Uncategorized';
+  if (category === 'unsorted') return 'Not yet categorized';
+  return knownCategory(category)?.label ?? titleCase(category);
+};
+
 export const categoryColor = (category: string) => {
+  const known = knownCategory(category);
+  if (known) return known.color;
   const colors = ['var(--cat-red)', 'var(--cat-orange)', 'var(--cat-gold)', 'var(--cat-yellow)', 'var(--cat-green)', 'var(--cat-teal)', 'var(--cat-blue)', 'var(--cat-deep-blue)'];
   let hash = 0;
   for (const char of category) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;

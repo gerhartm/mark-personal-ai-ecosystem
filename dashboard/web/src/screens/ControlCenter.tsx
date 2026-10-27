@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorState, Eyebrow, LoadingRows, ViewHead } from '../components/Desk';
+import { TopicsRebuildPanel } from '../components/TopicsRebuildPanel';
 import { api, invalidate, useQuery } from '../lib/api';
 import { formatDate } from '../lib/desk';
 
@@ -26,18 +27,14 @@ type Revision = {
   created_at: string;
 };
 
-type TopicJob = { status: 'idle' | 'queued' | 'running' | 'ready' | 'failed'; updated_at?: string; topic_count?: number; error?: string };
-
 const MAX_LENGTH = 4_000;
 const MIN_LENGTH = 80;
 
 export function ControlCenter() {
   const controls = useQuery<{ controls: Control[] }>('/prompt-controls');
-  const topicJob = useQuery<TopicJob>('/prompt-controls/topics/rebuild/status', [], 5_000);
-  const rebuildBusy = topicJob.data?.status === 'queued' || topicJob.data?.status === 'running';
   const [selected, setSelected] = useState('topics');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'restoring' | 'rebuilding' | 'rebuilt' | 'error'>('idle');
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'restoring' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [confirmRestore, setConfirmRestore] = useState(false);
   const history = useQuery<{ history: Revision[] }>(`/prompt-controls/${selected}/history`, [selected]);
@@ -51,10 +48,6 @@ export function ControlCenter() {
     setMessage('');
     setConfirmRestore(false);
   }, [selected]);
-
-  useEffect(() => {
-    if (topicJob.data?.status === 'ready') invalidate('/topics');
-  }, [topicJob.data?.status, topicJob.data?.updated_at]);
 
   const updated = useMemo(() => {
     if (!control?.updated_at) return 'Default instruction';
@@ -100,21 +93,6 @@ export function ControlCenter() {
     } catch (error) {
       setState('error');
       setMessage(error instanceof Error ? error.message : 'The default instruction could not be restored.');
-    }
-  };
-
-  const rebuild = async () => {
-    if (!control || control.id !== 'topics' || dirty || state === 'rebuilding' || rebuildBusy) return;
-    setState('rebuilding');
-    setMessage('');
-    try {
-      await api<TopicJob>('/prompt-controls/topics/rebuild', { method: 'POST' });
-      topicJob.refetch();
-      setState('idle');
-      setMessage('Topic rebuild queued. You can leave this page; progress is saved here.');
-    } catch (error) {
-      setState('error');
-      setMessage(error instanceof Error ? error.message : 'Topics could not be rebuilt.');
     }
   };
 
@@ -198,17 +176,7 @@ export function ControlCenter() {
                     )}
                   </div>
 
-                  {control.id === 'topics' ? (
-                    <div className="mt-5 border-t border-[var(--line)] pt-4">
-                      <Eyebrow>Apply organization</Eyebrow>
-                      <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">Rebuild Topics after saving. Hermes reviews the collection in batches and validates every event reference. Larger collections can take several minutes. Progress is saved, so you can leave this page and return later.</p>
-                      <button type="button" className="desk-button secondary" onClick={rebuild} disabled={dirty || rebuildBusy || state === 'rebuilding'}>{rebuildBusy || state === 'rebuilding' ? 'Rebuilding Topics' : topicJob.data?.status === 'failed' ? 'Retry topic rebuild' : 'Rebuild Topics'}</button>
-                      {topicJob.error ? <p role="alert" className="mt-3 font-mono text-[11px] text-[var(--danger-text)]">Rebuild status is unavailable. Refresh to check before retrying.</p> : null}
-                      {topicJob.data?.status !== 'idle' && topicJob.data ? <p role={topicJob.data.status === 'failed' ? 'alert' : 'status'} className={`mt-3 font-mono text-[11px] leading-relaxed ${topicJob.data.status === 'failed' ? 'text-[var(--danger-text)]' : 'text-[var(--sage)]'}`}>
-                        {topicJob.data.status === 'queued' ? 'Queued. The rebuild will start shortly.' : topicJob.data.status === 'running' ? 'Rebuilding the topic organization. The current Topics remain available.' : topicJob.data.status === 'ready' ? `${topicJob.data.topic_count} focused topics are now live.` : topicJob.data.error}
-                      </p> : null}
-                    </div>
-                  ) : null}
+                  {control.id === 'topics' ? <TopicsRebuildPanel dirty={dirty} /> : null}
 
                   {message ? <p className={`mt-4 rounded-[5px] border px-3 py-2 font-mono text-[11px] leading-relaxed ${state === 'error' ? 'border-[var(--rose)] text-[var(--danger-text)]' : 'border-[var(--line)] text-[var(--sage)]'}`} role={state === 'error' ? 'alert' : 'status'}>{message}</p> : null}
 

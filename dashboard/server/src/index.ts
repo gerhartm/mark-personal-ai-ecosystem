@@ -64,7 +64,11 @@ import * as t from './tools.js';
 import { processingSummary, sourceProcessingRows, retrySource } from './source-queue.js';
 import { startSourceProcessor } from './source-processor.js';
 import { enqueueImport, listImports, retryImport, startImportWorker } from './imports.js';
-import { queueTopicRebuild, topicRebuildStatus, startTopicRebuildWorker } from './topic-jobs.js';
+import { queueTopicRebuild, resetTopicRebuildStatus, topicRebuildStatus, startTopicRebuildWorker } from './topic-jobs.js';
+import { startTopicFilingWorker } from './topic-filing.js';
+import { queueTopicPreview, startTopicPreviewWorker, topicPreviewStatus } from './topic-preview-job.js';
+import { TopicOrganizationError, canUndoRebuild, estimateRebuildCalls, listRounds, undoTopicRebuild } from './topic-organization.js';
+import { RESEARCH_EVENT } from './editorial-store.js';
 
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -325,8 +329,10 @@ app.get('/api/sources/:id', async (req, reply) => {
 
 app.get('/api/topics', async (req) => {
   const q = req.query as Record<string, string>;
-  return q.tag ? t.listTopics(undefined, q.tag) : { topics: t.listTopics() };
+  return q.tag ? t.listTopics(undefined, q.tag) : t.topicsPayload();
 });
+
+app.get('/api/venture/rounds', async () => ({ rounds: listRounds() }));
 
 app.get('/api/prompt-controls', async () => ({ controls: listPromptControls() }));
 
@@ -378,7 +384,32 @@ app.post('/api/prompt-controls/:page/restore', async (req, reply) => {
   }
 });
 
-app.get('/api/prompt-controls/topics/rebuild/status', async () => topicRebuildStatus());
+app.get('/api/prompt-controls/topics/rebuild/status', async () => {
+  const claims = one<{ n: number }>(`SELECT count(*) AS n FROM event_insights i JOIN events e ON e.id = i.event_id WHERE ${RESEARCH_EVENT}`)?.n ?? 0;
+  return { ...topicRebuildStatus(), can_undo: canUndoRebuild(), estimate: { claims, calls: estimateRebuildCalls(claims) } };
+});
+app.get('/api/prompt-controls/topics/preview', async () => topicPreviewStatus());
+app.post('/api/prompt-controls/topics/preview', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isStudioRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before starting another preview.' });
+  }
+  return reply.code(202).send(queueTopicPreview(actor));
+});
+app.post('/api/prompt-controls/topics/rebuild/undo', async (req, reply) => {
+  if (['queued', 'running'].includes(topicRebuildStatus().status)) {
+    return reply.code(409).send({ error: 'rebuild_running', message: 'Wait for the current rebuild to finish before undoing.' });
+  }
+  try {
+    const result = undoTopicRebuild(requestActor(req));
+    resetTopicRebuildStatus();
+    return result;
+  } catch (error) {
+    if (error instanceof TopicOrganizationError) return reply.code(error.status).send({ error: error.code, message: error.message });
+    return reply.code(500).send({ error: 'undo_failed', message: 'The previous Topics could not be restored.' });
+  }
+});
 app.post('/api/prompt-controls/topics/rebuild', async (req, reply) => {
   const actor = requestActor(req);
   const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
@@ -860,6 +891,8 @@ if (process.env.NODE_ENV !== 'test') {
   startSourceProcessor();
   startImportWorker();
   startTopicRebuildWorker();
+  startTopicPreviewWorker();
+  startTopicFilingWorker();
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);
   console.log(`  media archive: ${MEDIA_ROOT ? 'mounted' : 'not mounted (degraded, documented)'}`);
   console.log(`  intelligence plane: ${process.env.HERMES_BASE_URL ? 'configured' : 'not connected (degraded)'}`);

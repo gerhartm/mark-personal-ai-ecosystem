@@ -34,7 +34,7 @@ export function Chip({
       type={type}
       aria-pressed={active}
       aria-label={label}
-      className={`cursor-pointer rounded-[4px] border px-2.5 py-1 font-mono text-[11.5px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--brass)] ${active ? 'border-[var(--brass)] bg-[color-mix(in_srgb,var(--brass)_14%,transparent)] text-foreground' : 'border-[var(--line-strong)] text-muted-foreground hover:border-[var(--brass)] hover:text-foreground'}`}
+      className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-[4px] border px-2.5 py-1 font-mono text-[11.5px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--brass)] ${active ? 'border-[var(--brass)] bg-[color-mix(in_srgb,var(--brass)_14%,transparent)] text-foreground' : 'border-[var(--line-strong)] text-muted-foreground hover:border-[var(--brass)] hover:text-foreground'}`}
       onClick={onClick}
     >
       {children}

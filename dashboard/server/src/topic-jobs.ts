@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { one, run } from './db.js';
 import { rebuildTopics } from './prompt-controls.js';
+import { TopicOrganizationError, type Progress } from './topic-organization.js';
 
 type TopicJob = {
   id?: string;
@@ -9,6 +10,10 @@ type TopicJob = {
   requested_at?: string;
   updated_at?: string;
   topic_count?: number;
+  unsorted_count?: number;
+  uncategorized_count?: number;
+  failed_groups?: number;
+  progress?: Progress;
   error?: string;
 };
 const KEY = 'topics.rebuild.job';
@@ -37,14 +42,20 @@ export async function processTopicRebuildJob() {
   const job = topicRebuildStatus();
   if (job.status !== 'queued') return false;
   busy = true;
-  save({ ...job, status: 'running', updated_at: new Date().toISOString() });
+  const running: TopicJob = { ...job, status: 'running', updated_at: new Date().toISOString() };
+  save(running);
   try {
-    const result = await rebuildTopics(job.actor ?? 'mark');
-    save({ ...job, status: 'ready', topic_count: result.topics.length, updated_at: new Date().toISOString() });
+    const result = await rebuildTopics(job.actor ?? 'mark', (progress) => {
+      save({ ...running, progress, updated_at: new Date().toISOString() });
+    });
+    save({ ...job, status: 'ready', topic_count: result.topics.length, unsorted_count: result.unsorted,
+      uncategorized_count: result.uncategorized, failed_groups: result.failed_groups, updated_at: new Date().toISOString() });
     return true;
-  } catch {
+  } catch (error) {
+    // Our own messages are safe to show; provider details never are.
+    const known = error instanceof TopicOrganizationError ? `${error.message} The previous Topics are still available.` : null;
     save({ ...job, status: 'failed', updated_at: new Date().toISOString(),
-      error: 'Topics could not be rebuilt. The previous organization is still available. Check Hermes availability and retry.' });
+      error: known ?? 'Topics could not be rebuilt. The previous organization is still available. Check Hermes availability and retry.' });
     return false;
   } finally { busy = false; }
 }
@@ -53,6 +64,14 @@ export function recoverInterruptedTopicRebuild() {
   const job = topicRebuildStatus();
   if (job.status === 'running') save({ ...job, status: 'failed', updated_at: new Date().toISOString(),
     error: 'The rebuild was interrupted by a dashboard restart. Review the current Topics and retry if needed.' });
+}
+
+export const topicRebuildBusy = () => ['queued', 'running'].includes(topicRebuildStatus().status);
+
+/** After an undo, the last rebuild's result no longer describes what is live. */
+export function resetTopicRebuildStatus() {
+  const current = topicRebuildStatus();
+  if (current.status === 'ready') save({ status: 'idle', updated_at: new Date().toISOString() });
 }
 
 export function startTopicRebuildWorker() {

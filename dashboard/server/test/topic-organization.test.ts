@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
  * and answers in the documented JSON shapes, so the real validation, storage
  * and migration code runs against a copy of the stored corpus.
  */
-const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, outage: false, shift: false, garbageCategorize: false }));
+const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, outage: false, shift: false, garbageCategorize: false, categorizeRules: '' }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
     const start = input.indexOf(`${name}\n`);
@@ -32,6 +32,7 @@ vi.mock('../src/hermes-client.js', () => {
       const head = String(options?.instructions?.[0] ?? '');
       if (head.startsWith('Assign each research claim')) {
         state.calls.push('categorize');
+        state.categorizeRules = options.instructions.join('\n');
         if (state.garbageCategorize) return 'Error: the provider could not complete this request.';
         return JSON.stringify({ claims: section(input, 'CLAIMS').map((claim: any) => ({ id: claim.id, category: pick(claim.text), round: roundFor(claim.text) })) });
       }
@@ -150,6 +151,41 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(final.outcome.topics.map((topic) => topic.claims)).toEqual([['a:0', 'b:0']]);
     expect(final.outcome.unsorted).toEqual(['c:0']);
   });
+  it('asks whose view a title states when most of its claims report one', () => {
+    const views = [
+      'A speaker argues that ending staking rewards would push lenders to cut rates.',
+      'Dana asserts that six of the eight largest lenders would lose deposits.',
+      'A participant argued that liquid staking keeps borrowing demand on-chain.',
+    ];
+    expect(organization.claimSpeaker(views[0])).toBe('A speaker');
+    expect(organization.claimSpeaker(views[1])).toBe('Dana');
+    expect(organization.claimSpeaker('Arthur Hayes estimates that the fixture fund holds $9 billion.')).toBe('Arthur Hayes');
+    expect(organization.claimSpeaker('The source asserts that the fixture cap is $60 billion.')).toBeNull();
+    expect(organization.claimSpeaker('Lendex documentation asserts that exits are permissionless.')).toBeNull();
+    expect(organization.claimSpeaker('Lendex cleared $40M in redemptions in 48 hours.')).toBeNull();
+    expect(organization.claimSpeaker('Fixture launch plan: moved from incentives to paying users first.')).toBeNull();
+    expect(organization.needsAttribution('Six of the eight largest lenders risk deposit flight without staking rewards', views)).toBe(true);
+    expect(organization.needsAttribution('Six of the eight largest lenders would lose deposits, Dana warns', views)).toBe(false);
+    expect(organization.needsAttribution('Dana: six of the eight largest lenders would lose deposits', views)).toBe(false);
+    expect(organization.needsAttribution('Ending staking rewards would hurt lenders, guests argue', views)).toBe(false);
+    expect(organization.needsAttribution("Dana's deposit math puts six of the eight lenders at risk", views)).toBe(false);
+    // Facts, or one view among facts, need no attribution.
+    const facts = ['Lendex cleared $40M in redemptions in 48 hours.', 'Three redemption waves cleared the Lendex backlog.', 'Dana argues the waves came from large wallets.'];
+    expect(organization.needsAttribution('Lendex cleared $40M in 48 hours in three redemption waves', facts)).toBe(false);
+  });
+  it('sends an unattributed view back for a retry but keeps the topic on the final attempt', () => {
+    const texts = ['A speaker argues that ending staking rewards would push Lendex to cut rates.', 'Dana asserts that six of the eight largest lenders would lose deposits.'];
+    const claims = texts.map((text, index) => ({ ref: `v${index}:0`, event_id: `v${index}`, position: 0, text, source_id: 's', source: 'Fixture podcast', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const categoryOf = () => 'defi' as any;
+    const answer = (title: string) => ({ topics: [{ key: 'new-1', title, dek: 'Fixture guests argue that staking rewards keep lending deposits in place.', claims: ['v0:0', 'v1:0'] }], unsorted: [] });
+    const stated = 'Ending staking rewards pushes Lendex to cut rates and drains lender deposits';
+    const strict = organization.validateTopicBatch(answer(stated), claims, categoryOf, new Map(), new Set(), false);
+    expect(strict.issues).toHaveLength(1);
+    expect(strict.issues[0]).toMatch(/states a view as fact/);
+    expect(strict.hard).toEqual([]);
+    expect(organization.validateTopicBatch(answer(stated), claims, categoryOf, new Map(), new Set(), true).outcome.topics).toHaveLength(1);
+    expect(organization.validateTopicBatch(answer('Ending staking rewards would push Lendex to cut rates, guests argue'), claims, categoryOf, new Map(), new Set(), false).issues).toEqual([]);
+  });
   it('measures failure limits by share and prefers the answer that files more claims', () => {
     expect(organization.exceedsShare(1, 4, 0.25)).toBe(false);
     expect(organization.exceedsShare(2, 4, 0.25)).toBe(true);
@@ -178,6 +214,8 @@ describe('rebuilding Topics from claims', () => {
     expect(preview.topics.every((topic) => organization.isCategory(topic.category))).toBe(true);
     expect(organization.activeOrganizationV2()).toBeNull();
     expect(organization.latestPreview()?.generated_by).toBe('topic-test');
+    // Claims from one source about one debate are asked to share a category.
+    expect(state.categorizeRules).toMatch(/same source that belong to one story or debate share one category/);
   });
 
   it('changes nothing when Hermes is unavailable', async () => {

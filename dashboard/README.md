@@ -246,8 +246,10 @@ claims. A topic that still fails validation after one correction is dropped and
 its claims wait under their category; the rest of the batch is kept.
 
 A rebuild saves nothing when Hermes stops responding, when more than a tenth of
-the claims cannot be categorized, or when more than a quarter of the grouping
-batches fail. The result is stored as `topics.organization.v2` in
+the claims cannot be categorized, or when grouping fails for more than a quarter
+of the claims. When a retry is worse than the first answer, the answer that puts
+more claims into topics is kept. Figures are compared at their written size, so
+$285B never stands in for $285 million. The result is stored as `topics.organization.v2` in
 `generation_meta`, and each event's `primary_category` becomes the main category
 of its claims. Before that, the categories and organization from before the
 rebuild are saved (`topics.categories.previous`) so Control center can undo the
@@ -266,9 +268,12 @@ not yet organized, including claims committed during a rebuild or before a
 restart, and files up to 40 at a time with one Hermes call: they join an
 existing topic, start a new topic with another waiting claim, or wait under
 their category. Filing never blocks source processing and pauses for 15 minutes
-when Hermes is unavailable. Funding rounds are kept only when the company and
-amount appear as whole words in the retained evidence passage (or the stored
-claim when no passage was kept), in `venture.rounds.v1`.
+when Hermes is unavailable or answers without usable categories; a claim that
+gets three unusable answers waits for the next full rebuild. Funding rounds are
+kept only when the company and amount appear as whole names in the retained
+evidence passage (or the stored claim when no passage was kept), never as a
+fragment of a longer name, and each claim yields at most one round
+(`venture.rounds.v1`).
 
 ## Deliberate boundaries
 

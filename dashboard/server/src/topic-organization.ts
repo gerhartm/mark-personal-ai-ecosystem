@@ -197,17 +197,45 @@ const NUMBER_WORDS: Record<string, string> = {
   nineteen: '19', twenty: '20', thirty: '30', forty: '40', fifty: '50', sixty: '60', seventy: '70', eighty: '80', ninety: '90', hundred: '100',
   half: '50', quarter: '25', third: '33', dozen: '12',
 };
-const normalizeNumber = (value: string) => value.replace(/,/g, '').replace(/\.0+$/, '');
-/** Every digit run, including those inside names such as a16z or Q4. */
-const allNumbers = (text: string) => (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map(normalizeNumber);
-/** Standalone figures only ($285M, 45%, 1,000x, 2025); digits inside names such as a16z, Q4 or L2 are part of the name. */
-const figures = (text: string) => [...text.matchAll(/(?<![\p{L}\p{N}.])(\d[\d,]*(?:\.\d+)?)(?:bn|mm|[kmbtx%s])?(?![\p{L}\p{N}])/giu)].map((match) => normalizeNumber(match[1]));
+/** Number words treated as figures in a headline. "one", "half", "third" and "quarter" are too often not figures. */
+const HEADLINE_NUMBER_WORDS = new Set(['two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen',
+  'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety', 'hundred', 'dozen']);
+const SCALES: Record<string, number> = { k: 1e3, thousand: 1e3, m: 1e6, mm: 1e6, mn: 1e6, million: 1e6, b: 1e9, bn: 1e9, billion: 1e9, t: 1e12, tn: 1e12, trillion: 1e12 };
+const normalizeNumber = (value: string) => value.replace(/,/g, '').replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
 
-/** Figures a title or context line uses must appear in the claims it summarizes, as digits or words. */
+type Figure = { raw: string; scaled: number | null };
+/**
+ * Figures in text: every digit run not preceded by a letter, digit or point,
+ * whatever follows it ($285M, 30mn, 75bps, 3rd, 24h, 2025). Digits inside names
+ * such as a16z, Q4 or L2 belong to the name. A unit written right after the
+ * figure (M, bn, million) gives its scaled size, so $285B is not $285 million.
+ */
+function figuresIn(text: string): Figure[] {
+  const found: Figure[] = [];
+  for (const match of text.matchAll(/(?<![\p{L}\p{N}.])\d[\d,]*(?:\.\d+)?/gu)) {
+    const raw = normalizeNumber(match[0]);
+    const after = text.slice(match.index! + match[0].length);
+    const unit = after.match(/^\s?(k|thousand|mm|mn|m|million|bn|b|billion|tn|t|trillion)(?![\p{L}])/iu)?.[1]?.toLowerCase();
+    found.push({ raw, scaled: unit ? Number(raw) * SCALES[unit] : null });
+  }
+  return found;
+}
+
+/** Figures a title or context line uses must appear in the claims it summarizes, at the same size. */
 export function ungroundedNumbers(text: string, support: string) {
-  const available = new Set(allNumbers(support));
-  for (const word of support.toLowerCase().match(/[a-z]+/g) ?? []) if (NUMBER_WORDS[word]) available.add(NUMBER_WORDS[word]);
-  return figures(text).filter((value) => !available.has(value));
+  // The claim side is lenient: any digits count, including those inside names.
+  const raw = new Set((support.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map(normalizeNumber));
+  for (const word of support.toLowerCase().match(/[a-z]+/g) ?? []) if (NUMBER_WORDS[word]) raw.add(NUMBER_WORDS[word]);
+  const scaled = new Set(figuresIn(support).map((figure) => figure.scaled).filter((value): value is number => value != null).map((value) => Math.round(value)));
+  const invented: string[] = [];
+  for (const figure of figuresIn(text)) {
+    const grounded = figure.scaled != null ? scaled.has(Math.round(figure.scaled)) : raw.has(figure.raw);
+    if (!grounded) invented.push(figure.raw);
+  }
+  for (const word of text.toLowerCase().match(/[a-z]+/g) ?? []) {
+    if (HEADLINE_NUMBER_WORDS.has(word) && !raw.has(NUMBER_WORDS[word])) invented.push(word);
+  }
+  return invented;
 }
 
 /* ------------------------------------------------------------------ *
@@ -235,11 +263,21 @@ const STAGES = ['pre-seed', 'seed', 'series a', 'series b', 'series c', 'series 
 const UNIT = String.raw`(?:k|m|mm|mn|bn|b|t|thousand|million|billion|trillion)\b`;
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** Finds a phrase on word boundaries, so "AI" does not match inside "raised". */
+/**
+ * Finds a name on word boundaries, so "AI" does not match inside "raised", and
+ * rejects fragments of a longer name, so "Acme" does not match "Acme Labs".
+ */
 function findPhrase(support: string, phrase: string) {
   if (!phrase) return null;
-  const match = new RegExp(`(?:^|[^\\p{L}\\p{N}$])(${escapeRegExp(phrase)})(?![\\p{L}\\p{N}])`, 'iu').exec(support);
-  return match ? { index: match.index + match[0].length - match[1].length, text: match[1] } : null;
+  const pattern = new RegExp(`(?:^|[^\\p{L}\\p{N}$])(${escapeRegExp(phrase)})(?![\\p{L}\\p{N}])`, 'giu');
+  for (const match of support.matchAll(pattern)) {
+    const index = match.index! + match[0].length - match[1].length;
+    const before = support.slice(0, index);
+    const after = support.slice(index + match[1].length);
+    if (/\p{Lu}[\p{L}\p{N}&'.-]*\s$/u.test(before) || /^\s\p{Lu}/u.test(after)) continue;
+    return { index, text: match[1] };
+  }
+  return null;
 }
 
 /**
@@ -303,6 +341,8 @@ export function recordRounds(entries: Array<{ claim: ClaimRow; round: RawRound |
   let added = 0;
   for (const { claim, round } of entries) {
     // Ingested claims are model summaries, so only their retained passage counts as evidence.
+    // One claim reports at most one round, even if a later pass names it differently.
+    if (rounds.some((item) => item.refs.includes(claim.ref))) continue;
     const valid = validateRound(round, claim.evidence ? claim.evidence : claim.text);
     if (!valid) continue;
     const identity = `${valid.company.toLowerCase()}|${valid.amount_usd ?? valid.amount_text.toLowerCase()}`;
@@ -410,8 +450,12 @@ async function categorizeBatch(batch: ClaimRow[]): Promise<Categorized> {
     }
   }
   if (!answered) throw new HermesUnavailableError();
+  // An answer that categorizes nothing is usually a provider error returned as text.
+  if (!result.size) throw new TopicOrganizationError('unusable_answer', 'Hermes answered without usable categories, so nothing was changed. Retry later.', 503);
   return result;
 }
+
+const isUnusable = (error: unknown) => error instanceof TopicOrganizationError && error.code === 'unusable_answer';
 
 type DraftTopic = { key: string; category: CategoryId; title: string; dek: string; description: string; claims: string[]; isNew: boolean };
 type BatchOutcome = { topics: DraftTopic[]; unsorted: string[]; failed: boolean };
@@ -560,10 +604,10 @@ async function groupBatch(
     try {
       const parsed = parseModelJson(raw);
       const strict = validateTopicBatch(parsed, batch, categoryOf, existingMap, takenTitles, false);
-      if (!strict.issues.length) return strict.outcome;
-      // Keep the valid topics from this answer in case a retry does no better.
+      if (!strict.issues.length) return attempt === 0 ? strict.outcome : betterOutcome(acceptable, strict.outcome);
+      // Keep the valid topics from the best answer in case a retry does no better.
       const lenient = validateTopicBatch(parsed, batch, categoryOf, existingMap, takenTitles, true);
-      if (!lenient.hard.length) acceptable = lenient.outcome;
+      if (!lenient.hard.length) acceptable = betterOutcome(acceptable, lenient.outcome);
       if (acceptable && (!retryForQuality || attempt === 1)) return acceptable;
       issues = strict.issues;
     } catch (error) {
@@ -572,6 +616,13 @@ async function groupBatch(
   }
   if (!answered) throw new HermesUnavailableError();
   return acceptable ?? { topics: [], unsorted: batch.map((claim) => claim.ref), failed: true };
+}
+
+const placedClaims = (outcome: BatchOutcome) => outcome.topics.reduce((sum, topic) => sum + topic.claims.length, 0);
+
+/** Of two usable answers, keep the one that puts more claims into topics; a tie goes to the newer, corrected answer. */
+export function betterOutcome(current: BatchOutcome | null, next: BatchOutcome): BatchOutcome {
+  return !current || placedClaims(next) >= placedClaims(current) ? next : current;
 }
 
 /** Packs claims into batches that keep a category together where possible. */
@@ -619,9 +670,10 @@ export function estimateRebuildCalls(claimCount: number) {
   return Math.ceil(claimCount / 110) + Math.ceil(claimCount / 80) + 2;
 }
 
-/** The share of claims that may stay uncategorized, and of batches that may fail, before a rebuild is abandoned. */
+/** The share of claims that may stay uncategorized, or sit in failed grouping batches, before a rebuild is abandoned. */
 const MAX_UNCATEGORIZED = 0.1;
-const MAX_FAILED_GROUPS = 0.25;
+const MAX_FAILED_GROUPING = 0.25;
+export const exceedsShare = (failed: number, total: number, limit: number) => total > 0 && failed / total > limit;
 
 async function organize(claims: ClaimRow[], markInstruction: string, onProgress?: (progress: Progress) => void) {
   const categorizeBatches: ClaimRow[][] = [];
@@ -632,7 +684,13 @@ async function organize(claims: ClaimRow[], markInstruction: string, onProgress?
   const rounds: Array<{ claim: ClaimRow; round: RawRound | null }> = [];
   for (const batch of categorizeBatches) {
     onProgress?.({ stage: 'categorizing', done, total });
-    const result = await categorizeBatch(batch);
+    let result: Categorized = new Map();
+    try {
+      result = await categorizeBatch(batch);
+    } catch (error) {
+      // An unusable answer leaves this batch uncategorized; an outage stops the rebuild.
+      if (!isUnusable(error)) throw error;
+    }
     for (const claim of batch) {
       const entry = result.get(claim.ref);
       if (!entry) continue;
@@ -643,7 +701,7 @@ async function organize(claims: ClaimRow[], markInstruction: string, onProgress?
   }
   const categorized = claims.filter((claim) => categories[claim.ref]);
   const uncategorized = claims.length - categorized.length;
-  if (uncategorized > Math.max(5, claims.length * MAX_UNCATEGORIZED)) {
+  if (exceedsShare(uncategorized, claims.length, MAX_UNCATEGORIZED)) {
     throw new TopicOrganizationError('categorize_incomplete', `Hermes could not sort ${uncategorized} of ${claims.length} claims into categories, so nothing was changed. Retry the rebuild.`, 503);
   }
   const categoryOf = (ref: string) => categories[ref];
@@ -652,17 +710,18 @@ async function organize(claims: ClaimRow[], markInstruction: string, onProgress?
   const topics: TopicV2[] = [];
   const stamp = now();
   let failedGroups = 0;
+  let failedClaims = 0;
   for (const batch of groupBatches) {
     onProgress?.({ stage: 'grouping', done, total });
     const present = new Set(batch.map((claim) => categoryOf(claim.ref)));
     const existing = topics.filter((topic) => present.has(topic.category)).slice(-80);
     const outcome = await groupBatch(batch, categoryOf, existing, new Set(topics.map((topic) => topic.title.toLowerCase())), markInstruction, true);
-    if (outcome.failed) failedGroups++;
+    if (outcome.failed) { failedGroups++; failedClaims += batch.length; }
     applyOutcome(topics, outcome, stamp);
     done++;
   }
-  if (failedGroups > Math.max(1, Math.ceil(groupBatches.length * MAX_FAILED_GROUPS))) {
-    throw new TopicOrganizationError('grouping_incomplete', `Hermes could not group ${failedGroups} of ${groupBatches.length} batches, so nothing was changed. Retry the rebuild.`, 503);
+  if (exceedsShare(failedClaims, categorized.length, MAX_FAILED_GROUPING)) {
+    throw new TopicOrganizationError('grouping_incomplete', `Hermes could not group ${failedClaims} of ${categorized.length} claims, so nothing was changed. Retry the rebuild.`, 503);
   }
   onProgress?.({ stage: 'saving', done, total });
   return {
@@ -684,6 +743,8 @@ export async function rebuildTopicsV2(actor: string, markInstruction: string, pr
   db.transaction(() => {
     migrateCategories(organization, actor);
     writeJson(ORGANIZATION_KEY, organization);
+    // A full rebuild retries every claim, so earlier filing failures no longer apply.
+    run('DELETE FROM app_settings WHERE key = ?', FAILURES_KEY);
     roundCount = recordRounds(rounds);
     audit(actor, 'topics.rebuild', ORGANIZATION_KEY, {
       prompt_revision: promptRevision, topic_count: topics.length, claim_count: claims.length,
@@ -791,6 +852,20 @@ export function latestPreview(): TopicPreview | null {
  * Filing newly processed claims
  * ------------------------------------------------------------------ */
 
+const FAILURES_KEY = 'topics.filing.failures';
+
+/** Unusable answers per claim. After three, the claim waits for the next full rebuild instead of retrying. */
+function filingFailures(): Record<string, number> {
+  const row = one<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', FAILURES_KEY);
+  try { return row ? JSON.parse(row.value) : {}; } catch { return {}; }
+}
+
+function noteFilingFailures(refs: string[]) {
+  const failures = filingFailures();
+  for (const ref of refs) failures[ref] = (failures[ref] ?? 0) + 1;
+  run('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', FAILURES_KEY, JSON.stringify(failures));
+}
+
 /**
  * Files claims that are not in the organization yet: into existing topics,
  * into new topics shared with other waiting claims, or under their category.
@@ -802,7 +877,9 @@ export async function fileNewClaims(options: { sourceId?: string; limit?: number
   const rebuildBusy = options.rebuildBusy ?? (() => false);
   const organization = activeOrganizationV2();
   if (!organization || rebuildBusy()) return null;
-  const skipped = new Set(organization.uncategorized ?? []);
+  const failures = filingFailures();
+  const parked = Object.entries(failures).filter(([, count]) => count >= 3).map(([ref]) => ref);
+  const skipped = new Set([...(organization.uncategorized ?? []), ...parked]);
   // A cheap pass finds unfiled claims; evidence is loaded only for the ones filed now.
   const stored = loadClaims();
   const pending = stored
@@ -816,7 +893,13 @@ export async function fileNewClaims(options: { sourceId?: string; limit?: number
   for (const claim of fresh) if (isCategory(claim.primary_category)) categories[claim.ref] = claim.primary_category;
   const unknown = fresh.filter((claim) => !categories[claim.ref]);
   if (unknown.length) {
-    const result = await categorizeBatch(unknown);
+    let result: Categorized;
+    try {
+      result = await categorizeBatch(unknown);
+    } catch (error) {
+      if (isUnusable(error)) noteFilingFailures(unknown.map((claim) => claim.ref));
+      throw error;
+    }
     for (const claim of unknown) {
       const entry = result.get(claim.ref);
       if (!entry) continue;
@@ -854,7 +937,7 @@ export async function fileNewClaims(options: { sourceId?: string; limit?: number
     applyOutcome(current.topics, outcome, now());
     created = current.topics.length - before;
     for (const claim of filed) current.categories[claim.ref] = categories[claim.ref];
-    current.uncategorized = [...new Set([...(current.uncategorized ?? []), ...failed])];
+    current.uncategorized = [...new Set([...(current.uncategorized ?? []), ...failed, ...parked])];
     const inTopics = new Set(current.topics.flatMap((topic) => topic.claims));
     placed = filed.filter((claim) => inTopics.has(claim.ref)).length;
     const update = db.prepare('UPDATE events SET primary_category = ? WHERE id = ?');

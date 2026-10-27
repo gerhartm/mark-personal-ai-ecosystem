@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
  * and answers in the documented JSON shapes, so the real validation, storage
  * and migration code runs against a copy of the stored corpus.
  */
-const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, outage: false, shift: false }));
+const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, outage: false, shift: false, garbageCategorize: false }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
     const start = input.indexOf(`${name}\n`);
@@ -32,6 +32,7 @@ vi.mock('../src/hermes-client.js', () => {
       const head = String(options?.instructions?.[0] ?? '');
       if (head.startsWith('Assign each research claim')) {
         state.calls.push('categorize');
+        if (state.garbageCategorize) return 'Error: the provider could not complete this request.';
         return JSON.stringify({ claims: section(input, 'CLAIMS').map((claim: any) => ({ id: claim.id, category: pick(claim.text), round: roundFor(claim.text) })) });
       }
       if (head.startsWith("Organize Mark's stored research claims")) {
@@ -110,6 +111,10 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.ungroundedNumbers('Fixture DEX lost $300M', 'Fixture DEX exploited for $285M')).toEqual(['300']);
     expect(organization.ungroundedNumbers('Funds hold 10% of supply, a16z finds in its Q4 review', '10% of fixture supply now in funds')).toEqual([]);
     expect(organization.ungroundedNumbers('Fixture DEX lost $285M in 2026', 'Fixture DEX exploited for $285M')).toEqual(['2026']);
+    expect(organization.ungroundedNumbers('Fixture DEX lost $285B', 'Fixture DEX exploited for $285 million')).toEqual(['285']);
+    expect(organization.ungroundedNumbers('Fixture DEX lost $285M', 'Fixture DEX exploited for $285 million')).toEqual([]);
+    expect(organization.ungroundedNumbers('A $30mn raise at a 75bps spread', 'A raise at a tight spread')).toEqual(['30', '75']);
+    expect(organization.ungroundedNumbers('Ten exchanges halted withdrawals', 'Three exchanges halted withdrawals')).toEqual(['ten']);
   });
   it('keeps only rounds whose names and amounts are written in the evidence', () => {
     expect(organization.parseUsd('$25 million')).toBe(25_000_000);
@@ -123,6 +128,9 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.validateRound({ company: 'Acme Labs', amount_text: '$2' }, ventureQuote)).toBeNull();
     expect(organization.validateRound({ company: 'AI', amount_text: '$25 million' }, ventureQuote)).toBeNull();
     expect(organization.validateRound({ company: 'Acme Labs', amount_text: '$25' }, ventureQuote)).toMatchObject({ amount_text: '$25 million', amount_usd: 25_000_000 });
+    expect(organization.validateRound({ company: 'Acme', amount_text: '$25 million' }, ventureQuote)).toBeNull();
+    expect(organization.validateRound({ company: 'Labs', amount_text: '$25 million' }, ventureQuote)).toBeNull();
+    expect(organization.validateRound({ company: 'Acme Labs', amount_text: '$25 million', investors: ['Capital', 'Example Capital'] }, ventureQuote)?.investors).toEqual(['Example Capital']);
   });
   it('rejects groupings that mix categories, repeat or invent claims, invent numbers or start a topic with one claim', () => {
     const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
@@ -141,6 +149,17 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(final.issues).toEqual([]);
     expect(final.outcome.topics.map((topic) => topic.claims)).toEqual([['a:0', 'b:0']]);
     expect(final.outcome.unsorted).toEqual(['c:0']);
+  });
+  it('measures failure limits by share and prefers the answer that files more claims', () => {
+    expect(organization.exceedsShare(1, 4, 0.25)).toBe(false);
+    expect(organization.exceedsShare(2, 4, 0.25)).toBe(true);
+    expect(organization.exceedsShare(90, 90, 0.25)).toBe(true);
+    const topic = (claims: string[]) => ({ key: 'k', category: 'defi' as const, title: 't', dek: 'd', description: '', claims, isNew: true });
+    const rich = { topics: [topic(['a:0', 'b:0']), topic(['c:0', 'd:0'])], unsorted: [], failed: false };
+    const poor = { topics: [topic(['a:0', 'b:0'])], unsorted: ['c:0', 'd:0'], failed: false };
+    expect(organization.betterOutcome(rich, poor)).toBe(rich);
+    expect(organization.betterOutcome(poor, rich)).toBe(rich);
+    expect(organization.betterOutcome(null, poor)).toBe(poor);
   });
   it('limits extracted categories to the fixed list and passes venture rounds on for checking', () => {
     const quote = 'Delta Labs raised $40 million in a Series A led by Example Ventures to expand stablecoin payouts.';
@@ -233,11 +252,31 @@ describe('rebuilding Topics from claims', () => {
     expect(organization.listRounds().find((round) => round.company === 'Delta Labs')).toMatchObject({ amount_usd: 40_000_000, stage: 'series a' });
   });
 
-  it('keeps a failed batch waiting instead of discarding the whole rebuild', async () => {
+  it('retries claims after an unusable answer and parks them only after three', async () => {
+    const source = `sha256:${'a'.repeat(64)}`;
+    database.run("INSERT INTO sources(source_id,identity_basis,title,source_type,source_channel,captured_at,origin) VALUES (?,?,'Unusable fixture','article','test','2026-10-21T00:00:00Z','ingested')", source, `text:${source}`);
+    processor.commitSourceClaims(source, [{ claim: 'A fixture claim with an old-style label that needs a category from Hermes.', quote: 'A fixture claim with an old-style label that needs a category.', topic: 'Fixture claim needing a category from Hermes', category: 'research', significance: 2, tags: [], entities: [], dates: [] }]);
+    const [ref] = organization.loadClaims({ sourceId: source }).map((claim) => claim.ref);
+    state.garbageCategorize = true;
+    for (let attempt = 0; attempt < 3; attempt++) await expect(organization.fileNewClaims({ sourceId: source })).rejects.toMatchObject({ code: 'unusable_answer' });
+    expect(organization.activeOrganizationV2()!.uncategorized ?? []).not.toContain(ref);
+    expect(await organization.fileNewClaims({ sourceId: source })).toMatchObject({ claims: 0 });
+    state.garbageCategorize = false;
+  });
+
+  it('keeps a failed batch waiting when it is a small share, and saves nothing when it is not', async () => {
+    const before = organization.activeOrganizationV2()!.generated_at;
     state.failNextGroupCalls = 2;
-    const result = await prompts.rebuildTopics('topic-test');
-    expect(result.failed_groups).toBe(1);
-    expect(result.unsorted).toBeGreaterThan(0);
+    try {
+      const result = await prompts.rebuildTopics('topic-test');
+      expect(result.failed_groups).toBe(1);
+      expect(result.unsorted).toBeGreaterThan(0);
+    } catch (error: any) {
+      expect(error.code).toBe('grouping_incomplete');
+      expect(organization.activeOrganizationV2()!.generated_at).toBe(before);
+    } finally {
+      state.failNextGroupCalls = 0;
+    }
   });
 
   it('undoes only the last rebuild, restoring its categories and the earlier Topics', async () => {

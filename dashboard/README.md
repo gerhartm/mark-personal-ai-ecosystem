@@ -240,10 +240,19 @@ The 13 categories are fixed in `server/src/topic-organization.ts` and mirrored
 for display in `web/src/lib/categories.ts`. A rebuild runs two passes through
 Hermes: it sorts every claim into one category, then groups claims into topics
 within each category and writes their titles and context lines from the Topics
-instruction in Control center. Every answer is validated against the stored
-claims, and any figure in a title or context line must appear in that topic's
-claims. A topic that still fails validation after one correction is dropped and
-its claims wait under their category; the rest of the batch is kept.
+instruction in Control center. Claims from one source about the same story or
+debate are asked to share a category, so a debate is not split across
+categories. Every answer is validated against the stored claims, and any figure
+in a title or context line must appear in that topic's claims. A topic that
+still fails validation after one correction is dropped and its claims wait under
+their category; the rest of the batch is kept.
+
+When most claims behind a topic report someone's view ("A speaker argues…",
+"Dana asserts…") and the title neither names the speaker nor says that someone
+argues, warns or expects it, a rebuild or preview asks for a corrected title
+(the filing worker does not). This is a correction request only: if the second
+answer still states the view as fact, the topic is kept rather than dropped. Claims that only cite a document ("the
+source asserts…") count as facts.
 
 A rebuild saves nothing when Hermes stops responding, when more than a tenth of
 the claims cannot be categorized, or when grouping fails for more than a quarter

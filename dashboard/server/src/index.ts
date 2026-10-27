@@ -8,12 +8,6 @@ import { MEDIA_ROOT, audit, all, one, run } from './db.js';
 import { buildAskContext } from './ask-context.js';
 import { cleanHermesError, runHermesAgent } from './hermes-client.js';
 import {
-  IntelligenceError,
-  intelligenceStatus,
-  refreshIntelligence,
-  startIntelligenceScheduler,
-} from './intelligence.js';
-import {
   CaptureInputError,
   captureSource,
   ingestionConfigured,
@@ -257,8 +251,6 @@ app.get('/api/brief', async () => {
   };
 });
 
-app.get('/api/intelligence', async () => intelligenceStatus());
-
 app.get('/api/facets', async () => t.facetOptions());
 
 app.get('/api/events', async (req) => {
@@ -318,13 +310,6 @@ app.get('/api/workflows/:id', async (req, reply) => {
   const revisions = all<any>('SELECT * FROM workflow_results WHERE draft_id=? ORDER BY revision DESC', id)
     .map(row => ({ revision: row.revision, kind: row.kind, input: JSON.parse(row.input_json), result: JSON.parse(row.response_json) }));
   return { draft, revisions };
-});
-app.put('/api/intelligence/settings', async (req, reply) => {
-  const enabled = (req.body as any)?.enabled;
-  if (typeof enabled !== 'boolean') return reply.code(400).send({ message: 'Choose whether scheduled briefs are enabled.' });
-  run("INSERT OR REPLACE INTO app_settings(key,value) VALUES ('intelligence.enabled',?)", String(enabled));
-  audit(requestActor(req), 'intelligence.schedule_changed', 'intelligence', { enabled });
-  return intelligenceStatus();
 });
 app.get('/api/sources', async () => ({ sources: t.listSources() }));
 app.get('/api/sources/:id', async (req, reply) => {
@@ -546,7 +531,6 @@ const askAttempts = new Map<string, number[]>();
 const captureAttempts = new Map<string, number[]>();
 const studioAttempts = new Map<string, number[]>();
 const quizAttempts = new Map<string, number[]>();
-const intelligenceAttempts = new Map<string, number[]>();
 
 function isAskRateLimited(key: string) {
   const now = Date.now();
@@ -583,38 +567,6 @@ function isQuizRateLimited(key: string) {
   quizAttempts.set(key, recent);
   return false;
 }
-
-function isIntelligenceRateLimited(key: string) {
-  const now = Date.now();
-  const recent = (intelligenceAttempts.get(key) ?? []).filter((time) => time > now - 10 * 60_000);
-  if (recent.length >= 1) return true;
-  recent.push(now);
-  intelligenceAttempts.set(key, recent);
-  return false;
-}
-
-app.post('/api/intelligence/refresh', async (req, reply) => {
-  const actor = requestActor(req);
-  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
-  if (isIntelligenceRateLimited(`${actor}:${remote}`)) {
-    return reply.code(429).send({
-      error: 'rate_limited',
-      message: 'A fresh intelligence briefing can be requested once every ten minutes.',
-    });
-  }
-  try {
-    const brief = await refreshIntelligence(actor, 'manual');
-    return { connected: true, stale: false, brief };
-  } catch (error) {
-    if (error instanceof IntelligenceError) {
-      return reply.code(error.status).send({ error: error.code, message: error.message });
-    }
-    return reply.code(503).send({
-      error: 'hermes_unavailable',
-      message: cleanHermesError(error instanceof Error ? error.message : error),
-    });
-  }
-});
 
 app.post('/api/quiz/sessions', async (req, reply) => {
   const actor = requestActor(req);
@@ -908,7 +860,6 @@ if (process.env.NODE_ENV !== 'test') {
   startSourceProcessor();
   startImportWorker();
   startTopicRebuildWorker();
-  startIntelligenceScheduler();
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);
   console.log(`  media archive: ${MEDIA_ROOT ? 'mounted' : 'not mounted (degraded, documented)'}`);
   console.log(`  intelligence plane: ${process.env.HERMES_BASE_URL ? 'configured' : 'not connected (degraded)'}`);

@@ -180,8 +180,8 @@ export function Timeline() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-[var(--line)] pb-4">
         <h1 className="text-[23px] font-medium tracking-tight text-foreground">Timeline</h1>
         <dl className="flex shrink-0 gap-6 font-mono">
-          <div><dd className="text-lg text-foreground">{new Set(visible.map(pin => pin.event_id)).size}</dd><dt className="text-[9px] tracking-widest uppercase text-dim">Events</dt></div>
-          <div><dd className="text-lg text-foreground">{visible.length}</dd><dt className="text-[9px] tracking-widest uppercase text-dim">Date entries</dt></div>
+          <div><dd className="text-lg text-foreground">{new Set(visible.map(pin => pin.event_id)).size}</dd><dt className="text-[11px] tracking-widest uppercase text-dim">Events</dt></div>
+          <div><dd className="text-lg text-foreground">{visible.length}</dd><dt className="text-[11px] tracking-widest uppercase text-dim">Date entries</dt></div>
         </dl>
       </div>
 
@@ -189,7 +189,7 @@ export function Timeline() {
       {result.data?.undated?.length ? <details className="mb-5 rounded-lg border border-[var(--line)] p-4">
         <summary className="cursor-pointer text-[13px] font-medium">Undated evidence ({result.data.undated.length})</summary>
         <p className="mt-2 text-[12px] text-muted-foreground">These records have no confirmed event date. Open one to read the explanation and its supporting source.</p>
-        <div className="mt-3 max-h-80 overflow-y-auto divide-y divide-[var(--line)]">{undated.map(item => <button data-testid="timeline-undated-event" type="button" key={item.event_id} onClick={() => openEvent(item)} className="block w-full py-3 text-left text-[13px] hover:text-[var(--brass)]">{item.label || item.summary}<span className="mt-1 block font-mono text-[10px] text-dim">{item.source_title}</span></button>)}</div>
+        <div className="mt-3 max-h-80 overflow-y-auto divide-y divide-[var(--line)]">{undated.map(item => <button data-testid="timeline-undated-event" type="button" key={item.event_id} onClick={() => openEvent(item)} className="block w-full py-3 text-left text-[13px] hover:text-[var(--accent-text)]">{item.label || item.summary}<span className="mt-1 block font-mono text-[11.5px] text-dim">{item.source_title}</span></button>)}</div>
       </details> : null}
       <section aria-label="Select year">
         <YearSelector pins={pins} years={years} activeYear={activeYear} activeCategory={category} onYearSelect={chooseYear} onCategorySelect={(year, next) => { chooseYear(year); setCategory(category === next && year === activeYear ? 'All' : next); }} />
@@ -197,7 +197,7 @@ export function Timeline() {
 
       <section className="pt-4" aria-label="Year overview">
         <DensityStrip pins={yearPins} categories={categories} activeCategory={category} activeMonth={activeMonth} onJump={jumpToMonth} onCategorySelect={(next) => chooseCategory(category === next ? 'All' : next)} />
-        <p className="mt-2 font-mono text-[9px] tracking-widest uppercase text-dim">{activeYear} · bars split by category · click a color band to filter that category</p>
+        <p className="mt-2 font-mono text-[11px] tracking-widest uppercase text-dim">{activeYear} · bars split by category · click a color band to filter that category</p>
       </section>
 
       <nav aria-label="Category filters" className="no-scrollbar flex gap-2 overflow-x-auto py-4">
@@ -215,7 +215,7 @@ export function Timeline() {
               <header className="sticky top-0 z-10 -mx-1 flex items-baseline gap-3 bg-background/90 px-1 py-1.5 backdrop-blur-sm">
                 <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-heading">{monthShort(group.month)}</h2>
                 <span className="h-px flex-1 bg-border" />
-                <span className="font-mono text-[10.5px] font-medium text-muted-foreground">{new Set(group.rows.map(pin => pin.event_id)).size} events · {formatMentions(monthMentions)} mentions</span>
+                <span className="font-mono text-[11.5px] font-medium text-muted-foreground">{new Set(group.rows.map(pin => pin.event_id)).size} events · {formatMentions(monthMentions)} mentions</span>
               </header>
               <ul className="mt-1.5">
                 {group.rows.map((pin) => {
@@ -224,8 +224,8 @@ export function Timeline() {
                   const active = pinKey(pin) === activeKey;
                   return <li key={pinKey(pin)}><button data-testid="timeline-event" type="button" onClick={() => openEvent(pin)} aria-current={active} className={`group grid w-full grid-cols-[28px_minmax(0,1fr)] items-center gap-3 rounded-md py-1.5 pr-2 pl-2 text-left transition-colors md:grid-cols-[32px_minmax(0,1fr)_120px] ${active ? 'bg-surface-800' : 'hover:bg-surface-900/70'}`}>
                     <span className="font-mono text-[11px] font-medium tabular-nums text-muted-foreground">{pin.precision === 'day' ? pin.sort_key.slice(8, 10) : pin.precision === 'month' ? 'mo' : pin.precision === 'quarter' ? 'qtr' : 'yr'}</span>
-                    <span className="flex min-w-0 items-center gap-2.5"><span className="h-3.5 w-[3px] shrink-0 rounded-full" style={{ background: categoryColor(pin.primary_category), boxShadow: active ? `0 0 8px color-mix(in srgb, ${categoryColor(pin.primary_category)} 16%, transparent)` : undefined }} /><span className={`truncate text-[13px] transition-colors ${active ? 'text-heading' : 'text-foreground group-hover:text-heading'}`}>{pin.label || compact(pin.summary, 100)}</span><span className="hidden shrink-0 font-mono text-[9.5px] font-medium uppercase tracking-widest lg:inline" style={{ color: categoryColor(pin.primary_category) }}>{titleCase(pin.primary_category)}</span></span>
-                    <span className="hidden items-center gap-2 md:flex"><span className="h-[3px] flex-1 overflow-hidden rounded-full bg-surface-800"><span className="block h-full rounded-full" style={{ width: `${width}%`, background: categoryColor(pin.primary_category) }} /></span><span className="w-10 shrink-0 text-right font-mono text-[10px] tabular-nums text-muted-foreground">{formatMentions(references)}</span></span>
+                    <span className="flex min-w-0 items-center gap-2.5"><span className="h-3.5 w-[3px] shrink-0 rounded-full" style={{ background: categoryColor(pin.primary_category), boxShadow: active ? `0 0 8px color-mix(in srgb, ${categoryColor(pin.primary_category)} 16%, transparent)` : undefined }} /><span className={`truncate text-[13px] transition-colors ${active ? 'text-heading' : 'text-foreground group-hover:text-heading'}`}>{pin.label || compact(pin.summary, 100)}</span><span className="hidden shrink-0 font-mono text-[11px] font-medium uppercase tracking-widest lg:inline" style={{ color: categoryColor(pin.primary_category) }}>{titleCase(pin.primary_category)}</span></span>
+                    <span className="hidden items-center gap-2 md:flex"><span className="h-[3px] flex-1 overflow-hidden rounded-full bg-surface-800"><span className="block h-full rounded-full" style={{ width: `${width}%`, background: categoryColor(pin.primary_category) }} /></span><span className="w-10 shrink-0 text-right font-mono text-[11.5px] tabular-nums text-muted-foreground">{formatMentions(references)}</span></span>
                   </button></li>;
                 })}
               </ul>
@@ -235,11 +235,11 @@ export function Timeline() {
 
         <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
           <div className="rounded-lg ring-1 ring-line">
-            <div className="flex items-baseline justify-between border-b border-border px-3 py-2"><h2 className="font-mono text-[10px] uppercase tracking-widest text-dim">Top signals</h2><span className="font-mono text-[10px] text-dim">{visible.length}</span></div>
+            <div className="flex items-baseline justify-between border-b border-border px-3 py-2"><h2 className="font-mono text-[11.5px] uppercase tracking-widest text-dim">Top signals</h2><span className="font-mono text-[11.5px] text-dim">{visible.length}</span></div>
             <ul className="max-h-[420px] overflow-y-auto lg:max-h-[560px]">
               {visible.slice().sort((a, b) => Number(b.reference_count) - Number(a.reference_count) || b.significance - a.significance).map((pin) => {
                 const active = pinKey(pin) === activeKey;
-                return <li key={`signal-${pinKey(pin)}`}><button type="button" onClick={() => openEvent(pin)} className={`flex w-full items-center gap-2.5 border-b border-border/60 px-3 py-2 text-left transition-colors ${active ? 'bg-surface-800' : 'hover:bg-surface-900/70'}`}><span className="size-2 shrink-0 rounded-full" style={{ background: categoryColor(pin.primary_category) }} /><span className="min-w-0 flex-1"><span className={`block truncate text-xs ${active ? 'text-heading' : 'text-foreground'}`}>{pin.label || compact(pin.summary, 70)}</span><span className="font-mono text-[9px] uppercase tracking-widest text-dim">{monthShort(Number(pin.sort_key.slice(5, 7)))} · {titleCase(pin.primary_category)}</span></span><span className="shrink-0 font-mono text-[10px] text-muted-foreground">{formatMentions(Math.max(1, Number(pin.reference_count || 1)))}</span></button></li>;
+                return <li key={`signal-${pinKey(pin)}`}><button type="button" onClick={() => openEvent(pin)} className={`flex w-full items-center gap-2.5 border-b border-border/60 px-3 py-2 text-left transition-colors ${active ? 'bg-surface-800' : 'hover:bg-surface-900/70'}`}><span className="size-2 shrink-0 rounded-full" style={{ background: categoryColor(pin.primary_category) }} /><span className="min-w-0 flex-1"><span className={`block truncate text-xs ${active ? 'text-heading' : 'text-foreground'}`}>{pin.label || compact(pin.summary, 70)}</span><span className="font-mono text-[11px] uppercase tracking-widest text-dim">{monthShort(Number(pin.sort_key.slice(5, 7)))} · {titleCase(pin.primary_category)}</span></span><span className="shrink-0 font-mono text-[11.5px] text-muted-foreground">{formatMentions(Math.max(1, Number(pin.reference_count || 1)))}</span></button></li>;
               })}
             </ul>
           </div>
@@ -290,7 +290,7 @@ function YearSelector({ pins, years, activeYear, activeCategory, onYearSelect, o
             </span>
           </span>
           <span className={`font-mono text-[11px] tabular-nums transition-colors ${active ? 'text-heading' : 'text-dim group-hover:text-muted-foreground'}`}>{item.year}</span>
-          <span className="font-mono text-[9px] text-dim">{item.count}</span>
+          <span className="font-mono text-[11px] text-dim">{item.count}</span>
         </button>;
       })}
     </div>
@@ -329,7 +329,7 @@ function DensityStrip({ pins, categories, activeCategory, activeMonth, onJump, o
               {item.segments.map((segment) => segment.value ? <span data-testid="timeline-month-segment" key={segment.category} role="button" tabIndex={0} title={`${titleCase(segment.category)} · ${formatMentions(segment.value)} mentions`} className="w-full cursor-pointer transition-opacity" style={{ height: `${segment.value / item.total * 100}%`, background: categoryColor(segment.category), opacity: activeCategory === 'All' || activeCategory === segment.category ? 1 : .18 }} onClick={(event) => { event.stopPropagation(); onJump(item.month); onCategorySelect(segment.category); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onCategorySelect(segment.category); } }} /> : null)}
             </span>
           </button>
-          <span className={`text-center font-mono text-[8px] md:text-[9px] uppercase md:tracking-widest transition-colors ${active ? 'text-heading' : 'text-dim group-hover:text-muted-foreground'}`}>{monthShort(item.month)}</span>
+          <span className={`text-center font-mono text-[10px] md:text-[11px] uppercase md:tracking-widest transition-colors ${active ? 'text-heading' : 'text-dim group-hover:text-muted-foreground'}`}>{monthShort(item.month)}</span>
         </div>;
       })}
     </div>
@@ -350,11 +350,11 @@ function TimelineDialog({ pin, close, nextSignal }: {
       <div data-testid="timeline-dossier" className="p-5 md:p-6">
         <div className="flex items-start justify-between gap-4 pr-8">
           <div className="min-w-0 space-y-1">
-            <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: categoryColor(pin.primary_category) }}>{titleCase(pin.primary_category)}</span>
+            <span className="font-mono text-[11.5px] uppercase tracking-widest" style={{ color: categoryColor(pin.primary_category) }}>{titleCase(pin.primary_category)}</span>
             <h2 id="timeline-dialog-title" className="text-lg font-medium leading-snug text-heading md:text-xl">{pin.label || compact(pin.summary, 140)}</h2>
-            <span className="block font-mono text-[10px] text-muted-foreground">{pin.precision === 'unknown' ? 'Event date not established' : pin.precision === 'day' ? formatDate(pin.date) : `${pin.date} (${pin.precision})`}</span>
+            <span className="block font-mono text-[11.5px] text-muted-foreground">{pin.precision === 'unknown' ? 'Event date not established' : pin.precision === 'day' ? formatDate(pin.date) : `${pin.date} (${pin.precision})`}</span>
           </div>
-          <div className="shrink-0 text-right"><div className="font-mono text-xl text-heading">{formatMentions(Math.max(1, Number(pin.reference_count || 1)))}</div><div className="text-[9px] uppercase tracking-tighter text-muted-foreground md:text-[10px]">Mentions</div></div>
+          <div className="shrink-0 text-right"><div className="font-mono text-xl text-heading">{formatMentions(Math.max(1, Number(pin.reference_count || 1)))}</div><div className="text-[11px] uppercase tracking-tighter text-muted-foreground md:text-[11.5px]">Mentions</div></div>
         </div>
 
         {dossier.loading && !data ? <div className="mt-4"><LoadingRows rows={4} /></div> : null}
@@ -365,40 +365,40 @@ function TimelineDialog({ pin, close, nextSignal }: {
             {data.significance.map((paragraph, index) => <p key={`${index}-${paragraph.slice(0, 24)}`} className="max-w-[64ch] font-serif text-[15px] leading-relaxed text-pretty text-foreground">{readableText(paragraph, data.analysis_labeled ? Number.MAX_SAFE_INTEGER : 760)}</p>)}
           </div>
 
-          {data.so_what ? <div className="mt-4 rounded-[5px] bg-surface-800/60 px-4 py-3 text-foreground"><span className="mb-2 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Why it matters{data.analysis_labeled ? ' · Analysis based on the source' : ''}</span><p className="font-serif text-[14px] leading-relaxed">{readableText(data.so_what, 520)}</p></div> : null}
+          {data.so_what ? <div className="mt-4 rounded-[5px] bg-surface-800/60 px-4 py-3 text-foreground"><span className="mb-2 block font-mono text-[11px] tracking-[0.1em] uppercase text-dim">Why it matters{data.analysis_labeled ? ' · Analysis based on the source' : ''}</span><p className="font-serif text-[14px] leading-relaxed">{readableText(data.so_what, 520)}</p></div> : null}
 
           {data.reactions.length ? <div data-testid="timeline-dossier-reactions" className="mt-6 border-t-2 border-[var(--line)] pt-4">
-            <span className="mb-3 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Related source claims · {data.reactions.length}</span>
+            <span className="mb-3 block font-mono text-[11px] tracking-[0.1em] uppercase text-dim">Related source claims · {data.reactions.length}</span>
             <div className="space-y-2.5">
-              {data.reactions.map((reaction) => <div key={`${reaction.event_id}-${reaction.source_id}-${reaction.line.slice(0, 20)}`} className="rounded-[5px] border border-[var(--line)] px-3 py-2.5"><div className="mb-1 flex items-center gap-2"><span className="text-[11.5px] font-medium text-foreground">{readableText(reaction.who, 90)}</span><span className="rounded-[3px] bg-surface-800 px-[5px] py-[1.5px] font-mono text-[9px] text-muted-foreground">{titleCase(reaction.stance)}</span></div><p className="font-serif text-[14px] leading-relaxed text-pretty text-foreground">{readableText(reaction.line, 520)}</p></div>)}
+              {data.reactions.map((reaction) => <div key={`${reaction.event_id}-${reaction.source_id}-${reaction.line.slice(0, 20)}`} className="rounded-[5px] border border-[var(--line)] px-3 py-2.5"><div className="mb-1 flex items-center gap-2"><span className="text-[11.5px] font-medium text-foreground">{readableText(reaction.who, 90)}</span><span className="rounded-[3px] bg-surface-800 px-[5px] py-[1.5px] font-mono text-[11px] text-muted-foreground">{titleCase(reaction.stance)}</span></div><p className="font-serif text-[14px] leading-relaxed text-pretty text-foreground">{readableText(reaction.line, 520)}</p></div>)}
             </div>
           </div> : null}
 
           {data.evidence_quote ? <details className="mt-5 rounded-[5px] border border-[var(--line)] px-4 py-3">
-            <summary className="cursor-pointer font-mono text-[10px] text-muted-foreground">Read the supporting passage</summary>
+            <summary className="cursor-pointer font-mono text-[11.5px] text-muted-foreground">Read the supporting passage</summary>
             <blockquote className="mt-3 whitespace-pre-wrap break-words font-serif text-[14px] leading-relaxed text-foreground">{readableText(data.evidence_quote, Number.MAX_SAFE_INTEGER)}</blockquote>
           </details> : null}
 
           <div data-testid="timeline-dossier-sources" className="mt-6 border-t-2 border-[var(--line)] pt-4">
-            <span className="mb-3 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Sources · {data.sources.length}</span>
+            <span className="mb-3 block font-mono text-[11px] tracking-[0.1em] uppercase text-dim">Sources · {data.sources.length}</span>
             <div className="space-y-1.5">
               {data.sources.map((source) => {
                 const url = safeExternalUrl(source.url);
-                const content = <><div className="flex items-baseline justify-between gap-3"><span className="text-[11.5px] leading-snug text-foreground">{readableText(source.headline, 180)}</span><span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.08em] text-[var(--brass)]">{sourceKind(source.kind)}{url ? ' ↗' : ''}</span></div><span className="mt-1 block font-mono text-[10px] text-muted-foreground">{readableText(source.outlet, 100)} · {formatDate(source.when)}</span></>;
+                const content = <><div className="flex items-baseline justify-between gap-3"><span className="text-[11.5px] leading-snug text-foreground">{readableText(source.headline, 180)}</span><span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--accent-text)]">{sourceKind(source.kind)}{url ? ' ↗' : ''}</span></div><span className="mt-1 block font-mono text-[11.5px] text-muted-foreground">{readableText(source.outlet, 100)} · {formatDate(source.when)}</span></>;
                 const className = "block rounded-[5px] border border-[var(--line)] px-3 py-2.5 transition-colors hover:border-[var(--brass)] hover:bg-surface-800/60";
-                return <div key={source.source_id}>{url ? <a data-testid="timeline-dossier-source" className={className} href={url} target="_blank" rel="noreferrer noopener">{content}</a> : <div data-testid="timeline-dossier-source" className={className}>{content}</div>}<Link to={`/sources/${encodeURIComponent(source.source_id)}`} className="mt-1.5 inline-block px-3 font-mono text-[10px] text-[var(--brass)]">Read retained source</Link></div>;
+                return <div key={source.source_id}>{url ? <a data-testid="timeline-dossier-source" className={className} href={url} target="_blank" rel="noreferrer noopener">{content}</a> : <div data-testid="timeline-dossier-source" className={className}>{content}</div>}<Link to={`/sources/${encodeURIComponent(source.source_id)}`} className="mt-1.5 inline-block px-3 font-mono text-[11.5px] text-[var(--accent-text)]">Read retained source</Link></div>;
               })}
             </div>
           </div>
 
           {data.watch.length ? <div data-testid="timeline-dossier-watch" className="mt-6 border-t-2 border-[var(--line)] pt-4">
-            <span className="mb-2 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">What to watch</span>
+            <span className="mb-2 block font-mono text-[11px] tracking-[0.1em] uppercase text-dim">What to watch</span>
             <ul className="list-disc space-y-2 pl-4">{data.watch.map((item) => <li key={item} className="text-[13px] leading-relaxed text-foreground">{readableText(item, 420)}</li>)}</ul>
           </div> : null}
 
           <div data-testid="timeline-dossier-footer" className="mt-6 flex flex-wrap items-center gap-4">
             {nextSignal ? <button type="button" onClick={nextSignal} className="flex items-center gap-2 rounded-md bg-surface-800 py-2 pr-3 pl-2 text-xs font-medium text-foreground ring-1 ring-border transition-all hover:ring-line-strong active:scale-[0.98]"><span className="flex size-4 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in srgb, ${categoryColor(pin.primary_category)} 16%, transparent)` }}><span className="size-1.5 rounded-full" style={{ background: categoryColor(pin.primary_category) }} /></span>Next {titleCase(pin.primary_category)} Signal</button> : null}
-            <span className="font-mono text-[10px] text-dim italic">Source captured {formatDate(data.verified_at)}</span>
+            <span className="font-mono text-[11.5px] text-dim italic">Source captured {formatDate(data.verified_at)}</span>
           </div>
         </> : null}
       </div>

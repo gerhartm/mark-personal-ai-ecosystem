@@ -178,13 +178,10 @@ describe('read routes', () => {
 });
 
 describe('the intelligence plane boundary', () => {
-  it('reports command-center readiness without inventing a live briefing', async () => {
-    const status: any = await json('/api/intelligence');
-    expect(status.connected).toBe(false);
-    expect(status.refresh_hours).toBe(24);
-    expect(status.stale).toBe(true);
-    expect(status.last_attempt_at).toBeNull();
-    expect(status.brief).toBeNull();
+  it('no longer serves or schedules a daily briefing', async () => {
+    expect((await fetch(`${BASE}/api/intelligence`)).status).toBe(404);
+    const refresh = await fetch(`${BASE}/api/intelligence/refresh`, { method: 'POST' });
+    expect(refresh.status).toBe(404);
   });
 
   it('says plainly that Hermes is not connected, and never fabricates an answer', async () => {

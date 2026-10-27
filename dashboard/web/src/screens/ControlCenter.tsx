@@ -1,4 +1,3 @@
-import { DailyIntelligence } from '../components/DailyIntelligence';
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorState, Eyebrow, LoadingRows, ViewHead } from '../components/Desk';
 import { api, invalidate, useQuery } from '../lib/api';
@@ -125,9 +124,8 @@ export function ControlCenter() {
   return (
     <section>
       <ViewHead title="Control center">Review and fine tune the instructions that shape generated content. Source records, citations, validation, and evidence rules remain fixed.</ViewHead>
-      <DailyIntelligence />
-      <div className="grid overflow-hidden rounded-[7px] border-2 border-[var(--line-strong)] bg-[var(--panel)] md:grid-cols-[196px_1fr]" data-testid="control-center">
-        <aside className="border-b border-[var(--line)] p-2.5 md:border-r md:border-b-0">
+      <div className="grid grid-cols-1 overflow-hidden rounded-[7px] border-2 border-[var(--line-strong)] bg-[var(--panel)] md:grid-cols-[196px_minmax(0,1fr)]" data-testid="control-center">
+        <aside className="min-w-0 border-b border-[var(--line)] p-2.5 md:border-r md:border-b-0">
           <Eyebrow>Pages</Eyebrow>
           <div className="flex gap-1 overflow-x-auto md:block">
             {(controls.data?.controls ?? []).map((item) => {
@@ -141,7 +139,7 @@ export function ControlCenter() {
                   className={`min-w-max rounded-[5px] px-3 py-2.5 text-left transition-colors md:mb-1 md:block md:w-full ${active ? 'bg-surface-800 text-foreground' : 'text-muted-foreground hover:bg-surface-800/60 hover:text-foreground'}`}
                 >
                   <span className="block text-[12.5px] font-medium">{item.label}</span>
-                  <span className={`mt-1 block font-mono text-[8.5px] tracking-[0.08em] uppercase ${item.mode === 'generated' ? 'text-[var(--brass)]' : 'text-dim'}`}>{item.mode === 'generated' ? `Revision ${item.revision}` : 'Evidence only'}</span>
+                  <span className={`mt-1 block font-mono text-[11px] tracking-[0.08em] uppercase ${item.mode === 'generated' ? 'text-[var(--accent-text)]' : 'text-dim'}`}>{item.mode === 'generated' ? `Revision ${item.revision}` : 'Evidence only'}</span>
                 </button>
               );
             })}
@@ -157,14 +155,14 @@ export function ControlCenter() {
                     <h2 className="text-[17px] font-medium tracking-tight text-foreground">{control.label}</h2>
                     <p className="mt-1 max-w-[66ch] font-serif text-[14.5px] leading-relaxed text-muted-foreground">{control.purpose}</p>
                   </div>
-                  <span className="font-mono text-[9px] text-dim">{updated}</span>
+                  <span className="font-mono text-[11px] text-dim">{updated}</span>
                 </div>
-                <p className="mt-3 font-mono text-[9.5px] leading-relaxed text-[var(--cyan)]">{control.application}</p>
+                <p className="mt-3 font-mono text-[11px] leading-relaxed text-[var(--date-text)]">{control.application}</p>
               </div>
 
               {control.mode === 'generated' ? (
                 <>
-                  <label htmlFor="page-instructions" className="mb-2 block font-mono text-[9.5px] tracking-[0.1em] uppercase text-dim">Page instructions</label>
+                  <label htmlFor="page-instructions" className="mb-2 block font-mono text-[11px] tracking-[0.1em] uppercase text-dim">Page instructions</label>
                   <textarea
                     id="page-instructions"
                     value={draft}
@@ -177,13 +175,13 @@ export function ControlCenter() {
                     className="min-h-[250px] w-full resize-y rounded-[5px] border border-[var(--line-strong)] bg-background px-3.5 py-3 font-serif text-[15px] leading-relaxed text-foreground placeholder:text-dim focus:border-[var(--brass)] focus:outline-none"
                     aria-describedby="instruction-limit"
                   />
-                  <div id="instruction-limit" className="mt-2 flex items-center justify-between gap-3 font-mono text-[9px] text-dim">
+                  <div id="instruction-limit" className="mt-2 flex items-center justify-between gap-3 font-mono text-[11px] text-dim">
                     <span>{dirty ? 'Unsaved changes' : control.customized ? 'Custom instruction active' : 'Default instruction active'}</span>
-                    <span className={!valid ? 'text-[var(--rose)]' : ''}>{draft.trim().length} / {MAX_LENGTH}</span>
+                    <span className={!valid ? 'text-[var(--danger-text)]' : ''}>{draft.trim().length} / {MAX_LENGTH}</span>
                   </div>
 
                   <div className="mt-5 rounded-[5px] border border-[var(--line)] bg-surface-800/50 px-3.5 py-3">
-                    <span className="mb-1.5 block font-mono text-[9px] tracking-[0.1em] uppercase text-dim">Fixed evidence contract</span>
+                    <span className="mb-1.5 block font-mono text-[11px] tracking-[0.1em] uppercase text-dim">Fixed evidence contract</span>
                     <p className="font-serif text-[13.5px] leading-relaxed text-muted-foreground">Editable instructions can shape organization, emphasis, tone, and structure. They cannot disable source grounding, citation checks, format validation, or the rule against invented claims.</p>
                   </div>
 
@@ -193,9 +191,9 @@ export function ControlCenter() {
                       <button type="button" className="desk-button secondary" onClick={() => setConfirmRestore(true)} disabled={state === 'saving' || state === 'restoring'}>Restore default</button>
                     ) : (
                       <div className="flex flex-wrap items-center gap-2 rounded-[5px] border border-[var(--line)] px-2.5 py-2">
-                        <span className="font-mono text-[9px] text-muted-foreground">Restore the original instruction?</span>
-                        <button type="button" className="font-mono text-[9px] text-[var(--brass)]" onClick={restore}>Confirm</button>
-                        <button type="button" className="font-mono text-[9px] text-dim" onClick={() => setConfirmRestore(false)}>Cancel</button>
+                        <span className="font-mono text-[11px] text-muted-foreground">Restore the original instruction?</span>
+                        <button type="button" className="font-mono text-[11px] text-[var(--accent-text)]" onClick={restore}>Confirm</button>
+                        <button type="button" className="font-mono text-[11px] text-dim" onClick={() => setConfirmRestore(false)}>Cancel</button>
                       </div>
                     )}
                   </div>
@@ -205,25 +203,25 @@ export function ControlCenter() {
                       <Eyebrow>Apply organization</Eyebrow>
                       <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">Rebuild Topics after saving. Hermes reviews the collection in batches and validates every event reference. Larger collections can take several minutes. Progress is saved, so you can leave this page and return later.</p>
                       <button type="button" className="desk-button secondary" onClick={rebuild} disabled={dirty || rebuildBusy || state === 'rebuilding'}>{rebuildBusy || state === 'rebuilding' ? 'Rebuilding Topics' : topicJob.data?.status === 'failed' ? 'Retry topic rebuild' : 'Rebuild Topics'}</button>
-                      {topicJob.error ? <p role="alert" className="mt-3 font-mono text-[9.5px] text-[var(--rose)]">Rebuild status is unavailable. Refresh to check before retrying.</p> : null}
-                      {topicJob.data?.status !== 'idle' && topicJob.data ? <p role={topicJob.data.status === 'failed' ? 'alert' : 'status'} className={`mt-3 font-mono text-[9.5px] leading-relaxed ${topicJob.data.status === 'failed' ? 'text-[var(--rose)]' : 'text-[var(--sage)]'}`}>
+                      {topicJob.error ? <p role="alert" className="mt-3 font-mono text-[11px] text-[var(--danger-text)]">Rebuild status is unavailable. Refresh to check before retrying.</p> : null}
+                      {topicJob.data?.status !== 'idle' && topicJob.data ? <p role={topicJob.data.status === 'failed' ? 'alert' : 'status'} className={`mt-3 font-mono text-[11px] leading-relaxed ${topicJob.data.status === 'failed' ? 'text-[var(--danger-text)]' : 'text-[var(--sage)]'}`}>
                         {topicJob.data.status === 'queued' ? 'Queued. The rebuild will start shortly.' : topicJob.data.status === 'running' ? 'Rebuilding the topic organization. The current Topics remain available.' : topicJob.data.status === 'ready' ? `${topicJob.data.topic_count} focused topics are now live.` : topicJob.data.error}
                       </p> : null}
                     </div>
                   ) : null}
 
-                  {message ? <p className={`mt-4 rounded-[5px] border px-3 py-2 font-mono text-[9.5px] leading-relaxed ${state === 'error' ? 'border-[var(--rose)] text-[var(--rose)]' : 'border-[var(--line)] text-[var(--sage)]'}`} role={state === 'error' ? 'alert' : 'status'}>{message}</p> : null}
+                  {message ? <p className={`mt-4 rounded-[5px] border px-3 py-2 font-mono text-[11px] leading-relaxed ${state === 'error' ? 'border-[var(--rose)] text-[var(--danger-text)]' : 'border-[var(--line)] text-[var(--sage)]'}`} role={state === 'error' ? 'alert' : 'status'}>{message}</p> : null}
 
                   <div className="mt-7 border-t-2 border-[var(--line)] pt-5">
                     <Eyebrow>Change history</Eyebrow>
                     {history.loading && !history.data ? <LoadingRows rows={3} /> : null}
                     {history.error ? <ErrorState error={history.error} retry={history.refetch} /> : null}
-                    {!history.loading && !history.error && !(history.data?.history.length) ? <p className="font-mono text-[9.5px] text-dim">No custom revisions yet. The code-owned default is active.</p> : null}
+                    {!history.loading && !history.error && !(history.data?.history.length) ? <p className="font-mono text-[11px] text-dim">No custom revisions yet. The code-owned default is active.</p> : null}
                     <ol className="space-y-1.5">
                       {(history.data?.history ?? []).map((revision) => (
                         <li key={revision.revision} className="rounded-[5px] border border-[var(--line)] px-3 py-2.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[9px] text-dim">
-                            <span className="text-[var(--brass)]">Revision {revision.revision} · {revision.action}</span>
+                          <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-dim">
+                            <span className="text-[var(--accent-text)]">Revision {revision.revision} · {revision.action}</span>
                             <span>{formatDate(revision.created_at)} · {revision.actor}</span>
                           </div>
                           <p className="mt-2 line-clamp-2 font-serif text-[12.5px] leading-relaxed text-muted-foreground">{revision.instructions}</p>

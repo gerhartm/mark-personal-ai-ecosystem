@@ -166,7 +166,10 @@ body {
   button, input, textarea, select { font: inherit; }
 }
 button, a { -webkit-tap-highlight-color: transparent; }
-a { color: inherit; }
+/* Layered so link colour utilities (e.g. accent links) can override it. */
+@layer base {
+  a { color: inherit; }
+}
 
 .desk-page { animation: desk-rise 240ms ease-out; }
 @keyframes desk-rise { from { opacity: 0; transform: translateY(5px); } }
@@ -189,7 +192,7 @@ a { color: inherit; }
 .desk-chip:hover, .desk-chip:focus-visible, .desk-chip.is-active { border-color: var(--desk-accent); background: var(--desk-accent-soft); color: var(--desk-heading); outline: none; }
 .desk-chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 20px; }
 
-.desk-button { min-height: 38px; border: 1px solid var(--desk-accent); border-radius: 5px; background: var(--desk-accent); color: var(--desk-on-accent); padding: 8px 13px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .03em; cursor: pointer; }
+.desk-button { min-height: 38px; border: 1px solid var(--desk-accent); border-radius: 5px; background: var(--desk-accent); color: var(--desk-on-accent); padding: 8px 14px; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: .02em; cursor: pointer; }
 .desk-button.secondary { background: transparent; color: var(--desk-accent); }
 .desk-button:disabled { cursor: not-allowed; opacity: .48; }
 .desk-link { color: var(--desk-accent); text-decoration: none; }

@@ -87,12 +87,45 @@ export class TopicOrganizationError extends Error {
   }
 }
 
+/** Why a Hermes call produced no answer. Only these fixed descriptions are shown; provider messages never are. */
+export type HermesFailure = 'timeout' | 'empty' | 'quota' | 'rate_limit' | 'connection' | 'error';
+const FAILURE_TEXT: Record<HermesFailure, string> = {
+  timeout: 'Hermes took longer than the time limit to answer.',
+  empty: 'Hermes returned an empty answer, which usually means the request was too large.',
+  quota: 'The AI provider reported that the account is out of credits.',
+  rate_limit: 'The AI provider reported a rate limit.',
+  connection: 'Hermes could not be reached.',
+  error: 'Hermes returned an error.',
+};
+export const failureText = (failure: HermesFailure | null | undefined) => (failure ? FAILURE_TEXT[failure] : '');
+
+export function classifyHermesFailure(error: unknown): HermesFailure {
+  const text = error instanceof Error ? error.message : String(error ?? '');
+  if (/timeout|timed out/i.test(text)) return 'timeout';
+  if (/empty response/i.test(text)) return 'empty';
+  if (/insufficient_quota|quota|billing|credit/i.test(text)) return 'quota';
+  if (/\b429\b|rate.?limit/i.test(text)) return 'rate_limit';
+  if (/websocket|socket|ECONN|ENOTFOUND|ticket|login|fetch failed|network/i.test(text)) return 'connection';
+  return 'error';
+}
+
 /** Hermes could not be reached or answered with errors on every attempt. Nothing is saved. */
 export class HermesUnavailableError extends TopicOrganizationError {
-  constructor() {
-    super('hermes_unavailable', 'Hermes did not respond, so nothing was changed. Check Hermes availability and retry.', 503);
+  constructor(public failure: HermesFailure | null = null) {
+    super('hermes_unavailable', `Hermes did not respond, so nothing was changed. ${failureText(failure)} Check Hermes availability and retry.`.replace(/\s+/g, ' '), 503);
   }
 }
+
+/** Pause before retrying a call that got no answer, so a rate limit or a busy provider can recover. Tests set it to 0. */
+export const timing = { retryPauseMs: 30_000 };
+const pause = (ms: number) => (ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve());
+
+/**
+ * Batch sizes. Grouping requests carry the claims plus the topics already
+ * built in the same categories, so they are kept small enough to answer well
+ * within the time limit.
+ */
+export const limits = { groupClaims: 60, groupChars: 24_000, existingTopics: 80 };
 
 const clean = (value: unknown) => String(value ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 const now = () => new Date().toISOString();
@@ -460,14 +493,17 @@ async function categorizeBatch(batch: ClaimRow[]): Promise<Categorized> {
   ];
   const result: Categorized = new Map();
   let answered = false;
+  let failure: HermesFailure | null = null;
   let issues = '';
   for (let attempt = 0; attempt < 2; attempt++) {
     let raw: string;
     try {
       raw = await generateWithHermes(`CLAIMS\n${batch.filter((claim) => !result.has(claim.ref)).map((claim) => claimLine(claim)).join('\n')}${issues ? `\n\nCORRECT THESE ISSUES\n${issues}` : ''}`, {
-        instructions, maxTokens: 6_000, temperature: 0.1, timeoutMs: 150_000,
+        instructions, maxTokens: 8_000, temperature: 0.1, timeoutMs: 240_000,
       });
-    } catch {
+    } catch (error) {
+      failure = classifyHermesFailure(error);
+      if (attempt === 0) await pause(timing.retryPauseMs);
       continue;
     }
     answered = true;
@@ -485,7 +521,7 @@ async function categorizeBatch(batch: ClaimRow[]): Promise<Categorized> {
       issues = `The previous answer could not be used: ${error instanceof Error ? error.message : String(error)}. Return valid JSON.`;
     }
   }
-  if (!answered) throw new HermesUnavailableError();
+  if (!answered) throw new HermesUnavailableError(failure);
   // An answer that categorizes nothing is usually a provider error returned as text.
   if (!result.size) throw new TopicOrganizationError('unusable_answer', 'Hermes answered without usable categories, so nothing was changed. Retry later.', 503);
   return result;
@@ -494,7 +530,8 @@ async function categorizeBatch(batch: ClaimRow[]): Promise<Categorized> {
 const isUnusable = (error: unknown) => error instanceof TopicOrganizationError && error.code === 'unusable_answer';
 
 type DraftTopic = { key: string; category: CategoryId; title: string; dek: string; description: string; claims: string[]; isNew: boolean };
-type BatchOutcome = { topics: DraftTopic[]; unsorted: string[]; failed: boolean };
+/** flagged counts titles that state someone's view as fact. */
+type BatchOutcome = { topics: DraftTopic[]; unsorted: string[]; failed: boolean; flagged?: number };
 
 /** Stable across rebuilds: the same title in the same category keeps its link. */
 function topicKey(title: string, category: string) {
@@ -526,7 +563,7 @@ export function validateTopicBatch(
   existing: Map<string, TopicV2>,
   takenTitles: Set<string>,
   finalAttempt: boolean,
-): { outcome: BatchOutcome; issues: string[]; hard: string[] } {
+): { outcome: BatchOutcome; issues: string[]; hard: string[]; needsRetry: boolean } {
   const byRef = new Map(batch.map((claim) => [claim.ref, claim]));
   const used = new Set<string>();
   const batchHard: string[] = [];
@@ -565,10 +602,8 @@ export function validateTopicBatch(
       if (invented.length) problems.push(`${label} title uses numbers that are not in its claims: ${invented.slice(0, 3).join(', ')}.`);
       const lower = title.title.toLowerCase();
       if (titles.has(lower) && lower !== current?.title.toLowerCase()) problems.push(`${label} duplicates another topic title.`);
-      if (needsAttribution(title.title, fresh.map((id) => byRef.get(id)!.text))) {
-        accuracy.push(`${label} title states a view as fact. Most of its claims report someone's argument or forecast, so say whose: a name from the claims, or "guests argue" when they name no one. Keep it within 14 words.`);
-      }
     }
+    const viewAsFact = Boolean(title && needsAttribution(title.title, fresh.map((id) => byRef.get(id)!.text)));
     if (dek) {
       dek.hard.forEach((issue) => problems.push(`${label} ${issue}.`));
       dek.soft.forEach((issue) => soft.push(`${label} ${issue}.`));
@@ -579,6 +614,10 @@ export function validateTopicBatch(
     if (!current && fresh.length < 2) problems.push(`${label} is new and needs at least two different claims; otherwise list the claim as unsorted.`);
     if ((current?.claims.length ?? 0) + fresh.length > 60) problems.push(`${label} holds too many claims; split it into narrower stories.`);
     topicHard.push(...problems);
+    // Reported for a correction, and counted for a kept topic; a dropped topic is not counted.
+    if (viewAsFact && (!finalAttempt || !problems.length)) {
+      accuracy.push(`${label} title states a view as fact. Most of its claims report someone's argument or forecast, so say whose: a name from the claims, or "guests argue" when they name no one. Keep it within 14 words.`);
+    }
     // A broken topic is left out; its claims are released to wait under their category.
     // An existing topic repeated without new claims changes nothing.
     if (problems.length || !fresh.length) return;
@@ -600,7 +639,9 @@ export function validateTopicBatch(
   if (missing.length) soft.push(`${missing.length} supplied claims are missing; place each in a topic or list it under unsorted.`);
   const hard = finalAttempt ? batchHard : [...batchHard, ...topicHard];
   const issues = finalAttempt ? hard : [...hard, ...accuracy, ...soft];
-  return { outcome: { topics, unsorted: [...unsorted, ...missing], failed: false }, issues, hard };
+  // Only broken topics, views stated as fact and forgotten claims are worth a whole new answer; length and style notes are not.
+  const needsRetry = batchHard.length > 0 || topicHard.length > 0 || accuracy.length > 0 || missing.length > 0;
+  return { outcome: { topics, unsorted: [...unsorted, ...missing], failed: false, flagged: accuracy.length }, issues, hard, needsRetry };
 }
 
 /**
@@ -625,20 +666,24 @@ async function groupBatch(
     `CATEGORIES IN THIS BATCH\n${categories.map((id) => `${id}: ${CATEGORIES.find((category) => category.id === id)!.scope}`).join('\n')}`,
     'Return JSON only: {"topics":[{"key":"existing key or new-1","title":"...","dek":"...","description":"...","claims":["exact claim id"]}],"unsorted":["exact claim id"]}. For an existing topic, include title and dek only when the new claims change its story.',
   ];
+  // Existing topics are listed by title only; their context lines would double the request without helping the match.
   const existingText = existing.length
-    ? `EXISTING TOPICS\n${existing.map((topic) => JSON.stringify({ key: topic.key, category: topic.category, title: topic.title, dek: topic.dek, claims: topic.claims.length })).join('\n')}\n\n`
+    ? `EXISTING TOPICS\n${existing.map((topic) => JSON.stringify({ key: topic.key, category: topic.category, title: topic.title, claims: topic.claims.length })).join('\n')}\n\n`
     : '';
   const input = `${existingText}CLAIMS\n${batch.map((claim) => claimLine(claim, categoryOf(claim.ref))).join('\n')}`;
   let issues: string[] = [];
   let answered = false;
+  let failure: HermesFailure | null = null;
   let acceptable: BatchOutcome | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     let raw: string;
     try {
       raw = await generateWithHermes(`${input}${issues.length ? `\n\nCORRECT THESE ISSUES\n${issues.slice(0, 12).join('\n')}` : ''}`, {
-        instructions, maxTokens: 8_000, temperature: 0.2, timeoutMs: 180_000,
+        instructions, maxTokens: 12_000, temperature: 0.2, timeoutMs: 360_000,
       });
-    } catch {
+    } catch (error) {
+      failure = classifyHermesFailure(error);
+      if (attempt === 0) await pause(timing.retryPauseMs);
       continue;
     }
     answered = true;
@@ -649,25 +694,34 @@ async function groupBatch(
       // Keep the valid topics from the best answer in case a retry does no better.
       const lenient = validateTopicBatch(parsed, batch, categoryOf, existingMap, takenTitles, true);
       if (!lenient.hard.length) acceptable = betterOutcome(acceptable, lenient.outcome);
-      if (acceptable && (!retryForQuality || attempt === 1)) return acceptable;
+      if (acceptable && (!retryForQuality || attempt === 1 || !strict.needsRetry)) return acceptable;
       issues = strict.issues;
     } catch (error) {
       issues = [`The previous answer could not be used: ${error instanceof Error ? error.message : String(error)}. Return valid JSON.`];
     }
   }
-  if (!answered) throw new HermesUnavailableError();
+  if (!answered) throw new HermesUnavailableError(failure);
   return acceptable ?? { topics: [], unsorted: batch.map((claim) => claim.ref), failed: true };
 }
 
 const placedClaims = (outcome: BatchOutcome) => outcome.topics.reduce((sum, topic) => sum + topic.claims.length, 0);
 
-/** Of two usable answers, keep the one that puts more claims into topics; a tie goes to the newer, corrected answer. */
+/**
+ * Of two usable answers, an answer that states fewer views as fact wins unless
+ * it puts clearly fewer claims (under 90%) into topics. Otherwise the answer
+ * that puts more claims into topics wins, and a tie goes to the newer one.
+ */
 export function betterOutcome(current: BatchOutcome | null, next: BatchOutcome): BatchOutcome {
-  return !current || placedClaims(next) >= placedClaims(current) ? next : current;
+  if (!current) return next;
+  const [before, after] = [placedClaims(current), placedClaims(next)];
+  const [flaggedBefore, flaggedAfter] = [current.flagged ?? 0, next.flagged ?? 0];
+  if (flaggedAfter < flaggedBefore && after >= before * 0.9) return next;
+  if (flaggedBefore < flaggedAfter && before >= after * 0.9) return current;
+  return after >= before ? next : current;
 }
 
 /** Packs claims into batches that keep a category together where possible. */
-export function packBatches(claims: ClaimRow[], categoryOf: (ref: string) => string, maxClaims = 90, maxChars = 34_000) {
+export function packBatches(claims: ClaimRow[], categoryOf: (ref: string) => string, maxClaims = limits.groupClaims, maxChars = limits.groupChars) {
   const ordered = [...claims].sort((a, b) => CATEGORY_IDS.indexOf(categoryOf(a.ref) as CategoryId) - CATEGORY_IDS.indexOf(categoryOf(b.ref) as CategoryId)
     || a.source_id.localeCompare(b.source_id) || a.ref.localeCompare(b.ref));
   const batches: ClaimRow[][] = [];
@@ -708,29 +762,55 @@ function applyOutcome(topics: TopicV2[], outcome: BatchOutcome, stamp: string) {
 export type RebuildResult = { topics: TopicV2[]; claims: number; unsorted: number; uncategorized: number; failed_groups: number; rounds: number };
 
 export function estimateRebuildCalls(claimCount: number) {
-  return Math.ceil(claimCount / 110) + Math.ceil(claimCount / 80) + 2;
+  return Math.ceil(claimCount / 110) + Math.ceil(claimCount / limits.groupClaims) + 2;
 }
 
 /** The share of claims that may stay uncategorized, or sit in failed grouping batches, before a rebuild is abandoned. */
 const MAX_UNCATEGORIZED = 0.1;
 const MAX_FAILED_GROUPING = 0.25;
+/** Batches in a row that get no answer at all before a rebuild treats Hermes as down. */
+const MAX_SILENT_BATCHES = 2;
 export const exceedsShare = (failed: number, total: number, limit: number) => total > 0 && failed / total > limit;
+
+/**
+ * Tracks batches that got no answer. One silent batch waits (its claims stay
+ * uncategorized or ungrouped); two in a row, or no answer to any batch, stop
+ * the rebuild before anything is saved.
+ */
+function silenceTracker() {
+  let inRow = 0;
+  let answeredAny = false;
+  let last: HermesFailure | null = null;
+  return {
+    answered() { inRow = 0; answeredAny = true; },
+    silent(error: HermesUnavailableError) {
+      last = error.failure ?? last;
+      if (++inRow >= MAX_SILENT_BATCHES) throw error;
+    },
+    finish() { if (!answeredAny) throw new HermesUnavailableError(last); },
+    get last() { return last; },
+  };
+}
 
 async function organize(claims: ClaimRow[], markInstruction: string, onProgress?: (progress: Progress) => void) {
   const categorizeBatches: ClaimRow[][] = [];
   for (let index = 0; index < claims.length; index += 110) categorizeBatches.push(claims.slice(index, index + 110));
-  let total = categorizeBatches.length + Math.max(1, Math.ceil(claims.length / 80));
+  let total = categorizeBatches.length + Math.max(1, Math.ceil(claims.length / limits.groupClaims));
   let done = 0;
   const categories: Record<string, CategoryId> = {};
   const rounds: Array<{ claim: ClaimRow; round: RawRound | null }> = [];
+  const sorting = silenceTracker();
   for (const batch of categorizeBatches) {
     onProgress?.({ stage: 'categorizing', done, total });
     let result: Categorized = new Map();
     try {
       result = await categorizeBatch(batch);
+      sorting.answered();
     } catch (error) {
-      // An unusable answer leaves this batch uncategorized; an outage stops the rebuild.
-      if (!isUnusable(error)) throw error;
+      // An unusable answer or one silent batch leaves that batch uncategorized; repeated silence stops the rebuild.
+      if (isUnusable(error)) sorting.answered();
+      else if (error instanceof HermesUnavailableError) sorting.silent(error);
+      else throw error;
     }
     for (const claim of batch) {
       const entry = result.get(claim.ref);
@@ -740,10 +820,11 @@ async function organize(claims: ClaimRow[], markInstruction: string, onProgress?
     }
     done++;
   }
+  sorting.finish();
   const categorized = claims.filter((claim) => categories[claim.ref]);
   const uncategorized = claims.length - categorized.length;
   if (exceedsShare(uncategorized, claims.length, MAX_UNCATEGORIZED)) {
-    throw new TopicOrganizationError('categorize_incomplete', `Hermes could not sort ${uncategorized} of ${claims.length} claims into categories, so nothing was changed. Retry the rebuild.`, 503);
+    throw new TopicOrganizationError('categorize_incomplete', `Hermes could not sort ${uncategorized} of ${claims.length} claims into categories, so nothing was changed. ${failureText(sorting.last)} Retry the rebuild.`.replace(/\s+/g, ' '), 503);
   }
   const categoryOf = (ref: string) => categories[ref];
   const groupBatches = packBatches(categorized, categoryOf);
@@ -752,17 +833,27 @@ async function organize(claims: ClaimRow[], markInstruction: string, onProgress?
   const stamp = now();
   let failedGroups = 0;
   let failedClaims = 0;
+  const grouping = silenceTracker();
   for (const batch of groupBatches) {
     onProgress?.({ stage: 'grouping', done, total });
     const present = new Set(batch.map((claim) => categoryOf(claim.ref)));
-    const existing = topics.filter((topic) => present.has(topic.category)).slice(-80);
-    const outcome = await groupBatch(batch, categoryOf, existing, new Set(topics.map((topic) => topic.title.toLowerCase())), markInstruction, true);
+    const existing = topics.filter((topic) => present.has(topic.category)).slice(-limits.existingTopics);
+    let outcome: BatchOutcome;
+    try {
+      outcome = await groupBatch(batch, categoryOf, existing, new Set(topics.map((topic) => topic.title.toLowerCase())), markInstruction, true);
+      grouping.answered();
+    } catch (error) {
+      if (!(error instanceof HermesUnavailableError)) throw error;
+      grouping.silent(error);
+      outcome = { topics: [], unsorted: batch.map((claim) => claim.ref), failed: true };
+    }
     if (outcome.failed) { failedGroups++; failedClaims += batch.length; }
     applyOutcome(topics, outcome, stamp);
     done++;
   }
+  if (groupBatches.length) grouping.finish();
   if (exceedsShare(failedClaims, categorized.length, MAX_FAILED_GROUPING)) {
-    throw new TopicOrganizationError('grouping_incomplete', `Hermes could not group ${failedClaims} of ${categorized.length} claims, so nothing was changed. Retry the rebuild.`, 503);
+    throw new TopicOrganizationError('grouping_incomplete', `Hermes could not group ${failedClaims} of ${categorized.length} claims, so nothing was changed. ${failureText(grouping.last)} Retry the rebuild.`.replace(/\s+/g, ' '), 503);
   }
   onProgress?.({ stage: 'saving', done, total });
   return {

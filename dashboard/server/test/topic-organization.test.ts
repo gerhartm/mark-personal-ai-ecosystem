@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
  * and answers in the documented JSON shapes, so the real validation, storage
  * and migration code runs against a copy of the stored corpus.
  */
-const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, outage: false, shift: false, garbageCategorize: false, categorizeRules: '' }));
+const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, longDekNextGroups: 0, alsoUnsorted: false, outage: false, shift: false, garbageCategorize: false, categorizeRules: '', duringGroup: null as null | (() => void) }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
     const start = input.indexOf(`${name}\n`);
@@ -38,7 +38,10 @@ vi.mock('../src/hermes-client.js', () => {
       }
       if (head.startsWith("Organize Mark's stored research claims")) {
         state.calls.push('group');
+        state.duringGroup?.();
         if (state.silentNextGroupCalls > 0) { state.silentNextGroupCalls--; throw new Error('Hermes request timeout'); }
+        const longDek = state.longDekNextGroups > 0;
+        if (longDek) state.longDekNextGroups--;
         if (state.failNextGroupCalls > 0) { state.failNextGroupCalls--; return 'not json'; }
         const claims = section(input, 'CLAIMS');
         const existing = section(input, 'EXISTING TOPICS');
@@ -54,14 +57,23 @@ vi.mock('../src/hermes-client.js', () => {
             topics.push({
               key: `new-${code}`,
               title: `Synthetic topic ${code} shows Lendex lending shifting between venues`,
-              dek: `Context line for synthetic topic ${code}, written for an automated test.`,
+              dek: longDek ? `Context line for synthetic topic ${code}, ${'written at length for an automated test '.repeat(6)}`.trim() : `Context line for synthetic topic ${code}, written for an automated test.`,
               description: 'A synthetic description that is long enough to be kept by the validator.',
               claims: ids.splice(0, 2),
             });
           }
           unsorted.push(...ids);
         }
+        if (state.alsoUnsorted) unsorted.push(...claims.map((claim: any) => claim.id));
         return JSON.stringify({ topics, unsorted });
+      }
+      if (head.startsWith('Write a title and a context line')) {
+        state.calls.push('retitle');
+        return JSON.stringify({ topics: section(input, 'TOPICS').map((topic: any) => ({
+          key: topic.key,
+          title: `Retitled topic ${letters(++state.topicNumber)} shows Lendex lending shifting between venues`,
+          dek: 'A shorter context line written for an automated retitle test.',
+        })) });
       }
       return '{}';
     }),
@@ -188,6 +200,38 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.validateTopicBatch(answer(stated), claims, categoryOf, new Map(), new Set(), true).outcome.topics).toHaveLength(1);
     expect(organization.validateTopicBatch(answer('Ending staking rewards would push Lendex to cut rates, guests argue'), claims, categoryOf, new Map(), new Set(), false).issues).toEqual([]);
   });
+  it('salvages the final answer and lists the dropped topics a new title could save', () => {
+    const claims = ['a:0', 'b:0', 'c:0', 'd:0', 'e:0', 'f:0', 'g:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const categoryOf = (ref: string) => (ref === 'g:0' ? 'macro' : 'defi') as any;
+    const dek = 'A context sentence that is long enough to pass the validator.';
+    const answer = {
+      topics: [
+        { key: 'new-1', title: 'Lendex lending moved $5M in a week after the fixture depeg', dek, claims: ['a:0', 'b:0', 'zz:9'] },
+        { key: 'new-2', title: 'Lendex desks moved $5M in a week as fixture rates shifted', dek, claims: ['b:0', 'c:0', 'd:0', 'g:0'] },
+        { key: 'new-3', title: 'Lendex fixture desks moved $5M in a week again', dek: 'A context line that runs long. '.repeat(8).trim(), claims: ['e:0', 'f:0'] },
+        { key: 'new-4', title: 'Macro desk moved $5M in a week on fixture news', dek, claims: ['g:0'] },
+      ],
+      unsorted: [],
+    };
+    const strict = organization.validateTopicBatch(answer, claims, categoryOf, new Map(), new Set(), false).issues.join(' ');
+    expect(strict).toMatch(/not supplied/);
+    expect(strict).toMatch(/mixes categories/);
+    // The final answer keeps what it can: the wrong ID, the repeat and the other category's claim leave their topics.
+    const final = organization.validateTopicBatch(answer, claims, categoryOf, new Map(), new Set(), true);
+    expect(final.issues).toEqual([]);
+    expect(final.outcome.topics.map((topic) => topic.claims)).toEqual([['a:0', 'b:0'], ['c:0', 'd:0']]);
+    expect(final.outcome.dropped!.map((topic) => [topic.claims, topic.repairable, topic.reasons])).toEqual([[['e:0', 'f:0'], true, ['dek_format']], [['g:0'], false, ['single_claim']]]);
+    expect(final.outcome.stats).toMatchObject({ claims: 7, placed: 4, unsorted: 0, dropped: 3, missing: 0, retitled: 0 });
+  });
+  it('keeps an existing topic\'s wording when the new wording proposed for it fails', () => {
+    const claims = ['a:0', 'b:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const current = { key: 'lendex-desks', category: 'defi' as const, title: 'Lendex desks moved $5M in a week as fixture rates shifted', dek: 'The existing context line for this fixture topic.', description: '', claims: ['z:0', 'y:0'], created_at: '', updated_at: '' };
+    const answer = { topics: [{ key: 'lendex-desks', title: 'Too short', dek: 'Short.', claims: ['a:0', 'b:0'] }], unsorted: [] };
+    const final = organization.validateTopicBatch(answer, claims, () => 'defi' as any, new Map([[current.key, current]]), new Set([current.title.toLowerCase()]), true);
+    expect(final.outcome.topics).toHaveLength(1);
+    expect(final.outcome.topics[0]).toMatchObject({ key: 'lendex-desks', title: current.title, dek: current.dek, claims: ['a:0', 'b:0'], isNew: false });
+    expect(final.outcome.dropped).toEqual([]);
+  });
   it('asks for a whole new answer only for broken topics, views stated as fact or forgotten claims', () => {
     const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
     const categoryOf = () => 'defi' as any;
@@ -254,6 +298,19 @@ describe('rebuilding Topics from claims', () => {
     expect(state.categorizeRules).toMatch(/same source that belong to one story or debate share one category/);
   });
 
+  it('retitles dropped topics instead of losing their claims', async () => {
+    state.longDekNextGroups = 2; // both answers for the first grouping batch write over-long context lines
+    state.alsoUnsorted = true; // and list every claim under unsorted too
+    const before = state.calls.length;
+    const preview = await prompts.previewTopics('topic-test').finally(() => { state.alsoUnsorted = false; });
+    expect(state.calls.slice(before)).toContain('retitle');
+    expect(preview.grouping!.retitled).toBeGreaterThan(0);
+    const counts = preview.grouping!;
+    expect(counts.placed + counts.unsorted + counts.dropped + counts.missing).toBe(preview.claim_count);
+    expect(preview.topics.some((topic) => topic.title.startsWith('Retitled topic'))).toBe(true);
+    expect(organization.activeOrganizationV2()).toBeNull();
+  });
+
   it('changes nothing when Hermes is unavailable', async () => {
     const before = categoriesNow();
     state.outage = true;
@@ -272,6 +329,10 @@ describe('rebuilding Topics from claims', () => {
     const saved = organization.activeOrganizationV2()!;
     expect(saved.topics.length).toBe(result.topics.length);
     expect(result.uncategorized).toBe(0);
+    // Every categorized claim is accounted for in the grouping counts.
+    const totals = organization.totalStats(result.batches);
+    expect(totals.claims).toBe(claims.length);
+    expect(totals.placed + totals.unsorted + totals.dropped + totals.missing).toBe(claims.length);
     const seen = saved.topics.flatMap((topic) => topic.claims);
     expect(new Set(seen).size).toBe(seen.length);
     expect(Object.keys(saved.categories).length).toBe(claims.length);
@@ -310,6 +371,41 @@ describe('rebuilding Topics from claims', () => {
     expect(rounds.some((round) => round.company === 'Gamma Corp')).toBe(false);
   });
 
+  it('saves nothing when Topics change while waiting claims are being grouped', async () => {
+    expect(organization.waitingSummary().waiting).toBeGreaterThan(0);
+    const original = database.one<any>("SELECT value FROM generation_meta WHERE key='topics.organization.v2'")!.value;
+    try {
+      state.duringGroup = () => {
+        state.duringGroup = null;
+        const changed = JSON.parse(original);
+        changed.topics = changed.topics.slice(1);
+        database.run("UPDATE generation_meta SET value=? WHERE key='topics.organization.v2'", JSON.stringify(changed));
+      };
+      await expect(prompts.groupWaitingTopics('topic-test')).rejects.toMatchObject({ code: 'topics_changed' });
+      expect(organization.activeOrganizationV2()!.topics.length).toBe(JSON.parse(original).topics.length - 1);
+    } finally {
+      state.duringGroup = null;
+      database.run("UPDATE generation_meta SET value=? WHERE key='topics.organization.v2'", original);
+    }
+  });
+
+  it('gives waiting claims a second chance without changing existing topics', async () => {
+    const before = organization.activeOrganizationV2()!;
+    const { waiting, calls } = organization.waitingSummary();
+    expect(calls).toBeGreaterThan(0);
+    const result = await prompts.groupWaitingTopics('topic-test');
+    const after = organization.activeOrganizationV2()!;
+    expect(result.waiting_before).toBe(waiting);
+    expect(result.placed).toBeGreaterThan(0);
+    expect(result.joined).toBeGreaterThan(0);
+    expect(organization.waitingSummary().waiting).toBe(waiting - result.placed);
+    for (const topic of before.topics) expect(after.topics.find((item) => item.key === topic.key)!.claims).toEqual(expect.arrayContaining(topic.claims));
+    expect(after.categories).toEqual(before.categories);
+    expect(after.generated_at).toBe(before.generated_at);
+    const seen = after.topics.flatMap((topic) => topic.claims);
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
   it('files claims that arrive after a rebuild, including their funding rounds', async () => {
     database.run("INSERT INTO sources(source_id,identity_basis,title,source_type,source_channel,captured_at,origin) VALUES (?,?,'Filing fixture','article','test','2026-10-20T00:00:00Z','ingested')", placementSource, `text:${placementSource}`);
     const quote = 'Delta Labs raised $40 million in a Series A led by Example Ventures to expand stablecoin payouts.';
@@ -326,6 +422,33 @@ describe('rebuilding Topics from claims', () => {
     expect(saved.topics.some((topic) => topic.claims.some((ref) => refs.includes(ref)))).toBe(true);
     expect(await organization.fileNewClaims()).toMatchObject({ claims: 0 });
     expect(organization.listRounds().find((round) => round.company === 'Delta Labs')).toMatchObject({ amount_usd: 40_000_000, stage: 'series a' });
+  });
+
+  it('never places a claim twice when a regrouping saves during a filing run', async () => {
+    const source = `sha256:${'b'.repeat(64)}`;
+    database.run("INSERT INTO sources(source_id,identity_basis,title,source_type,source_channel,captured_at,origin) VALUES (?,?,'Overlap fixture','article','test','2026-10-22T00:00:00Z','ingested')", source, `text:${source}`);
+    processor.commitSourceClaims(source, [
+      { claim: 'A lending fixture reports that isolated pools kept a desk solvent during a fixture run.', quote: 'Isolated pools kept a desk solvent during a fixture run.', topic: 'Isolated pools kept a fixture desk solvent', category: 'defi', significance: 3, tags: [], entities: [], dates: [] },
+      { claim: 'A second lending fixture reports that pooled collateral spread losses across desks.', quote: 'Pooled collateral spread losses across desks.', topic: 'Pooled collateral spread fixture losses', category: 'defi', significance: 3, tags: [], entities: [], dates: [] },
+    ]);
+    // Take one claim out of a DeFi topic so it is waiting, in the same category as the new claims.
+    const live = organization.activeOrganizationV2()!;
+    const donor = live.topics.find((topic) => topic.category === 'defi' && topic.claims.length >= 3)!;
+    const waitingRef = donor.claims.pop()!;
+    database.run("UPDATE generation_meta SET value=? WHERE key='topics.organization.v2'", JSON.stringify(live));
+    // While filing waits for its answer, a regrouping saves the same waiting claim into a topic.
+    state.duringGroup = () => {
+      state.duringGroup = null;
+      const changed = organization.activeOrganizationV2()!;
+      changed.topics.find((topic) => topic.key === donor.key)!.claims.push(waitingRef);
+      database.run("UPDATE generation_meta SET value=? WHERE key='topics.organization.v2'", JSON.stringify(changed));
+    };
+    try {
+      await organization.fileNewClaims({ sourceId: source });
+    } finally { state.duringGroup = null; }
+    const seen = organization.activeOrganizationV2()!.topics.flatMap((topic) => topic.claims);
+    expect(seen.filter((ref) => ref === waitingRef)).toHaveLength(1);
+    expect(new Set(seen).size).toBe(seen.length);
   });
 
   it('retries claims after an unusable answer and parks them only after three', async () => {

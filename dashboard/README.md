@@ -243,9 +243,15 @@ within each category and writes their titles and context lines from the Topics
 instruction in Control center. Claims from one source about the same story or
 debate are asked to share a category, so a debate is not split across
 categories. Every answer is validated against the stored claims, and any figure
-in a title or context line must appear in that topic's claims. A topic that
-still fails validation after one correction is dropped and its claims wait under
-their category; the rest of the batch is kept.
+in a title or context line must appear in that topic's claims. The final answer
+for a batch is salvaged rather than discarded: wrong claim IDs, repeats and
+claims from another category leave their topic instead of sinking it (a topic
+that loses more than half of what it listed is dropped). A new topic whose only
+problem is its title or context line gets one request for new wording, checked
+the same way. When an existing topic gains claims but its proposed new wording
+fails, it keeps the new claims and its current title and context line. A topic
+that still fails (for example, a new topic left with one claim) is dropped and
+its claims wait under their category; the rest of the batch is kept.
 
 When most claims behind a topic report someone's view ("A speaker argues…",
 "Dana asserts…") and the title neither names the speaker nor says that someone
@@ -282,7 +288,22 @@ Preview runs the same two passes on about 70 claims from the largest earlier
 topics and changes nothing. Rebuilds and previews run as persistent background
 jobs with saved progress; repeated clicks reuse the active job, and an
 interrupted job is marked failed at startup for an explicit retry, avoiding an
-unnoticed repeat of paid generation.
+unnoticed repeat of paid generation. Each finished rebuild, preview and
+regrouping records what happened to the claims in grouping, as counts only
+(`grouping` in the job status; for a preview, in its result): placed, listed as
+unsorted by the answer, dropped by the checks (with reasons), missing (never
+mentioned, or mentioned only with a wrong ID, category or as a repeat), and kept
+after new wording.
+
+Group waiting claims (Control center) gives claims that are in no topic a second
+look. Waiting claims are batched by category, never mixed, beside the existing
+topics of that category, so they can join a topic or start one with each other.
+Existing topics keep their claims and every claim keeps its category. It runs as
+a background job (`topics.waiting.job`); new filing runs and rebuilds wait while
+it runs, nothing is saved if Topics changed meanwhile, and a filing run that was
+already under way skips claims that are in a topic by the time it saves. Claims a rebuild could not
+categorize are not included; the next rebuild retries them. Undo last rebuild
+also removes what this added.
 
 Once a rebuild exists, a filing worker checks every minute for claims that are
 not yet organized, including claims committed during a rebuild or before a
@@ -314,5 +335,9 @@ significance fields in `event_editorial`. The dossier labels inferred significan
 as analysis and keeps supporting passages and full sources inspectable. Source
 metadata and duplicate claims remain archived and resolvable, while research
 views exclude them. Undated items open complete dossiers without invented dates.
+Events with no claims keep a label from the original eleven-label taxonomy after
+a Topics rebuild; the Timeline shows them under today's matching category
+(governance under Tokens & governance, exploit incident under Security &
+exploits, and so on) without changing the stored label.
 The reviewed September 10 repair and recovery instructions are documented in
 `../docs/infrastructure/state/2026-09-10-timeline-quality.md`.

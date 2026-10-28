@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { one, run } from './db.js';
 import { rebuildTopics } from './prompt-controls.js';
-import { TopicOrganizationError, type Progress } from './topic-organization.js';
+import { TopicOrganizationError, totalStats, type Progress } from './topic-organization.js';
 
 type TopicJob = {
   id?: string;
@@ -13,6 +13,8 @@ type TopicJob = {
   unsorted_count?: number;
   uncategorized_count?: number;
   failed_groups?: number;
+  /** What happened to the claims in grouping, in counts. */
+  grouping?: ReturnType<typeof totalStats>;
   progress?: Progress;
   error?: string;
 };
@@ -49,7 +51,7 @@ export async function processTopicRebuildJob() {
       save({ ...running, progress, updated_at: new Date().toISOString() });
     });
     save({ ...job, status: 'ready', topic_count: result.topics.length, unsorted_count: result.unsorted,
-      uncategorized_count: result.uncategorized, failed_groups: result.failed_groups, updated_at: new Date().toISOString() });
+      uncategorized_count: result.uncategorized, failed_groups: result.failed_groups, grouping: totalStats(result.batches), updated_at: new Date().toISOString() });
     return true;
   } catch (error) {
     // Our own messages are safe to show; provider details never are.

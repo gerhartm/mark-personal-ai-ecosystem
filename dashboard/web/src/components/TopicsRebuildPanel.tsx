@@ -17,6 +17,20 @@ type RebuildJob = {
   can_undo?: boolean;
   estimate?: { claims: number; calls: number };
 };
+type WaitingJob = {
+  status: JobStatus;
+  updated_at?: string;
+  progress?: Progress;
+  error?: string;
+  /** Claims waiting now, and the AI calls a regrouping would take. */
+  waiting: number;
+  calls: number;
+  waiting_before?: number;
+  placed?: number;
+  joined?: number;
+  created?: number;
+  waiting_after?: number;
+};
 type PreviewTopic = { title: string; dek: string; description: string; category: string; claims: Array<{ text: string; source: string }> };
 type PreviewJob = {
   status: JobStatus;
@@ -38,11 +52,13 @@ const progressText = (progress?: Progress) => {
 export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
   const rebuild = useQuery<RebuildJob>('/prompt-controls/topics/rebuild/status', [], 5_000);
   const preview = useQuery<PreviewJob>('/prompt-controls/topics/preview', [], 5_000);
+  const waiting = useQuery<WaitingJob>('/prompt-controls/topics/waiting', [], 5_000);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [confirmUndo, setConfirmUndo] = useState(false);
-  const [sending, setSending] = useState<'preview' | 'rebuild' | 'undo' | null>(null);
+  const [sending, setSending] = useState<'preview' | 'rebuild' | 'undo' | 'waiting' | null>(null);
   const rebuildBusy = busy(rebuild.data?.status);
   const previewBusy = busy(preview.data?.status);
+  const waitingBusy = busy(waiting.data?.status);
 
   useEffect(() => {
     if (rebuild.data?.status === 'ready') invalidate('/topics');
@@ -52,8 +68,12 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
   useEffect(() => {
     if (preview.data?.status === 'ready' || preview.data?.status === 'failed') setMessage(null);
   }, [preview.data?.status, preview.data?.updated_at]);
+  useEffect(() => {
+    if (waiting.data?.status === 'ready') invalidate('/topics');
+    if (waiting.data?.status === 'ready' || waiting.data?.status === 'failed') setMessage(null);
+  }, [waiting.data?.status, waiting.data?.updated_at]);
 
-  const post = async (kind: 'preview' | 'rebuild' | 'undo', path: string, done: string) => {
+  const post = async (kind: 'preview' | 'rebuild' | 'undo' | 'waiting', path: string, done: string) => {
     setSending(kind);
     setMessage(null);
     try {
@@ -66,6 +86,7 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
       setSending(null);
       rebuild.refetch();
       preview.refetch();
+      waiting.refetch();
     }
   };
 
@@ -114,21 +135,21 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
         <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">
           Rebuild regroups, recategorizes and retitles {estimate ? `all ${estimate.claims.toLocaleString('en-US')} claims` : 'every claim'} into the 13 categories{estimate ? `, using about ${estimate.calls} AI calls (a few more if some answers need a retry)` : ''}. It runs in the background, so you can leave this page. Current Topics stay visible until it finishes. If Hermes stops responding, nothing is changed, and a finished rebuild can be undone.
         </p>
-        <button type="button" className="desk-button" onClick={() => post('rebuild', '/prompt-controls/topics/rebuild', 'Rebuild queued. Progress is saved here.')} disabled={dirty || rebuildBusy || sending !== null}>
+        <button type="button" className="desk-button" onClick={() => post('rebuild', '/prompt-controls/topics/rebuild', 'Rebuild queued. Progress is saved here.')} disabled={dirty || rebuildBusy || waitingBusy || sending !== null}>
           {rebuildBusy ? 'Rebuilding Topics' : rebuild.data?.status === 'failed' ? 'Retry rebuild' : 'Rebuild Topics'}
         </button>
         {rebuild.error ? <p role="alert" className="mt-3 font-mono text-[11px] text-[var(--danger-text)]">Rebuild status is unavailable. Refresh to check before retrying.</p> : null}
         {rebuildBusy ? <p role="status" className="mt-3 font-mono text-[11px] text-[var(--sage)]">{rebuild.data?.status === 'queued' ? 'Queued. The rebuild starts shortly.' : progressText(rebuild.data?.progress)}</p> : null}
         {rebuild.data?.status === 'ready' ? (
           <p role="status" className="mt-3 font-mono text-[11px] leading-relaxed text-[var(--sage)]">
-            Done: {plural(rebuild.data.topic_count ?? 0, 'topic')} live{rebuild.data.unsorted_count ? `, ${plural(rebuild.data.unsorted_count, 'claim')} waiting for a topic` : ''}.
+            Done: {plural(rebuild.data.topic_count ?? 0, 'topic')} live.
             {rebuild.data.failed_groups ? ` ${plural(rebuild.data.failed_groups, 'batch', 'batches')} could not be grouped; those claims wait under their categories.` : ''}
             {rebuild.data.uncategorized_count ? ` ${plural(rebuild.data.uncategorized_count, 'claim')} could not be categorized; the next rebuild retries them.` : ''}
           </p>
         ) : null}
         {rebuild.data?.status === 'failed' ? <p role="alert" className="mt-3 font-mono text-[11px] text-[var(--danger-text)]">{rebuild.data.error}</p> : null}
 
-        {rebuild.data?.can_undo && !rebuildBusy ? (
+        {rebuild.data?.can_undo && !rebuildBusy && !waitingBusy ? (
           <div className="mt-4">
             {!confirmUndo ? (
               <button type="button" className="font-mono text-[11px] text-[var(--accent-text)] underline-offset-2 hover:underline" onClick={() => setConfirmUndo(true)}>Undo last rebuild</button>
@@ -142,6 +163,25 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
           </div>
         ) : null}
       </div>
+
+      {rebuild.data?.can_undo || waiting.data?.waiting ? (
+        <div className="mt-6 border-t border-[var(--line)] pt-4" data-testid="topics-waiting">
+          <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">
+            {waiting.data?.waiting ? `${plural(waiting.data.waiting, 'claim')} ${waiting.data.waiting === 1 ? 'is' : 'are'} waiting for a topic.` : 'No claims are waiting for a topic.'}{' '}
+            Grouping them again gives each one a second look, category by category, beside the other waiting claims and the existing topics{waiting.data?.calls ? `, using about ${waiting.data.calls} AI calls` : ''}. Current topics keep their claims, and nothing is saved if Topics change while it runs.
+          </p>
+          <button type="button" className="desk-button secondary" onClick={() => post('waiting', '/prompt-controls/topics/waiting', 'Grouping queued. Progress is saved here.')} disabled={dirty || !waiting.data?.waiting || waitingBusy || rebuildBusy || sending !== null}>
+            {waitingBusy ? 'Grouping waiting claims' : 'Group waiting claims'}
+          </button>
+          {waitingBusy ? <p role="status" className="mt-3 font-mono text-[11px] text-[var(--sage)]">{waiting.data?.status === 'queued' ? 'Queued. Grouping starts shortly.' : progressText(waiting.data?.progress)}</p> : null}
+          {waiting.data?.status === 'ready' && waiting.data.waiting_before != null ? (
+            <p role="status" className="mt-3 font-mono text-[11px] leading-relaxed text-[var(--sage)]">
+              Done: {plural(waiting.data.placed ?? 0, 'claim')} of {waiting.data.waiting_before} placed. {plural(waiting.data.joined ?? 0, 'claim')} joined existing topics and {plural(waiting.data.created ?? 0, 'new topic')} started. {plural(waiting.data.waiting_after ?? 0, 'claim')} still waiting.
+            </p>
+          ) : null}
+          {waiting.data?.status === 'failed' ? <p role="alert" className="mt-3 font-mono text-[11px] text-[var(--danger-text)]">{waiting.data.error}</p> : null}
+        </div>
+      ) : null}
 
       {message ? <p className={`mt-4 rounded-[5px] border px-3 py-2 font-mono text-[11px] leading-relaxed ${message.error ? 'border-[var(--rose)] text-[var(--danger-text)]' : 'border-[var(--line)] text-[var(--sage)]'}`} role={message.error ? 'alert' : 'status'}>{message.text}</p> : null}
     </div>

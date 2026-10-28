@@ -1,5 +1,5 @@
 import { all, audit, db, one } from './db.js';
-import { DEFAULT_TOPICS_INSTRUCTION, previewTopicsV2, rebuildTopicsV2, type Progress } from './topic-organization.js';
+import { DEFAULT_TOPICS_INSTRUCTION, groupWaitingClaims, previewTopicsV2, rebuildTopicsV2, type Progress } from './topic-organization.js';
 
 export const PROMPT_PAGE_IDS = ['topics', 'prep', 'haseeb', 'tarun'] as const;
 export type PromptPageId = (typeof PROMPT_PAGE_IDS)[number];
@@ -250,4 +250,8 @@ export async function rebuildTopics(actor: string, onProgress?: (progress: Progr
 
 export async function previewTopics(actor: string, onProgress?: (progress: Progress) => void) {
   return previewTopicsV2(actor, getPromptControl('topics').instructions, onProgress);
+}
+
+export async function groupWaitingTopics(actor: string, onProgress?: (progress: Progress) => void) {
+  return groupWaitingClaims(actor, getPromptControl('topics').instructions, onProgress);
 }

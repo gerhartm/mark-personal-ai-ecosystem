@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { one, run } from './db.js';
 import { previewTopics } from './prompt-controls.js';
-import { latestPreview, type Progress } from './topic-organization.js';
+import { latestPreview, TopicOrganizationError, type Progress } from './topic-organization.js';
 
 /** A preview groups a sample of claims with the current instruction and saves nothing else. */
 type PreviewJob = {
@@ -49,9 +49,10 @@ export async function processTopicPreviewJob() {
     await previewTopics(current.actor ?? 'mark', (progress) => save({ ...running, progress, updated_at: new Date().toISOString() }));
     save({ ...current, status: 'ready', updated_at: new Date().toISOString() });
     return true;
-  } catch {
+  } catch (error) {
+    // Our own messages are safe to show (they say why Hermes gave no answer); provider details never are.
     save({ ...current, status: 'failed', updated_at: new Date().toISOString(),
-      error: 'The preview could not be generated. Nothing was changed. Check Hermes availability and retry.' });
+      error: error instanceof TopicOrganizationError ? error.message : 'The preview could not be generated. Nothing was changed. Check Hermes availability and retry.' });
     return false;
   } finally { busy = false; }
 }

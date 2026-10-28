@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { EmptyState, ErrorState, LoadingRows } from '../components/Desk';
 import { ExactDialog } from '../components/ExactDialog';
 import { useQuery } from '../lib/api';
-import { categoryColor, categoryLabel, compact, formatDate, readableText, sourceKind } from '../lib/desk';
+import { categoryColor, categoryLabel, compact, currentCategory, formatDate, readableText, sourceKind } from '../lib/desk';
 import './timeline.css';
 
 type Pin = {
@@ -88,8 +88,9 @@ const safeExternalUrl = (value?: string | null) => {
 
 export function Timeline() {
   const result = useQuery<{ pins: Pin[]; undated: Array<Pick<Pin, 'event_id' | 'summary' | 'source_id' | 'source_title' | 'label' | 'primary_category' | 'significance' | 'reference_count'>>; event_count: number; bounds: { min: string; max: string } }>('/timeline', [], 10_000);
-  const pins = result.data?.pins ?? [];
-  const undated: Pin[] = (result.data?.undated ?? []).map(item => ({ ...item, position: -1, date: '', precision: 'unknown', sort_key: '', span_end: '', category: item.primary_category }));
+  // Events that kept a label from the original taxonomy are shown under today's matching category.
+  const pins = useMemo(() => (result.data?.pins ?? []).map((pin) => ({ ...pin, primary_category: currentCategory(pin.primary_category) })), [result.data]);
+  const undated: Pin[] = (result.data?.undated ?? []).map(item => ({ ...item, primary_category: currentCategory(item.primary_category), position: -1, date: '', precision: 'unknown', sort_key: '', span_end: '', category: item.primary_category }));
   const years = useMemo(
     () => [...new Set(pins.map((pin) => Number(pin.sort_key.slice(0, 4))).filter(Boolean))]
       .sort((a, b) => a - b),

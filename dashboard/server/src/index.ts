@@ -67,7 +67,8 @@ import { enqueueImport, listImports, retryImport, startImportWorker } from './im
 import { queueTopicRebuild, resetTopicRebuildStatus, topicRebuildStatus, startTopicRebuildWorker } from './topic-jobs.js';
 import { startTopicFilingWorker } from './topic-filing.js';
 import { queueTopicPreview, startTopicPreviewWorker, topicPreviewStatus } from './topic-preview-job.js';
-import { TopicOrganizationError, canUndoRebuild, estimateRebuildCalls, listRounds, undoTopicRebuild } from './topic-organization.js';
+import { queueTopicWaiting, resetTopicWaitingStatus, startTopicWaitingWorker, topicWaitingBusy, topicWaitingStatus } from './topic-waiting-job.js';
+import { TopicOrganizationError, activeOrganizationV2, canUndoRebuild, estimateRebuildCalls, listRounds, undoTopicRebuild } from './topic-organization.js';
 import { RESEARCH_EVENT } from './editorial-store.js';
 
 
@@ -397,13 +398,29 @@ app.post('/api/prompt-controls/topics/preview', async (req, reply) => {
   }
   return reply.code(202).send(queueTopicPreview(actor));
 });
-app.post('/api/prompt-controls/topics/rebuild/undo', async (req, reply) => {
+app.get('/api/prompt-controls/topics/waiting', async () => topicWaitingStatus());
+app.post('/api/prompt-controls/topics/waiting', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isStudioRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before grouping waiting claims again.' });
+  }
   if (['queued', 'running'].includes(topicRebuildStatus().status)) {
-    return reply.code(409).send({ error: 'rebuild_running', message: 'Wait for the current rebuild to finish before undoing.' });
+    return reply.code(409).send({ error: 'rebuild_running', message: 'Wait for the current rebuild to finish first.' });
+  }
+  if (!activeOrganizationV2()) {
+    return reply.code(409).send({ error: 'no_topics', message: 'Rebuild Topics first. There are no waiting claims to group yet.' });
+  }
+  return reply.code(202).send(queueTopicWaiting(actor));
+});
+app.post('/api/prompt-controls/topics/rebuild/undo', async (req, reply) => {
+  if (['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy()) {
+    return reply.code(409).send({ error: 'rebuild_running', message: 'Wait for the current rebuild or regrouping to finish before undoing.' });
   }
   try {
     const result = undoTopicRebuild(requestActor(req));
     resetTopicRebuildStatus();
+    resetTopicWaitingStatus();
     return result;
   } catch (error) {
     if (error instanceof TopicOrganizationError) return reply.code(error.status).send({ error: error.code, message: error.message });
@@ -415,6 +432,9 @@ app.post('/api/prompt-controls/topics/rebuild', async (req, reply) => {
   const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
   if (isStudioRateLimited(`${actor}:${remote}`)) {
     return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before rebuilding Topics again.' });
+  }
+  if (topicWaitingBusy()) {
+    return reply.code(409).send({ error: 'waiting_running', message: 'Wait for the waiting claims to finish grouping before rebuilding.' });
   }
   try {
     return reply.code(202).send(queueTopicRebuild(actor));
@@ -892,6 +912,7 @@ if (process.env.NODE_ENV !== 'test') {
   startImportWorker();
   startTopicRebuildWorker();
   startTopicPreviewWorker();
+  startTopicWaitingWorker();
   startTopicFilingWorker();
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);
   console.log(`  media archive: ${MEDIA_ROOT ? 'mounted' : 'not mounted (degraded, documented)'}`);

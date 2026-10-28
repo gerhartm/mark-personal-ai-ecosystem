@@ -49,6 +49,17 @@ export const formatDate = (value?: string | null) => {
   return new Intl.DateTimeFormat('en', { year: 'numeric', month: 'short', day: value.length === 4 ? undefined : 'numeric', timeZone: 'UTC' }).format(date);
 };
 
+/**
+ * Labels from the original eleven-label taxonomy, read as today's categories
+ * for display. Stored values are never changed. "narrative" and "partnerships"
+ * have no single match and keep their own name.
+ */
+const LEGACY_CATEGORIES: Record<string, string> = {
+  defi_mechanics: 'defi', exploit_incident: 'security_exploits', funding: 'venture', governance: 'tokens_governance',
+  infrastructure: 'chains_infrastructure', protocol_launch: 'chains_infrastructure', regulatory: 'regulation_policy', tokenomics: 'tokens_governance',
+};
+export const currentCategory = (category: string) => (knownCategory(category) ? category : LEGACY_CATEGORIES[category] ?? category);
+
 /** Readable name for a research category; older free-form labels fall back to title case. */
 export const categoryLabel = (category: string | null | undefined) => {
   if (!category) return 'Uncategorized';

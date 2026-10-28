@@ -27,6 +27,27 @@ The working copy is not an OS sandbox. Scope instructions prohibit changes outsi
 
 A restore creates a forward commit using a previously published code version. It does not delete history or restore an old database. Schema compatibility and failures can require operator intervention. Preserve the run ID and failed check instead of repeatedly trying unrelated restores.
 
+## Operator releases from a reviewed branch
+
+An operator logged in to the host can release dashboard work prepared outside the editor. It goes through the same checks, backup, versioned commit, health check, automatic recovery and ledger as an editor release:
+
+```bash
+tmux new -s release
+mark-dashboard-release operator check  --branch ux/layout-pass-1 --commit <full commit ID>
+mark-dashboard-release operator deploy --branch ux/layout-pass-1 --commit <full commit ID> --summary "Layout pass 1"
+mark-dashboard-release operator revert --to previous
+mark-dashboard-release operator history
+```
+
+- The branch must be named `ux/…`, `operator/…` or `release/…`, be based on the published `satoshi-dashboard` commit, and the commit must be the branch tip on GitHub.
+- A branch may change `dashboard/` and the project's instructions and documentation: `CLAUDE.md`, `AGENTS.md`, `README.md` and `docs/`. Anything else (for example `deploy/` or `forkedbrain/`) is refused, because those files configure the server rather than the website.
+- A branch that changes only documentation is published without rebuilding or restarting the website: the helper commits the documents to `satoshi-dashboard`, pushes, and records a `documented` entry in the ledger. Documentation that comes with dashboard changes is published in the same release commit.
+- Changes to `dashboard/server/src/db.ts` are refused unless `--allow-schema-change` is given after a compatibility review.
+- `deploy` and `revert` must run inside tmux or screen and ask the operator to type a confirmation word (`--yes` skips the prompt).
+- The published commit on `satoshi-dashboard` contains the branch's `dashboard/` tree and documentation; the receipt records the source branch and commit. Satoshi's editor workspace is refreshed afterwards, so later editor runs build on the new version.
+- `revert --to previous` restores the previous published website code and leaves documentation as it is.
+- Operator commands are refused when invoked through a restricted SSH forced command.
+
 ## Branch consistency matters
 
 The helper expects the Git branch, remote and release ledger to agree. Do not merge unrelated work directly into `satoshi-dashboard` and assume the next agent edit will work. Coordinate documentation/code integration with the operator and reconcile the accepted release state through the established process.

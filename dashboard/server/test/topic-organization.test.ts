@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
  * and answers in the documented JSON shapes, so the real validation, storage
  * and migration code runs against a copy of the stored corpus.
  */
-const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, outage: false, shift: false, garbageCategorize: false, categorizeRules: '' }));
+const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, outage: false, shift: false, garbageCategorize: false, categorizeRules: '' }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
     const start = input.indexOf(`${name}\n`);
@@ -38,6 +38,7 @@ vi.mock('../src/hermes-client.js', () => {
       }
       if (head.startsWith("Organize Mark's stored research claims")) {
         state.calls.push('group');
+        if (state.silentNextGroupCalls > 0) { state.silentNextGroupCalls--; throw new Error('Hermes request timeout'); }
         if (state.failNextGroupCalls > 0) { state.failNextGroupCalls--; return 'not json'; }
         const claims = section(input, 'CLAIMS');
         const existing = section(input, 'EXISTING TOPICS');
@@ -86,6 +87,7 @@ beforeAll(async () => {
   prompts = await import('../src/prompt-controls.js');
   processor = await import('../src/source-processor.js');
   tools = await import('../src/tools.js');
+  organization.timing.retryPauseMs = 0;
   database.run("DELETE FROM generation_meta WHERE key IN ('topics.organization.v2','topics.categories.previous','topics.categories.original','venture.rounds.v1')");
   database.run("INSERT INTO sources(source_id,identity_basis,title,source_type,source_channel,captured_at,origin) VALUES (?,?,'Venture fixture','article','test','2026-10-01T00:00:00Z','ingested')", ventureSource, `text:${ventureSource}`);
   processor.commitSourceClaims(ventureSource, [
@@ -186,6 +188,40 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.validateTopicBatch(answer(stated), claims, categoryOf, new Map(), new Set(), true).outcome.topics).toHaveLength(1);
     expect(organization.validateTopicBatch(answer('Ending staking rewards would push Lendex to cut rates, guests argue'), claims, categoryOf, new Map(), new Set(), false).issues).toEqual([]);
   });
+  it('asks for a whole new answer only for broken topics, views stated as fact or forgotten claims', () => {
+    const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const categoryOf = () => 'defi' as any;
+    const title = 'Lendex lending moved $5M in a week after the fixture depeg';
+    const dek = 'A context sentence that is long enough to pass the validator.';
+    const longDek = 'A context sentence that runs long on purpose, so it clears the hard limit for context lines while still breaking the shorter style limit that asks for brevity in every line.';
+    expect(longDek.length).toBeGreaterThan(160);
+    const check = (topics: any[], unsorted: string[]) => organization.validateTopicBatch({ topics, unsorted }, claims, categoryOf, new Map(), new Set(), false);
+    const styleOnly = check([{ key: 'new-1', title, dek: longDek, claims: ['a:0', 'b:0'] }], ['c:0']);
+    expect(styleOnly.issues.join(' ')).toMatch(/at most 160/);
+    expect(styleOnly.needsRetry).toBe(false);
+    expect(check([{ key: 'new-1', title, dek, claims: ['a:0', 'b:0'] }], []).needsRetry).toBe(true);
+    expect(check([{ key: 'new-1', title: 'Too short', dek, claims: ['a:0', 'b:0'] }], ['c:0']).needsRetry).toBe(true);
+  });
+  it('prefers a corrected answer that says whose view it is unless it files clearly fewer claims', () => {
+    const topic = (claims: string[]) => ({ key: 'k', category: 'defi' as const, title: 't', dek: 'd', description: '', claims, isNew: true });
+    const refs = Array.from({ length: 10 }, (_, index) => `r${index}:0`);
+    const unattributed = { topics: [topic(refs)], unsorted: [], failed: false, flagged: 1 };
+    const corrected = { topics: [topic(refs.slice(0, 9))], unsorted: refs.slice(9), failed: false, flagged: 0 };
+    const thin = { topics: [topic(refs.slice(0, 3))], unsorted: refs.slice(3), failed: false, flagged: 0 };
+    expect(organization.betterOutcome(unattributed, corrected)).toBe(corrected);
+    expect(organization.betterOutcome(corrected, unattributed)).toBe(corrected);
+    expect(organization.betterOutcome(unattributed, thin)).toBe(unattributed);
+  });
+  it('explains why Hermes gave no answer without passing on provider details', () => {
+    expect(organization.classifyHermesFailure(new Error('Hermes request timeout'))).toBe('timeout');
+    expect(organization.classifyHermesFailure(new Error('Hermes returned an empty response'))).toBe('empty');
+    expect(organization.classifyHermesFailure(new Error('429 insufficient_quota'))).toBe('quota');
+    expect(organization.classifyHermesFailure(new Error('Rate limit reached for requests'))).toBe('rate_limit');
+    expect(organization.classifyHermesFailure(new Error('Hermes websocket failed'))).toBe('connection');
+    expect(organization.classifyHermesFailure(new Error('Something unexpected happened'))).toBe('error');
+    expect(new organization.HermesUnavailableError('timeout').message).toMatch(/longer than the time limit/);
+    expect(new organization.HermesUnavailableError().message).toBe('Hermes did not respond, so nothing was changed. Check Hermes availability and retry.');
+  });
   it('measures failure limits by share and prefers the answer that files more claims', () => {
     expect(organization.exceedsShare(1, 4, 0.25)).toBe(false);
     expect(organization.exceedsShare(2, 4, 0.25)).toBe(true);
@@ -221,8 +257,10 @@ describe('rebuilding Topics from claims', () => {
   it('changes nothing when Hermes is unavailable', async () => {
     const before = categoriesNow();
     state.outage = true;
-    await expect(prompts.rebuildTopics('topic-test')).rejects.toBeInstanceOf(organization.HermesUnavailableError);
+    const error = await prompts.rebuildTopics('topic-test').catch((caught) => caught);
     state.outage = false;
+    expect(error).toBeInstanceOf(organization.HermesUnavailableError);
+    expect(error.message).toMatch(/out of credits/);
     expect(organization.activeOrganizationV2()).toBeNull();
     expect(categoriesNow()).toEqual(before);
   });
@@ -314,6 +352,27 @@ describe('rebuilding Topics from claims', () => {
       expect(organization.activeOrganizationV2()!.generated_at).toBe(before);
     } finally {
       state.failNextGroupCalls = 0;
+    }
+  });
+
+  it('lets one silent grouping batch wait, and stops when Hermes stays silent', async () => {
+    const saved = { ...organization.limits };
+    organization.limits.groupClaims = 15;
+    try {
+      state.silentNextGroupCalls = 2; // both attempts for the first grouping batch
+      const result = await prompts.rebuildTopics('topic-test');
+      expect(result.failed_groups).toBe(1);
+      const before = organization.activeOrganizationV2()!.generated_at;
+      const categories = categoriesNow();
+      state.silentNextGroupCalls = 4; // two batches in a row
+      const error = await prompts.rebuildTopics('topic-test').catch((caught) => caught);
+      expect(error).toBeInstanceOf(organization.HermesUnavailableError);
+      expect(error.message).toMatch(/longer than the time limit/);
+      expect(organization.activeOrganizationV2()!.generated_at).toBe(before);
+      expect(categoriesNow()).toEqual(categories);
+    } finally {
+      state.silentNextGroupCalls = 0;
+      Object.assign(organization.limits, saved);
     }
   });
 

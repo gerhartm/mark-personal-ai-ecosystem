@@ -251,13 +251,25 @@ When most claims behind a topic report someone's view ("A speaker argues…",
 "Dana asserts…") and the title neither names the speaker nor says that someone
 argues, warns or expects it, a rebuild or preview asks for a corrected title
 (the filing worker does not). This is a correction request only: if the second
-answer still states the view as fact, the topic is kept rather than dropped. Claims that only cite a document ("the
-source asserts…") count as facts.
+answer still states the view as fact, the topic is kept rather than dropped.
+Claims that only cite a document ("the source asserts…") count as facts. Only
+broken topics, views stated as fact and forgotten claims are worth a whole new
+answer; length and style notes alone do not trigger one.
+
+Grouping requests hold up to 60 claims and list up to 80 existing topics from
+the same categories by title, so each answer fits well within the six-minute
+limit per call (four minutes for sorting). A call that gets no answer is retried
+once after a 30-second pause. A batch that still gets no answer waits: its
+claims stay uncategorized or ungrouped. Two such batches in a row, or no answer
+to any batch, stop the rebuild. Failure messages say why in fixed wording
+(time limit, empty answer, out of credits, rate limit, unreachable); provider
+messages are never shown.
 
 A rebuild saves nothing when Hermes stops responding, when more than a tenth of
 the claims cannot be categorized, or when grouping fails for more than a quarter
-of the claims. When a retry is worse than the first answer, the answer that puts
-more claims into topics is kept. Figures are compared at their written size, so
+of the claims. Of two usable answers, one that states fewer views as fact wins
+unless it puts under 90% as many claims into topics; otherwise the answer that
+puts more claims into topics is kept. Figures are compared at their written size, so
 $285B never stands in for $285 million. The result is stored as `topics.organization.v2` in
 `generation_meta`, and each event's `primary_category` becomes the main category
 of its claims. Before that, the categories and organization from before the

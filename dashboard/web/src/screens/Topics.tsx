@@ -182,13 +182,13 @@ function CategoryTopics({ data }: { data: Extract<TopicsPayload, { version: 2 }>
       </div>
       {scope ? <p className="mb-3 max-w-[72ch] font-serif text-[14px] leading-relaxed text-muted-foreground">{scope}</p> : null}
 
-      <div className="mb-5 flex items-center justify-between gap-4 border-b border-[var(--line)] pb-3 font-mono text-[11px] text-dim">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[var(--line)] pb-3 font-mono text-[11px] text-dim">
         <p role="status" className="min-w-0">
           {filtering
             ? <>{plural(topics.length, 'topic')}{show === 'all' ? <> and {plural(waiting.length, 'unfiled claim')}</> : null} match · <button type="button" onClick={clearFilters} className={accentLink}>Clear filters</button></>
             : <span className="hidden sm:inline">New claims are filed as sources finish processing · <Link className={accentLink} to="/sources">Sources and processing</Link></span>}
         </p>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <label className="flex items-center gap-2">
             <span>Show</span>
             <select data-testid="topics-show" value={show} onChange={(event) => chooseShow(event.target.value as Show)} className="rounded-md border border-[var(--line-strong)] bg-[var(--panel)] px-2 py-1 font-mono text-[11.5px] text-foreground">

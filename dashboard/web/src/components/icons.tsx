@@ -149,3 +149,21 @@ export const IconPulse = () => (
     <path d="M3 12h4l2-5 4 10 2-5h6" />
   </svg>
 );
+
+export const IconBookmark = ({ filled = false, size = 18 }: { filled?: boolean; size?: number }) => (
+  <svg {...base} width={size} height={size} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M7 3.5h10a1 1 0 0 1 1 1V20.5l-6-3.8-6 3.8V4.5a1 1 0 0 1 1-1z" />
+  </svg>
+);
+
+export const IconCheck = ({ size = 18 }: { size?: number }) => (
+  <svg {...base} width={size} height={size} strokeWidth={2}>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+);
+
+export const IconStar = ({ filled = false, size = 18 }: { filled?: boolean; size?: number }) => (
+  <svg {...base} width={size} height={size} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M12 3.6l2.6 5.3 5.8.85-4.2 4.1 1 5.8L12 16.9l-5.2 2.75 1-5.8-4.2-4.1 5.8-.85z" />
+  </svg>
+);

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { EmptyState, ErrorState, Eyebrow, LoadingRows, Provenance } from '../components/Desk';
-import { useQuery } from '../lib/api';
+import { api, invalidate, useQuery } from '../lib/api';
+import { IconBookmark, IconCheck, IconStar } from '../components/icons';
 import { categoryColor, categoryLabel, compact, formatDate, plural, sourceKind, titleCase } from '../lib/desk';
 import './topics.css';
 
@@ -22,6 +23,9 @@ type Claim = {
 };
 
 type RelatedTag = { tag: string; event_count: number };
+type Reading = { read: boolean; read_at: string | null; rating: number | null; bookmarked: boolean; new_claims: number; new_refs: string[] };
+const NO_READING: Reading = { read: false, read_at: null, rating: null, bookmarked: false, new_claims: 0, new_refs: [] };
+const RATING_WORDS = ['', 'Not for me', 'Somewhat interesting', 'Interesting', 'Very interesting', 'Must read'];
 type FilterItem = { label: string; n: number };
 
 const claimSpeaker = (claim: Claim) => claim.source_channel || claim.source_label || compact(claim.source_title, 56) || 'Stored source';
@@ -43,6 +47,11 @@ export function TopicDetail() {
   const category: string | null = result.data?.version === 2 ? result.data?.category ?? null : null;
   const dek: string = result.data?.topic_dek ?? '';
   const description: string = result.data?.topic_description ?? '';
+  // The page and its reading bar share one copy, so a change shows everywhere at once.
+  const savedReading: Reading = result.data?.reading ?? NO_READING;
+  const [reading, setReading] = useState<Reading>(savedReading);
+  useEffect(() => { setReading(savedReading); }, [savedReading]);
+  const newRefs = useMemo(() => new Set(reading.new_refs), [reading.new_refs]);
 
   const speakers = useMemo<FilterItem[]>(() => {
     const counts = new Map<string, number>();
@@ -117,6 +126,7 @@ export function TopicDetail() {
           {bySource ? '' : ` · ${plural(new Set(claims.map(claimSpeaker)).size, 'source label')}`} · {plural(result.data?.sources?.length ?? 0, 'source')}
           {coverage ? ` · ${coverage}` : ''}
         </p>
+        {category ? <ReadingBar tag={topic} reading={reading} setReading={setReading} onSaved={result.refetch} /> : null}
       </div>
 
       {relatedTags.length ? (
@@ -155,6 +165,7 @@ export function TopicDetail() {
               )}
               {group.items.map((claim) => (
                 <article data-testid="topic-claim" className="mb-3 border-b border-[var(--line)] pb-3 last:mb-0 last:border-0 last:pb-0" key={`${claim.event_id}-${claim.position}`}>
+                  {newRefs.has(`${claim.event_id}:${claim.position}`) ? <p className="mb-1 font-mono text-[10.5px] tracking-[0.06em] text-[var(--accent-text)] uppercase" data-testid="topic-claim-new">New since you read</p> : null}
                   <p className="mb-[7px] font-serif text-[15px] leading-relaxed text-pretty text-foreground">{claim.text}</p>
                   {claim.evidence_quote ? <details className="mb-2 text-[13px] text-muted-foreground"><summary className="cursor-pointer">Supporting passage</summary><blockquote className="mt-2 border-l-2 border-[var(--brass)] pl-3">{claim.evidence_quote}</blockquote></details> : null}
                   <Link to={`/sources/${encodeURIComponent(claim.source_id)}`} className="mb-2 inline-block font-mono text-[11.5px] text-[var(--accent-text)] underline decoration-[var(--line-strong)] underline-offset-2 hover:decoration-current">Read retained source</Link>
@@ -196,6 +207,85 @@ function Filter({ label, values, active, setActive }: { label: string; values: F
         );
       })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Mark read, rate how interesting the topic was, and bookmark it to come back
+ * to. Each change shows at once and is saved straight away; the Topics list
+ * shows the same marks.
+ */
+function ReadingBar({ tag, reading, setReading, onSaved }: { tag: string; reading: Reading; setReading: (reading: Reading) => void; onSaved: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const change = async (patch: { read?: boolean; rating?: number | null; bookmarked?: boolean }) => {
+    const before = reading;
+    setReading({
+      ...reading, ...patch,
+      read_at: patch.read ? new Date().toISOString() : patch.read === false ? null : reading.read_at,
+      new_claims: patch.read !== undefined ? 0 : reading.new_claims,
+      new_refs: patch.read !== undefined ? [] : reading.new_refs,
+    } as Reading);
+    setSaving(true);
+    setError(null);
+    try {
+      setReading(await api<Reading>(`/topics/${encodeURIComponent(tag)}/reading`, { method: 'POST', body: JSON.stringify(patch) }));
+      invalidate('/topics');
+      onSaved();
+    } catch (failure) {
+      setReading(before);
+      setError(failure instanceof Error ? failure.message : 'That change was not saved. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const pill = 'inline-flex min-h-[34px] cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1 font-mono text-[11.5px] transition-colors disabled:cursor-wait';
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3" data-testid="topic-reading">
+      {reading.read ? (
+        <span className="inline-flex items-center gap-2.5 font-mono text-[11.5px]">
+          <span className="inline-flex items-center gap-1 text-[var(--sage)]"><IconCheck size={15} />Read{reading.read_at ? ` ${formatDate(reading.read_at)}` : ''}</span>
+          <button type="button" disabled={saving} onClick={() => change({ read: false })} className="cursor-pointer text-dim underline-offset-2 hover:text-foreground hover:underline">Mark unread</button>
+        </span>
+      ) : (
+        <button type="button" disabled={saving} onClick={() => change({ read: true })} className={`${pill} border-[var(--line-strong)] text-foreground hover:border-[var(--brass)]`}>
+          <IconCheck size={14} />Mark as read
+        </button>
+      )}
+
+      <div role="radiogroup" aria-label="How interesting was this topic?" className="inline-flex items-center">
+        <span className="mr-1.5 font-mono text-[11px] text-dim">Interest</span>
+        {[1, 2, 3, 4, 5].map((value) => {
+          const on = (reading.rating ?? 0) >= value;
+          return (
+            <button key={value} type="button" role="radio" aria-checked={reading.rating === value} disabled={saving}
+              aria-label={`${value} of 5: ${RATING_WORDS[value]}${reading.rating === value ? ' (select again to clear)' : ''}`}
+              title={RATING_WORDS[value]}
+              onClick={() => change({ rating: reading.rating === value ? null : value })}
+              className={`grid size-8 cursor-pointer place-items-center rounded transition-colors ${on ? 'text-[var(--brass)]' : 'text-dim hover:text-muted-foreground'}`}>
+              <IconStar filled={on} size={18} />
+            </button>
+          );
+        })}
+        {reading.rating ? <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">{RATING_WORDS[reading.rating]}</span> : null}
+      </div>
+
+      <button type="button" aria-pressed={reading.bookmarked} disabled={saving} onClick={() => change({ bookmarked: !reading.bookmarked })}
+        className={`${pill} ${reading.bookmarked ? 'border-[var(--brass)] bg-[var(--panel-2)] text-foreground' : 'border-[var(--line-strong)] text-muted-foreground hover:border-[var(--brass)] hover:text-foreground'}`}>
+        <span className={reading.bookmarked ? 'text-[var(--brass)]' : ''}><IconBookmark filled={reading.bookmarked} size={15} /></span>
+        {reading.bookmarked ? 'Bookmarked' : 'Bookmark'}
+      </button>
+
+      {reading.read && reading.new_claims ? (
+        <span className="inline-flex flex-wrap items-center gap-2 font-mono text-[11px] text-[var(--accent-text)]">
+          <span>{plural(reading.new_claims, 'claim')} added since you read this</span>
+          <button type="button" disabled={saving} onClick={() => change({ read: true })} className="cursor-pointer underline underline-offset-2 hover:text-foreground">Mark read again</button>
+        </span>
+      ) : null}
+      {error ? <span role="alert" className="font-mono text-[11px] text-[var(--danger-text)]">{error}</span> : null}
     </div>
   );
 }

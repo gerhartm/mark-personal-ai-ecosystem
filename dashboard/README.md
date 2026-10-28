@@ -225,6 +225,9 @@ dates are omitted. Three failed processing attempts stop with a visible retry
 action. A five-second worker tick schedules work; it is not a promise that a
 document finishes in five seconds. Provider availability and document length
 determine completion time and processing consumes the existing model allowance.
+Extraction calls go to Hermes as task `crypto_claims`, so Hermes can pin their
+model (`auxiliary.crypto_claims` in Hermes's config); with nothing set there
+Hermes uses its main model.
 
 Bulk requests accept up to 100 items each, with a persistent per-item queue. The
 UI splits larger selections into bounded requests. Supported uploads are TXT,
@@ -253,6 +256,12 @@ fails, it keeps the new claims and its current title and context line. A topic
 that still fails (for example, a new topic left with one claim) is dropped and
 its claims wait under their category; the rest of the batch is kept.
 
+A new topic needs at least three claims, or claims from at least two sources.
+Two claims from one source are one point, not a topic: the checks drop such a
+pair (`same_source_pair`) and its claims wait. Existing topics can still gain a
+single claim. The same rule applies to rebuilds, previews, regrouping and
+filing.
+
 When most claims behind a topic report someone's view ("A speaker argues…",
 "Dana asserts…") and the title neither names the speaker nor says that someone
 argues, warns or expects it, a rebuild or preview asks for a corrected title
@@ -263,8 +272,12 @@ broken topics, views stated as fact and forgotten claims are worth a whole new
 answer; length and style notes alone do not trigger one.
 
 Grouping requests hold up to 60 claims and list up to 80 existing topics from
-the same categories by title, so each answer fits well within the six-minute
-limit per call (four minutes for sorting). A call that gets no answer is retried
+the same categories by title. Every Topics call goes to Hermes as task
+`crypto_topics`, so Hermes can pin its model and reasoning effort
+(`auxiliary.crypto_topics` in Hermes's config; with nothing set there Hermes
+uses its main model). The limits leave room for a reasoning model at high
+effort: twelve minutes and 24,000 output tokens per grouping call, eight minutes
+and 16,000 tokens for sorting, six minutes and 8,000 tokens for new wording. A call that gets no answer is retried
 once after a 30-second pause. A batch that still gets no answer waits: its
 claims stay uncategorized or ungrouped. Two such batches in a row, or no answer
 to any batch, stop the rebuild. Failure messages say why in fixed wording
@@ -304,6 +317,44 @@ it runs, nothing is saved if Topics changed meanwhile, and a filing run that was
 already under way skips claims that are in a topic by the time it saves. Claims a rebuild could not
 categorize are not included; the next rebuild retries them. Undo last rebuild
 also removes what this added.
+
+Tidy (Control center) returns topics that would not be started today (one
+claim, or two claims from the same source) to the waiting list. It uses no AI
+calls, changes no categories, and saves the removed topics
+(`topics.tidy.previous`) so Undo tidy can put them back with the claims that are
+still waiting; a claim that has since joined another topic stays there, and a
+topic left with fewer than two of its claims still in the research is not
+restored. A second tidy before the next rebuild adds to the saved topics, so one
+undo puts back both. Undo tidy is offered until Topics are rebuilt. Tidy and its
+undo wait while a rebuild or regrouping runs.
+
+On the Topics page, claims that are not in a topic are listed under their
+source ("Points not in a topic yet"), largest groups first.
+
+### Reading marks
+
+A topic page lets Mark mark the topic read, rate how interesting it was (1 to
+5) and bookmark it. The Topics list shows the marks on each card, filters by
+Unread, Bookmarked or Read, and sorts by Highest rated. When claims join a topic
+after it was marked read, the card shows how many are new, the topic page labels
+them, and "Mark read again" clears them. Marks are stored as one JSON value
+(`topics.reading.v1` in `app_settings`), so no schema change is involved.
+
+Marks are kept by topic key, with the topic's claims at the time. A rebuild
+gives every topic a new key, so a topic with no record of its own shows a
+leftover mark (one whose topic no longer exists) when it is that topic's
+successor: it was created after the mark last changed, it holds at least two of
+the mark's claims and at least half of them, and those claims are at least a
+third of the topic. Each leftover mark shows on one topic at most, closest match
+first. A topic that existed alongside the old one never takes over its mark, even
+if it later takes in the old topic's claims. This is worked out whenever Topics
+are read and is never saved, so Undo last rebuild or Undo tidy brings back the
+original topics with their own marks. Changing a mark on a topic saves it under
+that topic, and the leftover mark it continued is then shown on no other topic;
+a topic keeps its record even when every mark is cleared, so a leftover mark
+cannot appear in their place. `POST
+/api/topics/:tag/reading` takes `read` (true or false), `rating` (1 to 5, or
+null to clear) and `bookmarked` (true or false).
 
 Once a rebuild exists, a filing worker checks every minute for claims that are
 not yet organized, including claims committed during a rebuild or before a

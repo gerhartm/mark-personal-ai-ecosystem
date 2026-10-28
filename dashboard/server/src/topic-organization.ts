@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { all, audit, db, one, run } from './db.js';
 import { generateWithHermes } from './hermes-client.js';
 import { RESEARCH_EVENT } from './editorial-store.js';
+import { readingForTopics } from './topic-reading.js';
 
 export const CATEGORIES = [
   { id: 'stablecoins', label: 'Stablecoins', scope: 'Stablecoin issuers, reserves, distribution, yield, and competition between stablecoins.' },
@@ -127,6 +128,19 @@ const pause = (ms: number) => (ms > 0 ? new Promise((resolve) => setTimeout(reso
  */
 export const limits = { groupClaims: 60, groupChars: 24_000, existingTopics: 80 };
 
+/**
+ * The Hermes task name for every Topics call. Hermes routes it through
+ * auxiliary.crypto_topics in its config, which pins the model and reasoning
+ * effort; with nothing set there it uses Hermes's main model. Token caps and
+ * time limits leave room for a reasoning model thinking at high effort.
+ */
+export const TOPICS_TASK = 'crypto_topics';
+export const calls = {
+  categorize: { maxTokens: 16_000, timeoutMs: 480_000 },
+  group: { maxTokens: 24_000, timeoutMs: 720_000 },
+  retitle: { maxTokens: 8_000, timeoutMs: 360_000 },
+};
+
 const clean = (value: unknown) => String(value ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 const now = () => new Date().toISOString();
 export const claimRef = (eventId: string, position: number) => `${eventId}:${position}`;
@@ -171,6 +185,11 @@ function readJson<T>(key: string): T | null {
 
 function writeJson(key: string, value: unknown) {
   run('INSERT OR REPLACE INTO generation_meta (key, value) VALUES (?, ?)', key, JSON.stringify(value));
+}
+
+/** Refs of every stored claim, for leaving out claims whose source was removed. */
+export function liveClaimRefs() {
+  return new Set(loadClaims().map((claim) => claim.ref));
 }
 
 export function activeOrganizationV2(): OrganizationV2 | null {
@@ -499,7 +518,7 @@ async function categorizeBatch(batch: ClaimRow[]): Promise<Categorized> {
     let raw: string;
     try {
       raw = await generateWithHermes(`CLAIMS\n${batch.filter((claim) => !result.has(claim.ref)).map((claim) => claimLine(claim)).join('\n')}${issues ? `\n\nCORRECT THESE ISSUES\n${issues}` : ''}`, {
-        instructions, maxTokens: 8_000, temperature: 0.1, timeoutMs: 240_000,
+        instructions, task: TOPICS_TASK, ...calls.categorize, temperature: 0.1,
       });
     } catch (error) {
       failure = classifyHermesFailure(error);
@@ -575,8 +594,20 @@ function topicKey(title: string, category: string) {
   return `${slug || 'topic'}-${createHash('sha256').update(`${category}:${title.toLowerCase()}`).digest('hex').slice(0, 6)}`;
 }
 
+/**
+ * A new topic needs at least three claims, or claims from at least two
+ * sources. Two claims from one source are one point, not a topic: they wait
+ * under their source until another claim tells the same story.
+ */
+export const MIN_TOPIC = { claims: 3, sources: 2 };
+export function strongTopic(refs: string[], sourceOf: (ref: string) => string | undefined) {
+  const distinct = [...new Set(refs)];
+  return distinct.length >= MIN_TOPIC.claims
+    || (distinct.length >= 2 && new Set(distinct.map(sourceOf)).size >= MIN_TOPIC.sources);
+}
+
 export const FIXED_TOPIC_RULES = [
-  'A topic is one story, debate or mechanism supported by at least two claims. Put each supplied claim in at most one topic. List a claim under "unsorted" only when no other claim, new or existing, shares its story.',
+  'A topic is one story, debate or mechanism. A new topic needs at least three claims, or claims from at least two different sources; two claims from one source are one point, not a topic. Put each supplied claim in at most one topic. List a claim under "unsorted" only when no other claim, new or existing, shares its story.',
   'Every claim in a topic must have the same category as the topic.',
   'To add claims to an existing topic, use its key. Name new topics "new-1", "new-2" and so on.',
   'title: one complete phrase of 6 to 14 words, at most 90 characters, plain text.',
@@ -669,6 +700,9 @@ export function validateTopicBatch(
     }
     const description = clean(row?.description);
     if (!current && fresh.length < 2) flag('single_claim', `${label} is new and needs at least two different claims; otherwise list the claim as unsorted.`);
+    else if (!current && !strongTopic(fresh, (id) => byRef.get(id)?.source_id)) {
+      flag('same_source_pair', `${label} is new with only two claims from one source. A new topic needs three or more claims, or claims from at least two sources; otherwise list them as unsorted.`);
+    }
     if ((current?.claims.length ?? 0) + fresh.length > 60) flag('too_many', `${label} holds too many claims; split it into narrower stories.`);
     topicHard.push(...problems);
     // Reported for a correction, and counted for a kept topic; a dropped topic is not counted.
@@ -747,7 +781,7 @@ async function retitleDropped(outcome: BatchOutcome, batch: ClaimRow[], takenTit
   })).join('\n');
   let raw: string;
   try {
-    raw = await generateWithHermes(`TOPICS\n${input}`, { instructions, maxTokens: 4_000, temperature: 0.2, timeoutMs: 180_000 });
+    raw = await generateWithHermes(`TOPICS\n${input}`, { instructions, task: TOPICS_TASK, ...calls.retitle, temperature: 0.2 });
   } catch {
     return outcome;
   }
@@ -832,7 +866,7 @@ async function groupBatch(
     let raw: string;
     try {
       raw = await generateWithHermes(`${input}${issues.length ? `\n\nCORRECT THESE ISSUES\n${issues.slice(0, 12).join('\n')}` : ''}`, {
-        instructions, maxTokens: 12_000, temperature: 0.2, timeoutMs: 360_000,
+        instructions, task: TOPICS_TASK, ...calls.group, temperature: 0.2,
       });
     } catch (error) {
       failure = classifyHermesFailure(error);
@@ -892,13 +926,13 @@ export function packBatches(claims: ClaimRow[], categoryOf: (ref: string) => str
 /**
  * Leaves out claims that are already in a topic, for an answer prepared from an
  * older copy of the Topics (a filing run that overlapped a regrouping). A new
- * topic left with fewer than two claims is not started; its claims keep waiting.
+ * topic left too weak to stand on its own is not started; its claims keep waiting.
  */
-function withoutPlaced(outcome: BatchOutcome, topics: TopicV2[]): BatchOutcome {
+function withoutPlaced(outcome: BatchOutcome, topics: TopicV2[], sourceOf: (ref: string) => string | undefined): BatchOutcome {
   const placed = new Set(topics.flatMap((topic) => topic.claims));
   const drafts = outcome.topics
     .map((draft) => ({ ...draft, claims: draft.claims.filter((ref) => !placed.has(ref)) }))
-    .filter((draft) => (draft.isNew ? draft.claims.length >= 2 : draft.claims.length > 0));
+    .filter((draft) => (draft.isNew ? strongTopic(draft.claims, sourceOf) : draft.claims.length > 0));
   return { ...outcome, topics: drafts };
 }
 
@@ -1248,6 +1282,92 @@ export async function groupWaitingClaims(actor: string, markInstruction: string,
 }
 
 /* ------------------------------------------------------------------ *
+ * Tidying weak topics
+ * ------------------------------------------------------------------ */
+
+export const TIDY_SNAPSHOT_KEY = 'topics.tidy.previous';
+type TidySnapshot = { saved_at: string; saved_by: string; generated_at: string; topics: TopicV2[] };
+
+/** Live topics that would not be started today: fewer than three claims, all from one source. */
+function weakTopics(organization: OrganizationV2, stored = loadClaims()) {
+  const sourceOf = new Map(stored.map((claim) => [claim.ref, claim.source_id]));
+  return organization.topics.filter((topic) => {
+    const live = topic.claims.filter((ref) => sourceOf.has(ref));
+    return live.length > 0 && !strongTopic(live, (ref) => sourceOf.get(ref));
+  });
+}
+
+function tidySnapshot(organization: OrganizationV2 | null) {
+  const snapshot = readJson<TidySnapshot>(TIDY_SNAPSHOT_KEY);
+  return snapshot && organization && snapshot.generated_at === organization.generated_at ? snapshot : null;
+}
+
+export function tidySummary() {
+  const organization = activeOrganizationV2();
+  if (!organization) return { weak_topics: 0, weak_claims: 0, can_undo: false, last: null };
+  const stored = loadClaims();
+  const live = new Set(stored.map((claim) => claim.ref));
+  const weak = weakTopics(organization, stored);
+  const snapshot = tidySnapshot(organization);
+  return {
+    weak_topics: weak.length,
+    weak_claims: weak.reduce((sum, topic) => sum + new Set(topic.claims.filter((ref) => live.has(ref))).size, 0),
+    can_undo: Boolean(snapshot),
+    last: snapshot ? { at: snapshot.saved_at, topics: snapshot.topics.length } : null,
+  };
+}
+
+/**
+ * Returns weak topics' claims to the waiting list, where they show under their
+ * source. Categories are unchanged. The removed topics are kept for undo; a
+ * second tidy before the next rebuild adds to them, so one undo puts back both.
+ */
+export function tidyTopics(actor: string) {
+  const stored = loadClaims();
+  const live = new Set(stored.map((claim) => claim.ref));
+  return db.transaction(() => {
+    const organization = activeOrganizationV2();
+    if (!organization) throw new TopicOrganizationError('no_topics', 'There are no Topics to tidy yet.', 409);
+    const weak = weakTopics(organization, stored);
+    if (!weak.length) return { tidied: 0, returned: 0, topics: organization.topics.length };
+    const keys = new Set(weak.map((topic) => topic.key));
+    const returned = weak.reduce((sum, topic) => sum + new Set(topic.claims.filter((ref) => live.has(ref))).size, 0);
+    const topics = organization.topics.filter((topic) => !keys.has(topic.key));
+    const earlier = tidySnapshot(organization)?.topics.filter((topic) => !keys.has(topic.key)) ?? [];
+    writeJson(TIDY_SNAPSHOT_KEY, { saved_at: now(), saved_by: actor, generated_at: organization.generated_at, topics: [...earlier, ...weak] } satisfies TidySnapshot);
+    writeJson(ORGANIZATION_KEY, { ...organization, topics });
+    audit(actor, 'topics.tidy', ORGANIZATION_KEY, { tidied: weak.length, returned });
+    return { tidied: weak.length, returned, topics: topics.length };
+  })();
+}
+
+/**
+ * Puts tidied topics back with the claims that are still waiting. A claim that
+ * has since joined another topic stays there; a topic left without two of its
+ * claims that are still in the research is not restored.
+ */
+export function undoTidy(actor: string) {
+  const live = liveClaimRefs();
+  return db.transaction(() => {
+    const organization = activeOrganizationV2();
+    const snapshot = tidySnapshot(organization);
+    if (!organization || !snapshot) {
+      throw new TopicOrganizationError('nothing_to_undo', 'There is no tidy to undo. Topics were rebuilt or the tidy was already undone.', 409);
+    }
+    const placed = new Set(organization.topics.flatMap((topic) => topic.claims));
+    const taken = new Set(organization.topics.map((topic) => topic.key));
+    const restored = snapshot.topics
+      .filter((topic) => !taken.has(topic.key))
+      .map((topic) => ({ ...topic, claims: [...new Set(topic.claims)].filter((ref) => !placed.has(ref)) }))
+      .filter((topic) => topic.claims.filter((ref) => live.has(ref)).length >= 2);
+    writeJson(ORGANIZATION_KEY, { ...organization, topics: [...organization.topics, ...restored] });
+    run('DELETE FROM generation_meta WHERE key = ?', TIDY_SNAPSHOT_KEY);
+    audit(actor, 'topics.tidy.undo', ORGANIZATION_KEY, { restored: restored.length, skipped: snapshot.topics.length - restored.length });
+    return { restored: restored.length, skipped: snapshot.topics.length - restored.length };
+  })();
+}
+
+/* ------------------------------------------------------------------ *
  * Filing newly processed claims
  * ------------------------------------------------------------------ */
 
@@ -1333,7 +1453,8 @@ export async function fileNewClaims(options: { sourceId?: string; limit?: number
     const current = activeOrganizationV2();
     if (!current || current.generated_at !== organization.generated_at) return;
     const before = current.topics.length;
-    applyOutcome(current.topics, withoutPlaced(outcome, current.topics), now());
+    const sourceOf = new Map(candidates.map((claim) => [claim.ref, claim.source_id]));
+    applyOutcome(current.topics, withoutPlaced(outcome, current.topics, (ref) => sourceOf.get(ref)), now());
     created = current.topics.length - before;
     for (const claim of filed) current.categories[claim.ref] = categories[claim.ref];
     current.uncategorized = [...new Set([...(current.uncategorized ?? []), ...failed, ...parked])];
@@ -1353,7 +1474,7 @@ export async function fileNewClaims(options: { sourceId?: string; limit?: number
  * ------------------------------------------------------------------ */
 
 export const DEFAULT_TOPICS_INSTRUCTION = [
-  'Group claims into topics a sharp crypto investor would want to open. A topic is one story, debate or mechanism backed by at least two claims.',
+  'Group claims into topics a sharp crypto investor would want to open. A topic is one story, debate or mechanism backed by at least three claims, or by claims from at least two sources.',
   'Titles make one specific point in 6 to 14 words. Name the actor (company, protocol, person, fund or country) and lead with the number, date or tension that makes it matter. Write it like a headline a well-informed friend would send, not a label or a textbook heading. When the point is one person\'s view, attribute it, for example "Arthur Hayes: ..." or "..., Haseeb argues". When the claims disagree, say so in the title.',
   'Good: "TerraUSD broke its dollar peg in May 2022 and dragged Luna to near zero"',
   'Bad: "Algorithmic stablecoins face reflexive stability risks"',
@@ -1387,9 +1508,16 @@ export function listTopicsV2(organization: OrganizationV2, selected?: string): a
         max_significance: Math.max(0, ...members.map((claim) => claim.significance)),
         tags: [topic.category],
         updated_at: topic.updated_at,
+        reading: null as null | { read: boolean; read_at: string | null; rating: number | null; bookmarked: boolean; new_claims: number },
       },
     };
   }).filter((entry) => entry.members.length);
+  const liveRefs = new Map(items.map((entry) => [entry.topic.key, entry.members.map((claim) => claim.ref)]));
+  const reading = readingForTopics(organization, (topic) => liveRefs.get(topic.key) ?? []);
+  for (const entry of items) {
+    const view = reading.get(entry.topic.key);
+    if (view) entry.item.reading = { read: view.read, read_at: view.read_at, rating: view.rating, bookmarked: view.bookmarked, new_claims: view.new_claims };
+  }
   if (selected) {
     const chosen = items.find((entry) => entry.topic.key === selected);
     if (!chosen) return null;
@@ -1412,6 +1540,7 @@ export function listTopicsV2(organization: OrganizationV2, selected?: string): a
       version: 2, selected, topic_title: chosen.topic.title, topic_dek: chosen.topic.dek,
       topic_description: chosen.topic.description, category: chosen.topic.category,
       events: events.map((id) => ({ id })), sources, claims: detailClaims, related_tags: relatedTags,
+      reading: reading.get(chosen.topic.key) ?? null,
     };
   }
   const assigned = new Set(items.flatMap((entry) => entry.members.map((claim) => claim.ref)));

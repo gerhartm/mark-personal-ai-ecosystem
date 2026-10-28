@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
-const state = vi.hoisted(() => ({ calls: 0, fail: false, body: '', response: '{}' }));
+const state = vi.hoisted(() => ({ calls: 0, tasks: [] as unknown[], fail: false, body: '', response: '{}' }));
 vi.mock('../src/hermes-client.js', () => ({
-  generateWithHermes: vi.fn(async () => { state.calls++; if (state.fail) throw new Error('quota exceeded'); return state.response; }),
+  generateWithHermes: vi.fn(async (_input: string, options: any) => { state.calls++; state.tasks.push(options?.task); if (state.fail) throw new Error('quota exceeded'); return state.response; }),
   runHermesAgent: vi.fn(),
 }));
 vi.mock('../src/ingestion.js', () => ({ sourceContent: vi.fn(async () => state.body) }));
@@ -69,6 +69,8 @@ describe('source-to-dashboard pipeline', () => {
     database.run("UPDATE source_processing SET not_before='2000-01-01' WHERE source_id=?", sourceId);
     state.fail = false; state.response = JSON.stringify({ claims: [claim] });
     expect(await processor.processNextSourceChunk()).toBe(true);
+    // Claim extraction goes to Hermes as its own task, so its model can be chosen separately.
+    expect(state.tasks.at(-1)).toBe('crypto_claims');
     const event = database.one<any>('SELECT id FROM events WHERE source_id=?', sourceId)!;
     expect(tools.timeline().pins.some((pin: any) => pin.event_id === event.id && pin.date === '2026-08-31')).toBe(true);
     const topics = tools.listTopics();

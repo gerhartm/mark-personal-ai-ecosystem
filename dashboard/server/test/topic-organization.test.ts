@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
  * and answers in the documented JSON shapes, so the real validation, storage
  * and migration code runs against a copy of the stored corpus.
  */
-const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, longDekNextGroups: 0, alsoUnsorted: false, outage: false, shift: false, garbageCategorize: false, categorizeRules: '', duringGroup: null as null | (() => void) }));
+const state = vi.hoisted(() => ({ calls: [] as string[], tasks: new Set<string>(), topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, longDekNextGroups: 0, alsoUnsorted: false, outage: false, shift: false, garbageCategorize: false, categorizeRules: '', duringGroup: null as null | (() => void) }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
     const start = input.indexOf(`${name}\n`);
@@ -28,6 +28,7 @@ vi.mock('../src/hermes-client.js', () => {
   return {
     runHermesAgent: vi.fn(),
     generateWithHermes: vi.fn(async (input: string, options: any) => {
+      state.tasks.add(String(options?.task));
       if (state.outage) throw new Error('429 insufficient_quota');
       const head = String(options?.instructions?.[0] ?? '');
       if (head.startsWith('Assign each research claim')) {
@@ -148,7 +149,7 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.validateRound({ company: 'Acme Labs', amount_text: '$25 million', investors: ['Capital', 'Example Capital'] }, ventureQuote)?.investors).toEqual(['Example Capital']);
   });
   it('rejects groupings that mix categories, repeat or invent claims, invent numbers or start a topic with one claim', () => {
-    const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: `s-${ref}`, source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
     const categoryOf = (ref: string) => (ref === 'c:0' ? 'macro' : 'defi') as any;
     const title = 'Lendex lending moved $5M in a week after the fixture depeg';
     const dek = 'A context sentence that is long enough to pass the validator.';
@@ -164,6 +165,30 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(final.issues).toEqual([]);
     expect(final.outcome.topics.map((topic) => topic.claims)).toEqual([['a:0', 'b:0']]);
     expect(final.outcome.unsorted).toEqual(['c:0']);
+  });
+  it('starts a new topic only with three claims or with claims from two sources', () => {
+    const make = (ref: string, source: string) => ({ ref, event_id: ref.slice(0, ref.indexOf(':')), position: 0, text: 'Lendex lending moved $5M in a week', source_id: source, source: source.toUpperCase(), primary_category: null, significance: 3, subject_date: null, captured_at: null });
+    const claims = [make('a:0', 'one'), make('b:0', 'one'), make('c:0', 'one'), make('d:0', 'two')];
+    const refs = claims.map((claim) => claim.ref);
+    const title = 'Lendex lending moved $5M in a week after the fixture depeg';
+    const dek = 'A context sentence that is long enough to pass the validator.';
+    const check = (members: string[], final = false) => organization.validateTopicBatch(
+      { topics: [{ key: 'new-1', title, dek, claims: members }], unsorted: refs.filter((ref) => !members.includes(ref)) },
+      claims, () => 'defi' as any, new Map(), new Set(), final);
+    expect(check(['a:0', 'b:0']).issues.join(' ')).toMatch(/only two claims from one source/);
+    expect(check(['a:0', 'b:0']).needsRetry).toBe(true);
+    expect(check(['a:0', 'd:0']).issues).toEqual([]);
+    expect(check(['a:0', 'b:0', 'c:0']).issues).toEqual([]);
+    const final = check(['a:0', 'b:0'], true);
+    expect(final.outcome.topics).toEqual([]);
+    expect(final.outcome.dropped!.map((topic) => [topic.claims, topic.reasons, topic.repairable])).toEqual([[['a:0', 'b:0'], ['same_source_pair'], false]]);
+    // An existing topic can still gain one claim from one source.
+    const existing = { key: 'lendex', category: 'defi' as const, title, dek, description: '', claims: ['z:0'], created_at: '', updated_at: '' };
+    const joined = organization.validateTopicBatch({ topics: [{ key: 'lendex', claims: ['a:0'] }], unsorted: ['b:0', 'c:0', 'd:0'] },
+      claims, () => 'defi' as any, new Map([[existing.key, existing]]), new Set([title.toLowerCase()]), true);
+    expect(joined.outcome.topics.map((topic) => topic.claims)).toEqual([['a:0']]);
+    expect(organization.strongTopic(['a:0', 'a:0', 'b:0'], () => 'one')).toBe(false);
+    expect(organization.FIXED_TOPIC_RULES[0]).toMatch(/at least three claims, or claims from at least two different sources/);
   });
   it('asks whose view a title states when most of its claims report one', () => {
     const views = [
@@ -189,7 +214,7 @@ describe('topic titles, context lines and funding rounds', () => {
   });
   it('sends an unattributed view back for a retry but keeps the topic on the final attempt', () => {
     const texts = ['A speaker argues that ending staking rewards would push Lendex to cut rates.', 'Dana asserts that six of the eight largest lenders would lose deposits.'];
-    const claims = texts.map((text, index) => ({ ref: `v${index}:0`, event_id: `v${index}`, position: 0, text, source_id: 's', source: 'Fixture podcast', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const claims = texts.map((text, index) => ({ ref: `v${index}:0`, event_id: `v${index}`, position: 0, text, source_id: `s${index}`, source: 'Fixture podcast', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
     const categoryOf = () => 'defi' as any;
     const answer = (title: string) => ({ topics: [{ key: 'new-1', title, dek: 'Fixture guests argue that staking rewards keep lending deposits in place.', claims: ['v0:0', 'v1:0'] }], unsorted: [] });
     const stated = 'Ending staking rewards pushes Lendex to cut rates and drains lender deposits';
@@ -201,7 +226,7 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.validateTopicBatch(answer('Ending staking rewards would push Lendex to cut rates, guests argue'), claims, categoryOf, new Map(), new Set(), false).issues).toEqual([]);
   });
   it('salvages the final answer and lists the dropped topics a new title could save', () => {
-    const claims = ['a:0', 'b:0', 'c:0', 'd:0', 'e:0', 'f:0', 'g:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const claims = ['a:0', 'b:0', 'c:0', 'd:0', 'e:0', 'f:0', 'g:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: `s-${ref}`, source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
     const categoryOf = (ref: string) => (ref === 'g:0' ? 'macro' : 'defi') as any;
     const dek = 'A context sentence that is long enough to pass the validator.';
     const answer = {
@@ -233,7 +258,7 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(final.outcome.dropped).toEqual([]);
   });
   it('asks for a whole new answer only for broken topics, views stated as fact or forgotten claims', () => {
-    const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: `s-${ref}`, source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
     const categoryOf = () => 'defi' as any;
     const title = 'Lendex lending moved $5M in a week after the fixture depeg';
     const dek = 'A context sentence that is long enough to pass the validator.';
@@ -309,6 +334,9 @@ describe('rebuilding Topics from claims', () => {
     expect(counts.placed + counts.unsorted + counts.dropped + counts.missing).toBe(preview.claim_count);
     expect(preview.topics.some((topic) => topic.title.startsWith('Retitled topic'))).toBe(true);
     expect(organization.activeOrganizationV2()).toBeNull();
+    // Sorting, grouping and new wording all go to Hermes as the crypto_topics task.
+    expect([...state.tasks]).toEqual([organization.TOPICS_TASK]);
+    expect(organization.TOPICS_TASK).toBe('crypto_topics');
   });
 
   it('changes nothing when Hermes is unavailable', async () => {
@@ -510,5 +538,203 @@ describe('rebuilding Topics from claims', () => {
     expect(categoriesNow()).toEqual(before);
     expect(organization.activeOrganizationV2()?.generated_at).toBe(earlier.generated_at);
     expect(() => organization.undoTopicRebuild('topic-test')).toThrow(/no rebuild/i);
+  });
+});
+
+describe('tidying weak topics and reading marks', () => {
+  const save = (value: unknown) => database.run('INSERT OR REPLACE INTO generation_meta (key, value) VALUES (?, ?)', organization.ORGANIZATION_KEY, JSON.stringify(value));
+  // Fixture topics existed before any mark in these tests; a rebuild's topics are created after them.
+  const earlier = new Date(Date.now() - 86_400_000).toISOString();
+  const later = () => new Date(Date.now() + 60_000).toISOString();
+  const topic = (key: string, claims: string[], created_at = earlier) => ({
+    key, category: 'defi' as const, title: `Fixture topic ${key} shows Lendex lending shifting between venues`,
+    dek: 'A context line written for an automated test.', description: '', claims, created_at, updated_at: created_at,
+  });
+  let bySource: string[][] = [];
+  let spare: string[] = [];
+  const keysNow = () => organization.activeOrganizationV2()!.topics.map((item) => item.key).sort();
+  const listed = () => organization.listTopicsV2(organization.activeOrganizationV2()!);
+  const card = (key: string) => listed().topics.find((entry: any) => entry.tag === key);
+  const live = () => { const refs = organization.liveClaimRefs(); return (item: { claims: string[] }) => item.claims.filter((ref) => refs.has(ref)); };
+  const stored = () => JSON.parse(database.one<any>("SELECT value FROM app_settings WHERE key = 'topics.reading.v1'")?.value ?? '{"marks":{}}').marks;
+  const org = () => organization.activeOrganizationV2()!;
+  const gone = (n: number) => `2000-01-01-0000:${n}`;
+
+  beforeAll(() => {
+    const groups = new Map<string, string[]>();
+    for (const claim of organization.loadClaims()) groups.set(claim.source_id, [...(groups.get(claim.source_id) ?? []), claim.ref]);
+    bySource = [...groups.values()].filter((refs) => refs.length >= 4).slice(0, 2);
+    expect(bySource).toHaveLength(2);
+    spare = [...groups.values()].flat().filter((ref) => !bySource.flat().includes(ref));
+    expect(spare.length).toBeGreaterThanOrEqual(8);
+  });
+
+  const organize = (topics: ReturnType<typeof topic>[], generated_at = '2026-10-28T00:00:00.000Z') => {
+    const categories = Object.fromEntries([...bySource.flat(), ...spare].map((ref) => [ref, 'defi']));
+    save({ version: 2, generated_at, generated_by: 'test', prompt_revision: 1, categories, topics });
+  };
+  const reset = () => {
+    const [one, two] = bySource;
+    organize([topic('weak-pair', [one[0], one[1]]), topic('cross-source', [one[2], two[0]]), topic('one-source-three', [two[1], two[2], two[3]])]);
+    database.run('DELETE FROM generation_meta WHERE key = ?', organization.TIDY_SNAPSHOT_KEY);
+    database.run("DELETE FROM app_settings WHERE key = 'topics.reading.v1'");
+  };
+
+  it('returns two-claim, one-source topics to the waiting list and can undo it', () => {
+    reset();
+    expect(organization.tidySummary()).toMatchObject({ weak_topics: 1, weak_claims: 2, can_undo: false });
+    expect(organization.tidyTopics('topic-test')).toEqual({ tidied: 1, returned: 2, topics: 2 });
+    expect(keysNow()).toEqual(['cross-source', 'one-source-three']);
+    const waiting = new Set(listed().unsorted.map((claim: any) => claim.ref));
+    expect(waiting.has(bySource[0][0]) && waiting.has(bySource[0][1])).toBe(true);
+    expect(organization.tidySummary()).toMatchObject({ weak_topics: 0, can_undo: true });
+    expect(organization.tidyTopics('topic-test')).toEqual({ tidied: 0, returned: 0, topics: 2 });
+    expect(organization.undoTidy('topic-test')).toEqual({ restored: 1, skipped: 0 });
+    expect(keysNow()).toEqual(['cross-source', 'one-source-three', 'weak-pair']);
+    expect(organization.tidySummary().can_undo).toBe(false);
+    expect(() => organization.undoTidy('topic-test')).toThrow(/no tidy to undo/i);
+  });
+
+  it('leaves a tidied claim where it has since joined, and refuses to undo after a rebuild', () => {
+    reset();
+    organization.tidyTopics('topic-test');
+    const current = org();
+    current.topics.find((item) => item.key === 'one-source-three')!.claims.push(bySource[0][0]);
+    save(current);
+    expect(organization.undoTidy('topic-test')).toEqual({ restored: 0, skipped: 1 });
+    expect(keysNow()).toEqual(['cross-source', 'one-source-three']);
+    reset();
+    organization.tidyTopics('topic-test');
+    save({ ...org(), generated_at: '2026-10-29T00:00:00.000Z' });
+    expect(organization.tidySummary().can_undo).toBe(false);
+    expect(() => organization.undoTidy('topic-test')).toThrow(/no tidy to undo/i);
+  });
+
+  it('counts only claims still in the research when undoing, and keeps the first tidy when tidying again', () => {
+    const [one, two] = bySource;
+    // A claim whose source is gone does not count toward the two a restored topic needs.
+    reset();
+    organize([topic('with-gone', [one[0], one[1], gone(1)]), topic('one-source-three', [two[1], two[2], two[3]])]);
+    expect(organization.tidyTopics('topic-test')).toMatchObject({ tidied: 1, returned: 2 });
+    const current = org();
+    current.topics.find((item) => item.key === 'one-source-three')!.claims.push(one[0]);
+    save(current);
+    expect(organization.undoTidy('topic-test')).toEqual({ restored: 0, skipped: 1 });
+    // A second tidy adds to the first, so one undo puts back both.
+    reset();
+    organization.tidyTopics('topic-test');
+    const weakened = org();
+    weakened.topics.find((item) => item.key === 'cross-source')!.claims = [one[2], one[3]];
+    save(weakened);
+    expect(organization.tidyTopics('topic-test')).toMatchObject({ tidied: 1 });
+    expect(organization.tidySummary()).toMatchObject({ can_undo: true, last: { topics: 2 } });
+    expect(organization.undoTidy('topic-test')).toEqual({ restored: 2, skipped: 0 });
+    expect(keysNow()).toEqual(['cross-source', 'one-source-three', 'weak-pair']);
+  });
+
+  it('records read, rating and bookmark, and counts claims added since reading', async () => {
+    reset();
+    const reading = await import('../src/topic-reading.js');
+    expect(reading.updateReading(org(), 'cross-source', { read: true }, live())).toMatchObject({ read: true, rating: null, bookmarked: false, new_claims: 0 });
+    reading.updateReading(org(), 'cross-source', { rating: 4 }, live());
+    reading.updateReading(org(), 'cross-source', { bookmarked: true }, live());
+    expect(card('cross-source').reading).toMatchObject({ read: true, rating: 4, bookmarked: true, new_claims: 0 });
+    expect(card('weak-pair').reading).toBeNull();
+    // A claim filed into the topic after reading shows as new until it is read again.
+    const current = org();
+    current.topics.find((entry) => entry.key === 'cross-source')!.claims.push(spare[0]);
+    save(current);
+    expect(card('cross-source').reading.new_claims).toBe(1);
+    expect(organization.listTopicsV2(org(), 'cross-source').reading).toMatchObject({ new_claims: 1, new_refs: [spare[0]] });
+    reading.updateReading(org(), 'cross-source', { read: true }, live());
+    expect(card('cross-source').reading.new_claims).toBe(0);
+    // Clearing every mark leaves the topic unmarked; its record stays so no older mark shows in its place.
+    reading.updateReading(org(), 'cross-source', { read: false }, live());
+    reading.updateReading(org(), 'cross-source', { rating: null }, live());
+    expect(reading.updateReading(org(), 'cross-source', { bookmarked: false }, live())).toEqual(reading.NO_MARK);
+    expect(card('cross-source').reading).toBeNull();
+    expect(stored()['cross-source']).toMatchObject({ read_at: null, rating: null, bookmarked_at: null });
+    expect(() => reading.updateReading(org(), 'cross-source', { rating: 6 }, live())).toThrow(/1 to 5/);
+    expect(() => reading.updateReading(org(), 'cross-source', { read: 'yes' }, live())).toThrow(/true or false/);
+    expect(() => reading.updateReading(org(), 'cross-source', {}, live())).toThrow(/what to change/);
+    for (const body of ['read', 7, null, ['read']]) {
+      expect(() => reading.updateReading(org(), 'cross-source', body, live())).toThrow(reading.TopicReadingError);
+    }
+    expect(() => reading.updateReading(org(), 'missing-topic', { read: true }, live())).toThrow(/no longer exists/);
+  });
+
+  it('shows a mark on its successor after a rebuild without saving anything, so Undo brings it back', async () => {
+    reset();
+    const [, two] = bySource;
+    const reading = await import('../src/topic-reading.js');
+    reading.updateReading(org(), 'one-source-three', { bookmarked: true, rating: 5 }, live());
+    reading.updateReading(org(), 'cross-source', { read: true }, live());
+    const before = org();
+    const marks = stored();
+    // The rebuild puts the three claims into a larger topic, still mostly theirs, under a new key.
+    const born = later();
+    organize([
+      topic('renamed-three', [two[1], two[2], two[3], spare[0], spare[1], spare[2], spare[3]], born),
+      topic('unrelated', [spare[4], spare[5], spare[6]], born),
+    ], '2026-10-29T00:00:00.000Z');
+    expect(card('renamed-three').reading).toMatchObject({ bookmarked: true, rating: 5, read: false });
+    expect(card('unrelated').reading).toBeNull();
+    expect(stored()).toEqual(marks);
+    // Undo last rebuild: the original topics show their own marks again.
+    save(before);
+    expect(card('one-source-three').reading).toMatchObject({ bookmarked: true, rating: 5 });
+    expect(card('cross-source').reading).toMatchObject({ read: true });
+  });
+
+  it('gives a leftover mark only to the closest successor that did not exist beside it', async () => {
+    const [one, two] = bySource;
+    const reading = await import('../src/topic-reading.js');
+    // Two marks merged into one topic: the closer match wins, even when the other was saved later.
+    reset();
+    organize([topic('b-small', [one[0], one[1]]), topic('a-big', [two[0], two[1], two[2], two[3]])]);
+    reading.updateReading(org(), 'a-big', { bookmarked: true, rating: 5 }, live());
+    reading.updateReading(org(), 'b-small', { rating: 1 }, live());
+    organize([topic('merged', [two[0], two[1], two[2], two[3], one[0], one[1]], later())], '2026-10-29T00:00:00.000Z');
+    expect(card('merged').reading).toMatchObject({ rating: 5, bookmarked: true });
+    // A tidied topic's claims later join a topic that already existed: it does not take the mark,
+    // even though they now make up half of it.
+    reset();
+    organize([topic('k-pair', [one[0], one[1]]), topic('e-existing', [two[0], spare[0]])]);
+    reading.updateReading(org(), 'k-pair', { read: true, rating: 1 }, live());
+    organization.tidyTopics('topic-test');
+    const absorbed = org();
+    absorbed.topics.find((item) => item.key === 'e-existing')!.claims.push(one[0], one[1]);
+    save(absorbed);
+    expect(card('e-existing').reading).toBeNull();
+    // A new topic made mostly of other claims does not take it either; a new topic built on those claims does.
+    organize([topic('n-big', [one[0], one[1], spare[2], spare[3], spare[4], spare[5], spare[6]], later())], '2026-10-29T00:00:00.000Z');
+    expect(card('n-big').reading).toBeNull();
+    organize([topic('n-small', [one[0], one[1], spare[2]], later())], '2026-10-29T00:00:00.000Z');
+    expect(card('n-small').reading).toMatchObject({ read: true, rating: 1, new_claims: 1 });
+  });
+
+  it('keeps a topic unmarked once its marks are cleared, and shows a continued mark nowhere else', async () => {
+    const [one] = bySource;
+    const reading = await import('../src/topic-reading.js');
+    reset();
+    organize([topic('k-four', [one[0], one[1], one[2], one[3]])]);
+    reading.updateReading(org(), 'k-four', { read: true, rating: 1 }, live());
+    // A rebuild splits its claims evenly; the closer of the two new topics shows the mark.
+    const born = later();
+    organize([topic('t-next', [one[0], one[1], spare[0]], born), topic('t-other', [one[2], one[3], spare[1], spare[2]], born)], '2026-10-29T00:00:00.000Z');
+    expect(card('t-next').reading).toMatchObject({ read: true, rating: 1 });
+    expect(card('t-other').reading).toBeNull();
+    // Changing the mark it shows saves it under t-next, starting from what was shown.
+    expect(reading.updateReading(org(), 't-next', { bookmarked: true }, live())).toMatchObject({ read: true, rating: 1, bookmarked: true });
+    expect(stored()['t-next']).toMatchObject({ from: 'k-four', rating: 1 });
+    reading.updateReading(org(), 't-next', { bookmarked: false }, live());
+    reading.updateReading(org(), 't-next', { rating: null }, live());
+    expect(reading.updateReading(org(), 't-next', { read: false }, live())).toEqual(reading.NO_MARK);
+    // Cleared stays cleared, and the k-four mark it continued does not move to t-other.
+    expect(listed().topics.filter((entry: any) => entry.reading)).toEqual([]);
+    // Nor does it come back after the next rebuild, even once a change elsewhere tidies up old records.
+    organize([topic('k-again', [one[0], one[1], one[2], one[3]], later()), topic('elsewhere', [spare[3], spare[4]], later())], '2026-10-30T00:00:00.000Z');
+    reading.updateReading(org(), 'elsewhere', { rating: 2 }, live());
+    expect(card('k-again').reading).toBeNull();
   });
 });

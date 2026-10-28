@@ -253,6 +253,12 @@ fails, it keeps the new claims and its current title and context line. A topic
 that still fails (for example, a new topic left with one claim) is dropped and
 its claims wait under their category; the rest of the batch is kept.
 
+A new topic needs at least three claims, or claims from at least two sources.
+Two claims from one source are one point, not a topic: the checks drop such a
+pair (`same_source_pair`) and its claims wait. Existing topics can still gain a
+single claim. The same rule applies to rebuilds, previews, regrouping and
+filing.
+
 When most claims behind a topic report someone's view ("A speaker argues…",
 "Dana asserts…") and the title neither names the speaker nor says that someone
 argues, warns or expects it, a rebuild or preview asks for a corrected title
@@ -304,6 +310,33 @@ it runs, nothing is saved if Topics changed meanwhile, and a filing run that was
 already under way skips claims that are in a topic by the time it saves. Claims a rebuild could not
 categorize are not included; the next rebuild retries them. Undo last rebuild
 also removes what this added.
+
+Tidy (Control center) returns topics that would not be started today (fewer
+than three claims, all from one source) to the waiting list. It uses no AI
+calls, changes no categories, and saves the removed topics
+(`topics.tidy.previous`) so Undo tidy can put them back with the claims that are
+still waiting; a claim that has since joined another topic stays there, and a
+topic left with fewer than two of its claims is not restored. Undo tidy is
+offered until Topics are rebuilt. Tidy and its undo wait while a rebuild or
+regrouping runs.
+
+On the Topics page, claims that are not in a topic are listed under their
+source ("Points not in a topic yet"), largest groups first.
+
+### Reading marks
+
+A topic page lets Mark mark the topic read, rate how interesting it was (1 to
+5) and bookmark it. The Topics list shows the marks on each card, filters by
+Unread, Bookmarked or Read, and sorts by Highest rated. When claims join a topic
+after it was marked read, the card shows how many are new, the topic page labels
+them, and "Mark read again" clears them. Marks are stored as one JSON value
+(`topics.reading.v1` in `app_settings`), so no schema change is involved. Each
+mark keeps the topic's claims; when a rebuild gives a topic a new key, the mark
+moves to the topic that now holds at least two and at least half of those
+claims, and a topic that already has its own mark keeps it. Unmatched marks are
+kept aside, so an undone tidy or rebuild finds them again. `POST
+/api/topics/:tag/reading` takes `read` (true or false), `rating` (1 to 5, or
+null to clear) and `bookmarked` (true or false).
 
 Once a rebuild exists, a filing worker checks every minute for claims that are
 not yet organized, including claims committed during a rebuild or before a

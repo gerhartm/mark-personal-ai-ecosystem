@@ -148,7 +148,7 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.validateRound({ company: 'Acme Labs', amount_text: '$25 million', investors: ['Capital', 'Example Capital'] }, ventureQuote)?.investors).toEqual(['Example Capital']);
   });
   it('rejects groupings that mix categories, repeat or invent claims, invent numbers or start a topic with one claim', () => {
-    const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: `s-${ref}`, source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
     const categoryOf = (ref: string) => (ref === 'c:0' ? 'macro' : 'defi') as any;
     const title = 'Lendex lending moved $5M in a week after the fixture depeg';
     const dek = 'A context sentence that is long enough to pass the validator.';
@@ -164,6 +164,30 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(final.issues).toEqual([]);
     expect(final.outcome.topics.map((topic) => topic.claims)).toEqual([['a:0', 'b:0']]);
     expect(final.outcome.unsorted).toEqual(['c:0']);
+  });
+  it('starts a new topic only with three claims or with claims from two sources', () => {
+    const make = (ref: string, source: string) => ({ ref, event_id: ref.slice(0, ref.indexOf(':')), position: 0, text: 'Lendex lending moved $5M in a week', source_id: source, source: source.toUpperCase(), primary_category: null, significance: 3, subject_date: null, captured_at: null });
+    const claims = [make('a:0', 'one'), make('b:0', 'one'), make('c:0', 'one'), make('d:0', 'two')];
+    const refs = claims.map((claim) => claim.ref);
+    const title = 'Lendex lending moved $5M in a week after the fixture depeg';
+    const dek = 'A context sentence that is long enough to pass the validator.';
+    const check = (members: string[], final = false) => organization.validateTopicBatch(
+      { topics: [{ key: 'new-1', title, dek, claims: members }], unsorted: refs.filter((ref) => !members.includes(ref)) },
+      claims, () => 'defi' as any, new Map(), new Set(), final);
+    expect(check(['a:0', 'b:0']).issues.join(' ')).toMatch(/only two claims from one source/);
+    expect(check(['a:0', 'b:0']).needsRetry).toBe(true);
+    expect(check(['a:0', 'd:0']).issues).toEqual([]);
+    expect(check(['a:0', 'b:0', 'c:0']).issues).toEqual([]);
+    const final = check(['a:0', 'b:0'], true);
+    expect(final.outcome.topics).toEqual([]);
+    expect(final.outcome.dropped!.map((topic) => [topic.claims, topic.reasons, topic.repairable])).toEqual([[['a:0', 'b:0'], ['same_source_pair'], false]]);
+    // An existing topic can still gain one claim from one source.
+    const existing = { key: 'lendex', category: 'defi' as const, title, dek, description: '', claims: ['z:0'], created_at: '', updated_at: '' };
+    const joined = organization.validateTopicBatch({ topics: [{ key: 'lendex', claims: ['a:0'] }], unsorted: ['b:0', 'c:0', 'd:0'] },
+      claims, () => 'defi' as any, new Map([[existing.key, existing]]), new Set([title.toLowerCase()]), true);
+    expect(joined.outcome.topics.map((topic) => topic.claims)).toEqual([['a:0']]);
+    expect(organization.strongTopic(['a:0', 'a:0', 'b:0'], () => 'one')).toBe(false);
+    expect(organization.FIXED_TOPIC_RULES[0]).toMatch(/at least three claims, or claims from at least two different sources/);
   });
   it('asks whose view a title states when most of its claims report one', () => {
     const views = [
@@ -189,7 +213,7 @@ describe('topic titles, context lines and funding rounds', () => {
   });
   it('sends an unattributed view back for a retry but keeps the topic on the final attempt', () => {
     const texts = ['A speaker argues that ending staking rewards would push Lendex to cut rates.', 'Dana asserts that six of the eight largest lenders would lose deposits.'];
-    const claims = texts.map((text, index) => ({ ref: `v${index}:0`, event_id: `v${index}`, position: 0, text, source_id: 's', source: 'Fixture podcast', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const claims = texts.map((text, index) => ({ ref: `v${index}:0`, event_id: `v${index}`, position: 0, text, source_id: `s${index}`, source: 'Fixture podcast', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
     const categoryOf = () => 'defi' as any;
     const answer = (title: string) => ({ topics: [{ key: 'new-1', title, dek: 'Fixture guests argue that staking rewards keep lending deposits in place.', claims: ['v0:0', 'v1:0'] }], unsorted: [] });
     const stated = 'Ending staking rewards pushes Lendex to cut rates and drains lender deposits';
@@ -201,7 +225,7 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.validateTopicBatch(answer('Ending staking rewards would push Lendex to cut rates, guests argue'), claims, categoryOf, new Map(), new Set(), false).issues).toEqual([]);
   });
   it('salvages the final answer and lists the dropped topics a new title could save', () => {
-    const claims = ['a:0', 'b:0', 'c:0', 'd:0', 'e:0', 'f:0', 'g:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const claims = ['a:0', 'b:0', 'c:0', 'd:0', 'e:0', 'f:0', 'g:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: `s-${ref}`, source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
     const categoryOf = (ref: string) => (ref === 'g:0' ? 'macro' : 'defi') as any;
     const dek = 'A context sentence that is long enough to pass the validator.';
     const answer = {
@@ -233,7 +257,7 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(final.outcome.dropped).toEqual([]);
   });
   it('asks for a whole new answer only for broken topics, views stated as fact or forgotten claims', () => {
-    const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: 's', source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
+    const claims = ['a:0', 'b:0', 'c:0'].map((ref) => ({ ref, event_id: ref.slice(0, 1), position: 0, text: 'Lendex lending moved $5M in a week', source_id: `s-${ref}`, source: 'S', primary_category: null, significance: 3, subject_date: null, captured_at: null }));
     const categoryOf = () => 'defi' as any;
     const title = 'Lendex lending moved $5M in a week after the fixture depeg';
     const dek = 'A context sentence that is long enough to pass the validator.';
@@ -510,5 +534,114 @@ describe('rebuilding Topics from claims', () => {
     expect(categoriesNow()).toEqual(before);
     expect(organization.activeOrganizationV2()?.generated_at).toBe(earlier.generated_at);
     expect(() => organization.undoTopicRebuild('topic-test')).toThrow(/no rebuild/i);
+  });
+});
+
+describe('tidying weak topics and reading marks', () => {
+  const save = (value: unknown) => database.run('INSERT OR REPLACE INTO generation_meta (key, value) VALUES (?, ?)', organization.ORGANIZATION_KEY, JSON.stringify(value));
+  const topic = (key: string, claims: string[]) => ({
+    key, category: 'defi' as const, title: `Fixture topic ${key} shows Lendex lending shifting between venues`,
+    dek: 'A context line written for an automated test.', description: '', claims, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
+  });
+  let bySource: string[][] = [];
+  let spare: string[] = [];
+  const keysNow = () => organization.activeOrganizationV2()!.topics.map((item) => item.key).sort();
+  const listed = () => organization.listTopicsV2(organization.activeOrganizationV2()!);
+  const live = () => { const refs = organization.liveClaimRefs(); return (item: { claims: string[] }) => item.claims.filter((ref) => refs.has(ref)); };
+
+  beforeAll(() => {
+    const groups = new Map<string, string[]>();
+    for (const claim of organization.loadClaims()) groups.set(claim.source_id, [...(groups.get(claim.source_id) ?? []), claim.ref]);
+    bySource = [...groups.values()].filter((refs) => refs.length >= 4).slice(0, 2);
+    expect(bySource).toHaveLength(2);
+    spare = [...groups.values()].flat().filter((ref) => !bySource.flat().includes(ref));
+  });
+
+  const reset = () => {
+    const [one, two] = bySource;
+    const categories = Object.fromEntries([...one, ...two, ...spare].map((ref) => [ref, 'defi']));
+    save({
+      version: 2, generated_at: '2026-10-28T00:00:00.000Z', generated_by: 'test', prompt_revision: 1, categories,
+      topics: [topic('weak-pair', [one[0], one[1]]), topic('cross-source', [one[2], two[0]]), topic('one-source-three', [two[1], two[2], two[3]])],
+    });
+    database.run('DELETE FROM generation_meta WHERE key = ?', organization.TIDY_SNAPSHOT_KEY);
+    database.run("DELETE FROM app_settings WHERE key = 'topics.reading.v1'");
+  };
+
+  it('returns two-claim, one-source topics to the waiting list and can undo it', () => {
+    reset();
+    expect(organization.tidySummary()).toMatchObject({ weak_topics: 1, weak_claims: 2, can_undo: false });
+    expect(organization.tidyTopics('topic-test')).toEqual({ tidied: 1, returned: 2, topics: 2 });
+    expect(keysNow()).toEqual(['cross-source', 'one-source-three']);
+    const waiting = new Set(listed().unsorted.map((claim: any) => claim.ref));
+    expect(waiting.has(bySource[0][0]) && waiting.has(bySource[0][1])).toBe(true);
+    expect(organization.tidySummary()).toMatchObject({ weak_topics: 0, can_undo: true });
+    expect(organization.tidyTopics('topic-test')).toEqual({ tidied: 0, returned: 0, topics: 2 });
+    expect(organization.undoTidy('topic-test')).toEqual({ restored: 1, skipped: 0 });
+    expect(keysNow()).toEqual(['cross-source', 'one-source-three', 'weak-pair']);
+    expect(organization.tidySummary().can_undo).toBe(false);
+    expect(() => organization.undoTidy('topic-test')).toThrow(/no tidy to undo/i);
+  });
+
+  it('leaves a tidied claim where it has since joined, and refuses to undo after a rebuild', () => {
+    reset();
+    organization.tidyTopics('topic-test');
+    const current = organization.activeOrganizationV2()!;
+    current.topics.find((item) => item.key === 'one-source-three')!.claims.push(bySource[0][0]);
+    save(current);
+    expect(organization.undoTidy('topic-test')).toEqual({ restored: 0, skipped: 1 });
+    expect(keysNow()).toEqual(['cross-source', 'one-source-three']);
+    reset();
+    organization.tidyTopics('topic-test');
+    save({ ...organization.activeOrganizationV2()!, generated_at: '2026-10-29T00:00:00.000Z' });
+    expect(organization.tidySummary().can_undo).toBe(false);
+    expect(() => organization.undoTidy('topic-test')).toThrow(/no tidy to undo/i);
+  });
+
+  it('records read, rating and bookmark, and counts claims added since reading', async () => {
+    reset();
+    const reading = await import('../src/topic-reading.js');
+    const org = () => organization.activeOrganizationV2()!;
+    expect(reading.updateReading(org(), 'cross-source', { read: true }, live())).toMatchObject({ read: true, rating: null, bookmarked: false, new_claims: 0 });
+    reading.updateReading(org(), 'cross-source', { rating: 4 }, live());
+    reading.updateReading(org(), 'cross-source', { bookmarked: true }, live());
+    const item = listed().topics.find((entry: any) => entry.tag === 'cross-source');
+    expect(item.reading).toMatchObject({ read: true, rating: 4, bookmarked: true, new_claims: 0 });
+    expect(listed().topics.find((entry: any) => entry.tag === 'weak-pair').reading).toBeNull();
+    // A claim filed into the topic after reading shows as new until it is read again.
+    const current = org();
+    current.topics.find((entry) => entry.key === 'cross-source')!.claims.push(spare[0]);
+    save(current);
+    expect(listed().topics.find((entry: any) => entry.tag === 'cross-source').reading.new_claims).toBe(1);
+    expect(organization.listTopicsV2(org(), 'cross-source').reading).toMatchObject({ new_claims: 1, new_refs: [spare[0]] });
+    reading.updateReading(org(), 'cross-source', { read: true }, live());
+    expect(listed().topics.find((entry: any) => entry.tag === 'cross-source').reading.new_claims).toBe(0);
+    // Clearing every mark removes the record.
+    reading.updateReading(org(), 'cross-source', { read: false }, live());
+    reading.updateReading(org(), 'cross-source', { rating: null }, live());
+    expect(reading.updateReading(org(), 'cross-source', { bookmarked: false }, live())).toEqual(reading.NO_MARK);
+    expect(listed().topics.find((entry: any) => entry.tag === 'cross-source').reading).toBeNull();
+    expect(() => reading.updateReading(org(), 'cross-source', { rating: 6 }, live())).toThrow(/1 to 5/);
+    expect(() => reading.updateReading(org(), 'cross-source', { read: 'yes' }, live())).toThrow(/true or false/);
+    expect(() => reading.updateReading(org(), 'cross-source', {}, live())).toThrow(/what to change/);
+    expect(() => reading.updateReading(org(), 'missing-topic', { read: true }, live())).toThrow(/no longer exists/);
+  });
+
+  it('keeps a mark with its topic when a rebuild gives the topic a new key', async () => {
+    reset();
+    const reading = await import('../src/topic-reading.js');
+    reading.updateReading(organization.activeOrganizationV2()!, 'one-source-three', { bookmarked: true, rating: 5 }, live());
+    reading.updateReading(organization.activeOrganizationV2()!, 'cross-source', { read: true }, live());
+    const rebuilt = organization.activeOrganizationV2()!;
+    rebuilt.topics = rebuilt.topics.map((entry) => entry.key === 'one-source-three'
+      ? { ...entry, key: 'renamed-three', claims: [...entry.claims.slice(0, 2), spare[1]] }
+      : entry.key === 'cross-source' ? { ...entry, key: 'renamed-cross', claims: [spare[2], spare[3]] } : entry);
+    save(rebuilt);
+    const topics = listed().topics;
+    expect(topics.find((entry: any) => entry.tag === 'renamed-three').reading).toMatchObject({ bookmarked: true, rating: 5 });
+    // Too little in common: the old mark is kept aside rather than moved.
+    expect(topics.find((entry: any) => entry.tag === 'renamed-cross').reading).toBeNull();
+    const stored = JSON.parse(database.one<any>("SELECT value FROM app_settings WHERE key = 'topics.reading.v1'").value).marks;
+    expect(Object.keys(stored).sort()).toEqual(['cross-source', 'renamed-three']);
   });
 });

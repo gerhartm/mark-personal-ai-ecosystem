@@ -31,6 +31,9 @@ type WaitingJob = {
   created?: number;
   waiting_after?: number;
 };
+type TidyStatus = { weak_topics: number; weak_claims: number; can_undo: boolean; last: { at: string; topics: number } | null };
+type TidyResult = { tidied: number; returned: number; topics: number };
+type UntidyResult = { restored: number; skipped: number };
 type PreviewTopic = { title: string; dek: string; description: string; category: string; claims: Array<{ text: string; source: string }> };
 type PreviewJob = {
   status: JobStatus;
@@ -53,9 +56,11 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
   const rebuild = useQuery<RebuildJob>('/prompt-controls/topics/rebuild/status', [], 5_000);
   const preview = useQuery<PreviewJob>('/prompt-controls/topics/preview', [], 5_000);
   const waiting = useQuery<WaitingJob>('/prompt-controls/topics/waiting', [], 5_000);
+  const tidy = useQuery<TidyStatus>('/prompt-controls/topics/tidy', [], 15_000);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [confirmUndo, setConfirmUndo] = useState(false);
-  const [sending, setSending] = useState<'preview' | 'rebuild' | 'undo' | 'waiting' | null>(null);
+  const [confirmUntidy, setConfirmUntidy] = useState(false);
+  const [sending, setSending] = useState<'preview' | 'rebuild' | 'undo' | 'waiting' | 'tidy' | 'untidy' | null>(null);
   const rebuildBusy = busy(rebuild.data?.status);
   const previewBusy = busy(preview.data?.status);
   const waitingBusy = busy(waiting.data?.status);
@@ -73,13 +78,15 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
     if (waiting.data?.status === 'ready' || waiting.data?.status === 'failed') setMessage(null);
   }, [waiting.data?.status, waiting.data?.updated_at]);
 
-  const post = async (kind: 'preview' | 'rebuild' | 'undo' | 'waiting', path: string, done: string) => {
+  const post = async <T,>(kind: 'preview' | 'rebuild' | 'undo' | 'waiting' | 'tidy' | 'untidy', path: string, done: string | ((result: T) => string)) => {
     setSending(kind);
     setMessage(null);
     try {
-      await api(path, { method: 'POST' });
-      setMessage({ text: done, error: false });
-      if (kind === 'undo') { invalidate('/topics'); setConfirmUndo(false); }
+      const result = await api<T>(path, { method: 'POST' });
+      setMessage({ text: typeof done === 'function' ? done(result) : done, error: false });
+      if (kind === 'undo' || kind === 'tidy' || kind === 'untidy') invalidate('/topics');
+      if (kind === 'undo') setConfirmUndo(false);
+      if (kind === 'untidy') setConfirmUntidy(false);
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : 'That did not work. Try again.', error: true });
     } finally {
@@ -87,6 +94,7 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
       rebuild.refetch();
       preview.refetch();
       waiting.refetch();
+      tidy.refetch();
     }
   };
 
@@ -163,6 +171,42 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
           </div>
         ) : null}
       </div>
+
+      {tidy.data && (tidy.data.weak_topics > 0 || tidy.data.can_undo) ? (
+        <div className="mt-6 border-t border-[var(--line)] pt-4" data-testid="topics-tidy">
+          <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">
+            {tidy.data.weak_topics
+              ? `${plural(tidy.data.weak_topics, 'topic')} ${tidy.data.weak_topics === 1 ? 'holds' : 'hold'} only two claims from a single source. A new topic now needs three claims, or claims from two sources. Tidying moves these ${plural(tidy.data.weak_claims, 'claim')} back to the waiting list, where they show under their source and can join a stronger topic later. It uses no AI calls and can be undone.`
+              : 'Topics are tidy: every topic has three or more claims, or claims from two sources.'}
+          </p>
+          {tidy.data.weak_topics ? (
+            <button type="button" className="desk-button secondary" disabled={rebuildBusy || waitingBusy || sending !== null}
+              onClick={() => post<TidyResult>('tidy', '/prompt-controls/topics/tidy', (result) => (result.tidied
+                ? `Tidied ${plural(result.tidied, 'topic')}. ${plural(result.returned, 'claim')} ${result.returned === 1 ? 'is' : 'are'} waiting again under ${result.returned === 1 ? 'its source' : 'their sources'}; ${plural(result.topics, 'topic')} remain.`
+                : 'Nothing to tidy.'))}>
+              {sending === 'tidy' ? 'Tidying' : `Tidy ${plural(tidy.data.weak_topics, 'topic')}`}
+            </button>
+          ) : null}
+          {tidy.data.can_undo && !rebuildBusy && !waitingBusy ? (
+            <div className="mt-3">
+              {!confirmUntidy ? (
+                <button type="button" className="font-mono text-[11px] text-[var(--accent-text)] underline-offset-2 hover:underline" onClick={() => setConfirmUntidy(true)}>
+                  Undo tidy{tidy.data.last ? ` from ${formatDate(tidy.data.last.at)}` : ''}
+                </button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 rounded-[5px] border border-[var(--line)] px-2.5 py-2">
+                  <span className="font-mono text-[11px] text-muted-foreground">Put the tidied topics back? Claims that have since joined other topics stay where they are.</span>
+                  <button type="button" className="font-mono text-[11px] text-[var(--accent-text)]" disabled={sending !== null}
+                    onClick={() => post<UntidyResult>('untidy', '/prompt-controls/topics/tidy/undo', (result) => `Put back ${plural(result.restored, 'topic')}.${result.skipped ? ` ${plural(result.skipped, 'topic')} stayed apart because ${result.skipped === 1 ? 'its claims have' : 'their claims have'} joined other topics.` : ''}`)}>
+                    Confirm
+                  </button>
+                  <button type="button" className="font-mono text-[11px] text-dim" onClick={() => setConfirmUntidy(false)}>Cancel</button>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {rebuild.data?.can_undo || waiting.data?.waiting ? (
         <div className="mt-6 border-t border-[var(--line)] pt-4" data-testid="topics-waiting">

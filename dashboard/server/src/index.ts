@@ -68,7 +68,8 @@ import { queueTopicRebuild, resetTopicRebuildStatus, topicRebuildStatus, startTo
 import { startTopicFilingWorker } from './topic-filing.js';
 import { queueTopicPreview, startTopicPreviewWorker, topicPreviewStatus } from './topic-preview-job.js';
 import { queueTopicWaiting, resetTopicWaitingStatus, startTopicWaitingWorker, topicWaitingBusy, topicWaitingStatus } from './topic-waiting-job.js';
-import { TopicOrganizationError, activeOrganizationV2, canUndoRebuild, estimateRebuildCalls, listRounds, undoTopicRebuild } from './topic-organization.js';
+import { TopicOrganizationError, activeOrganizationV2, canUndoRebuild, estimateRebuildCalls, listRounds, liveClaimRefs, tidySummary, tidyTopics, undoTidy, undoTopicRebuild } from './topic-organization.js';
+import { TopicReadingError, updateReading } from './topic-reading.js';
 import { RESEARCH_EVENT } from './editorial-store.js';
 
 
@@ -333,6 +334,19 @@ app.get('/api/topics', async (req) => {
   return q.tag ? t.listTopics(undefined, q.tag) : t.topicsPayload();
 });
 
+app.post('/api/topics/:tag/reading', async (req, reply) => {
+  const organization = activeOrganizationV2();
+  if (!organization) return reply.code(409).send({ error: 'no_topics', message: 'Topics are not organized yet.' });
+  const live = liveClaimRefs();
+  try {
+    return updateReading(organization, (req.params as { tag: string }).tag, (req.body ?? {}) as Record<string, unknown>,
+      (topic) => topic.claims.filter((ref) => live.has(ref)));
+  } catch (error) {
+    if (error instanceof TopicReadingError) return reply.code(error.status).send({ error: error.code, message: error.message });
+    return reply.code(500).send({ error: 'reading_failed', message: 'That change could not be saved. Try again.' });
+  }
+});
+
 app.get('/api/venture/rounds', async () => ({ rounds: listRounds() }));
 
 app.get('/api/prompt-controls', async () => ({ controls: listPromptControls() }));
@@ -412,6 +426,28 @@ app.post('/api/prompt-controls/topics/waiting', async (req, reply) => {
     return reply.code(409).send({ error: 'no_topics', message: 'Rebuild Topics first. There are no waiting claims to group yet.' });
   }
   return reply.code(202).send(queueTopicWaiting(actor));
+});
+const topicsBusy = () => ['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy();
+app.get('/api/prompt-controls/topics/tidy', async () => tidySummary());
+app.post('/api/prompt-controls/topics/tidy', async (req, reply) => {
+  if (topicsBusy()) return reply.code(409).send({ error: 'topics_busy', message: 'Wait for the current rebuild or regrouping to finish before tidying.' });
+  try {
+    const result = tidyTopics(requestActor(req));
+    resetTopicWaitingStatus();
+    return result;
+  } catch (error) {
+    if (error instanceof TopicOrganizationError) return reply.code(error.status).send({ error: error.code, message: error.message });
+    return reply.code(500).send({ error: 'tidy_failed', message: 'Topics could not be tidied. Nothing was changed.' });
+  }
+});
+app.post('/api/prompt-controls/topics/tidy/undo', async (req, reply) => {
+  if (topicsBusy()) return reply.code(409).send({ error: 'topics_busy', message: 'Wait for the current rebuild or regrouping to finish before undoing.' });
+  try {
+    return undoTidy(requestActor(req));
+  } catch (error) {
+    if (error instanceof TopicOrganizationError) return reply.code(error.status).send({ error: error.code, message: error.message });
+    return reply.code(500).send({ error: 'undo_failed', message: 'The tidied topics could not be restored.' });
+  }
 });
 app.post('/api/prompt-controls/topics/rebuild/undo', async (req, reply) => {
   if (['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy()) {

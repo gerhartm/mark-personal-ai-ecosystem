@@ -3,9 +3,10 @@
 Run inside the Hermes container as the hermes user, for example:
     docker exec -i -u hermes <hermes container> /opt/hermes/.venv/bin/python - < hermes-model-check.py
 
-The Intel Desk asks Hermes for one-off answers (llm.oneshot) with a task name
-(today "title_generation"). Hermes routes a task through its auxiliary settings,
-auxiliary.<task> in config.yaml. This prints the configured main model, any
+The Intel Desk asks Hermes for one-off answers (llm.oneshot) with a task name:
+crypto_topics for Topics, crypto_claims for claim extraction, crypto_analysis
+for analysis pages (title_generation before October 2026). Hermes routes a task
+through its auxiliary settings, auxiliary.<task> in config.yaml. This prints the configured main model, any
 auxiliary settings, and what the installed Hermes code supports, so the right
 settings can be chosen. It changes nothing, makes no model call and prints no
 keys or passwords.
@@ -18,7 +19,7 @@ import subprocess
 from pathlib import Path
 
 ROUTE_KEYS = ('provider', 'model', 'reasoning_effort', 'timeout', 'prefer_fast_model', 'max_tokens')
-TASKS = ('title_generation', 'crypto_topics', 'crypto_analysis')
+TASKS = ('title_generation', 'crypto_topics', 'crypto_claims', 'crypto_analysis')
 
 
 def show(label, value):
@@ -60,6 +61,10 @@ try:
         show('auxiliary', 'nothing set (every task uses its defaults)')
     for task, settings in auxiliary.items():
         show(f'auxiliary.{task}', {key: settings.get(key) for key in ROUTE_KEYS if key in settings} if isinstance(settings, dict) else settings)
+    for key in ('fallback_providers', 'fallback_model'):
+        entries = config.get(key)
+        entries = entries if isinstance(entries, list) else [entries] if entries else []
+        show(key, [{name: entry.get(name) for name in ('provider', 'model') if isinstance(entry, dict) and name in entry} for entry in entries] or 'none')
 except Exception as error:
     show('config', f'unreadable ({type(error).__name__})')
 
@@ -82,6 +87,8 @@ show('per-task reasoning_effort support', lines(text, r'reasoning_effort', 4) if
 show('per-task timeout support', lines(text, r'auxiliary\.<task>\.timeout|def _task_timeout|_get_task_timeout', 3) if client else text)
 show('auto route', lines(text, r'def _resolve_auto_route|main provider \+ main model|"auto" means', 3) if client else text)
 show('no-retry-on-timeout tasks', lines(text, r'_TIMEOUT_NO_RETRY_TASKS\s*=', 1) if client else text)
+show('no-progress window', lines(text, r'_AUX_STREAM_NO_PROGRESS_TIMEOUT_SECONDS\s*=|def _get_task_no_progress_timeout', 2) if client else text)
+show('explicit timeout rule', lines(text, r'def _effective_aux_timeout|Explicit ``timeout`` wins', 2) if client else text)
 show('fast-model tasks', lines(text, r'_FAST_MODEL_TASKS\s*[:=]', 1) if client else text)
 try:
     from hermes_cli.config import DEFAULT_CONFIG
@@ -89,6 +96,17 @@ try:
     show('default auxiliary.title_generation', {key: default.get(key) for key in ROUTE_KEYS if key in default})
 except Exception as error:
     show('default auxiliary.title_generation', f'unavailable ({type(error).__name__})')
+
+for module in ('gateway.session_policy', 'tui_gateway.methods_session'):
+    try:
+        fields = getattr(importlib.import_module(module), 'CREATE_FIELDS', None)
+    except Exception as error:
+        fields = None
+    if fields:
+        show(f'session.create accepts ({module})', ', '.join(sorted(fields)))
+        break
+else:
+    show('session.create accepts', 'not found')
 
 print('\n== Where each task would go (no model call)')
 if client:

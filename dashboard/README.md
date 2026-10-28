@@ -318,14 +318,15 @@ already under way skips claims that are in a topic by the time it saves. Claims 
 categorize are not included; the next rebuild retries them. Undo last rebuild
 also removes what this added.
 
-Tidy (Control center) returns topics that would not be started today (fewer
-than three claims, all from one source) to the waiting list. It uses no AI
+Tidy (Control center) returns topics that would not be started today (one
+claim, or two claims from the same source) to the waiting list. It uses no AI
 calls, changes no categories, and saves the removed topics
 (`topics.tidy.previous`) so Undo tidy can put them back with the claims that are
 still waiting; a claim that has since joined another topic stays there, and a
-topic left with fewer than two of its claims is not restored. Undo tidy is
-offered until Topics are rebuilt. Tidy and its undo wait while a rebuild or
-regrouping runs.
+topic left with fewer than two of its claims still in the research is not
+restored. A second tidy before the next rebuild adds to the saved topics, so one
+undo puts back both. Undo tidy is offered until Topics are rebuilt. Tidy and its
+undo wait while a rebuild or regrouping runs.
 
 On the Topics page, claims that are not in a topic are listed under their
 source ("Points not in a topic yet"), largest groups first.
@@ -337,11 +338,20 @@ A topic page lets Mark mark the topic read, rate how interesting it was (1 to
 Unread, Bookmarked or Read, and sorts by Highest rated. When claims join a topic
 after it was marked read, the card shows how many are new, the topic page labels
 them, and "Mark read again" clears them. Marks are stored as one JSON value
-(`topics.reading.v1` in `app_settings`), so no schema change is involved. Each
-mark keeps the topic's claims; when a rebuild gives a topic a new key, the mark
-moves to the topic that now holds at least two and at least half of those
-claims, and a topic that already has its own mark keeps it. Unmatched marks are
-kept aside, so an undone tidy or rebuild finds them again. `POST
+(`topics.reading.v1` in `app_settings`), so no schema change is involved.
+
+Marks are kept by topic key, with the topic's claims at the time. A rebuild
+gives every topic a new key, so a topic with no record of its own shows a
+leftover mark (one whose topic no longer exists) when it is that topic's
+successor: it was created after the mark last changed, it holds at least two of
+the mark's claims and at least half of them, and those claims are at least a
+third of the topic. Each leftover mark shows on one topic at most, closest match
+first. A topic that existed alongside the old one never takes over its mark, even
+if it later takes in the old topic's claims. This is worked out whenever Topics
+are read and is never saved, so Undo last rebuild or Undo tidy brings back the
+original topics with their own marks. Changing a mark on a topic saves it under
+that topic; a topic keeps its record even when every mark is cleared, so a
+leftover mark cannot appear in their place. `POST
 /api/topics/:tag/reading` takes `read` (true or false), `rating` (1 to 5, or
 null to clear) and `bookmarked` (true or false).
 

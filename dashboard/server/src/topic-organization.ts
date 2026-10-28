@@ -1319,7 +1319,8 @@ export function tidySummary() {
 
 /**
  * Returns weak topics' claims to the waiting list, where they show under their
- * source. Categories are unchanged. The removed topics are kept for undo.
+ * source. Categories are unchanged. The removed topics are kept for undo; a
+ * second tidy before the next rebuild adds to them, so one undo puts back both.
  */
 export function tidyTopics(actor: string) {
   const stored = loadClaims();
@@ -1332,7 +1333,8 @@ export function tidyTopics(actor: string) {
     const keys = new Set(weak.map((topic) => topic.key));
     const returned = weak.reduce((sum, topic) => sum + new Set(topic.claims.filter((ref) => live.has(ref))).size, 0);
     const topics = organization.topics.filter((topic) => !keys.has(topic.key));
-    writeJson(TIDY_SNAPSHOT_KEY, { saved_at: now(), saved_by: actor, generated_at: organization.generated_at, topics: weak } satisfies TidySnapshot);
+    const earlier = tidySnapshot(organization)?.topics.filter((topic) => !keys.has(topic.key)) ?? [];
+    writeJson(TIDY_SNAPSHOT_KEY, { saved_at: now(), saved_by: actor, generated_at: organization.generated_at, topics: [...earlier, ...weak] } satisfies TidySnapshot);
     writeJson(ORGANIZATION_KEY, { ...organization, topics });
     audit(actor, 'topics.tidy', ORGANIZATION_KEY, { tidied: weak.length, returned });
     return { tidied: weak.length, returned, topics: topics.length };
@@ -1342,9 +1344,10 @@ export function tidyTopics(actor: string) {
 /**
  * Puts tidied topics back with the claims that are still waiting. A claim that
  * has since joined another topic stays there; a topic left without two of its
- * claims is not restored.
+ * claims that are still in the research is not restored.
  */
 export function undoTidy(actor: string) {
+  const live = liveClaimRefs();
   return db.transaction(() => {
     const organization = activeOrganizationV2();
     const snapshot = tidySnapshot(organization);
@@ -1355,8 +1358,8 @@ export function undoTidy(actor: string) {
     const taken = new Set(organization.topics.map((topic) => topic.key));
     const restored = snapshot.topics
       .filter((topic) => !taken.has(topic.key))
-      .map((topic) => ({ ...topic, claims: topic.claims.filter((ref) => !placed.has(ref)) }))
-      .filter((topic) => topic.claims.length >= 2);
+      .map((topic) => ({ ...topic, claims: [...new Set(topic.claims)].filter((ref) => !placed.has(ref)) }))
+      .filter((topic) => topic.claims.filter((ref) => live.has(ref)).length >= 2);
     writeJson(ORGANIZATION_KEY, { ...organization, topics: [...organization.topics, ...restored] });
     run('DELETE FROM generation_meta WHERE key = ?', TIDY_SNAPSHOT_KEY);
     audit(actor, 'topics.tidy.undo', ORGANIZATION_KEY, { restored: restored.length, skipped: snapshot.topics.length - restored.length });

@@ -176,7 +176,7 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
         <div className="mt-6 border-t border-[var(--line)] pt-4" data-testid="topics-tidy">
           <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">
             {tidy.data.weak_topics
-              ? `${plural(tidy.data.weak_topics, 'topic')} ${tidy.data.weak_topics === 1 ? 'holds' : 'hold'} only two claims from a single source. A new topic now needs three claims, or claims from two sources. Tidying moves these ${plural(tidy.data.weak_claims, 'claim')} back to the waiting list, where they show under their source and can join a stronger topic later. It uses no AI calls and can be undone.`
+              ? `${plural(tidy.data.weak_topics, 'topic')} ${tidy.data.weak_topics === 1 ? 'has' : 'have'} only one claim, or two claims from the same source. A new topic now needs three claims, or claims from two sources. Tidying moves these ${plural(tidy.data.weak_claims, 'claim')} back to the waiting list, where they show under their source and can join a stronger topic later. It uses no AI calls and can be undone.`
               : 'Topics are tidy: every topic has three or more claims, or claims from two sources.'}
           </p>
           {tidy.data.weak_topics ? (
@@ -197,7 +197,7 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
                 <div className="flex flex-wrap items-center gap-2 rounded-[5px] border border-[var(--line)] px-2.5 py-2">
                   <span className="font-mono text-[11px] text-muted-foreground">Put the tidied topics back? Claims that have since joined other topics stay where they are.</span>
                   <button type="button" className="font-mono text-[11px] text-[var(--accent-text)]" disabled={sending !== null}
-                    onClick={() => post<UntidyResult>('untidy', '/prompt-controls/topics/tidy/undo', (result) => `Put back ${plural(result.restored, 'topic')}.${result.skipped ? ` ${plural(result.skipped, 'topic')} stayed apart because ${result.skipped === 1 ? 'its claims have' : 'their claims have'} joined other topics.` : ''}`)}>
+                    onClick={() => post<UntidyResult>('untidy', '/prompt-controls/topics/tidy/undo', (result) => `Put back ${plural(result.restored, 'topic')}.${result.skipped ? ` ${plural(result.skipped, 'topic')} stayed apart because fewer than two of ${result.skipped === 1 ? 'its' : 'their'} claims are still waiting.` : ''}`)}>
                     Confirm
                   </button>
                   <button type="button" className="font-mono text-[11px] text-dim" onClick={() => setConfirmUntidy(false)}>Cancel</button>

@@ -78,7 +78,7 @@ const shows: Record<Show, (topic: CategoryTopic) => boolean> = {
   bookmarked: (topic) => Boolean(topic.reading?.bookmarked),
   read: (topic) => Boolean(topic.reading?.read),
 };
-const isShow = (value: string | null): value is Show => value != null && value in SHOWS;
+const isShow = (value: string | null): value is Show => value != null && Object.hasOwn(SHOWS, value);
 
 /** Claims that are not in a topic, kept together under the source they came from. */
 type SourceGroup = { source_id: string; source: string; latest: string; claims: WaitingClaim[] };

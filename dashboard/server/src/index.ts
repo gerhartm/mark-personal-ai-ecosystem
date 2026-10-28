@@ -443,7 +443,9 @@ app.post('/api/prompt-controls/topics/tidy', async (req, reply) => {
 app.post('/api/prompt-controls/topics/tidy/undo', async (req, reply) => {
   if (topicsBusy()) return reply.code(409).send({ error: 'topics_busy', message: 'Wait for the current rebuild or regrouping to finish before undoing.' });
   try {
-    return undoTidy(requestActor(req));
+    const result = undoTidy(requestActor(req));
+    resetTopicWaitingStatus();
+    return result;
   } catch (error) {
     if (error instanceof TopicOrganizationError) return reply.code(error.status).send({ error: error.code, message: error.message });
     return reply.code(500).send({ error: 'undo_failed', message: 'The tidied topics could not be restored.' });

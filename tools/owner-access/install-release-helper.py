@@ -19,6 +19,7 @@ What it does:
 """
 import datetime
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -34,6 +35,8 @@ NEW_OWNER = 'gerhartm/'
 TARGET = Path(os.environ.get('RELEASE_HELPER_TARGET', '/usr/local/sbin/mark-dashboard-release'))
 BACKUPS = Path(os.environ.get('RELEASE_HELPER_BACKUPS', '/root/mark-v2-upgrades'))
 SAME = ('EDITOR', 'BASE', 'COMPOSE', 'PROJECT', 'REPO', 'HISTORY', 'BACKUPS', 'LOCK', 'BRANCH')
+# The operator-release helper (commit e24638f) that this update was built from.
+EXPECTED_INSTALLED = {'e189438229536274ffa37b522f00a2e7ac14642eaebfd4840e0fac4e715b60df'}
 
 
 def constants(text):
@@ -117,10 +120,16 @@ def main():
     compile(new_text, sys.argv[1], 'exec')
     if 'def publish_docs' not in new_text or 'def operator_cli' not in new_text:
         sys.exit('That file is not the expected release helper. Nothing changed.')
-    old_values, new_values = constants(TARGET.read_text()), constants(new_text)
+    installed_text = TARGET.read_text()
+    old_values, new_values = constants(installed_text), constants(new_text)
     different = [name for name in SAME if old_values.get(name) != new_values.get(name)]
     if different:
         sys.exit('The new helper changes server paths (' + ', '.join(different) + '). Nothing changed.')
+    if hashlib.sha256(TARGET.read_bytes()).hexdigest() not in EXPECTED_INSTALLED:
+        print('The installed helper is not the version this update was built from; it may have been changed on the server.')
+        print('It will be backed up, so you can put it back. Paste this message to Claude if unsure.')
+        if input('Type replace to continue: ').strip().lower() != 'replace':
+            sys.exit('Cancelled. Nothing changed.')
     store = store_path(old_values)
     names = ['user.name', 'user.email', 'remote.origin.url', 'remote.origin.pushurl']
 

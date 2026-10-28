@@ -350,8 +350,9 @@ first. A topic that existed alongside the old one never takes over its mark, eve
 if it later takes in the old topic's claims. This is worked out whenever Topics
 are read and is never saved, so Undo last rebuild or Undo tidy brings back the
 original topics with their own marks. Changing a mark on a topic saves it under
-that topic; a topic keeps its record even when every mark is cleared, so a
-leftover mark cannot appear in their place. `POST
+that topic, and the leftover mark it continued is then shown on no other topic;
+a topic keeps its record even when every mark is cleared, so a leftover mark
+cannot appear in their place. `POST
 /api/topics/:tag/reading` takes `read` (true or false), `rating` (1 to 5, or
 null to clear) and `bookmarked` (true or false).
 

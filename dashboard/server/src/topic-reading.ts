@@ -76,16 +76,15 @@ type Shown = { key: string; mark: ReadingMark };
  *   is a different story);
  * - it holds at least two of the mark's claims, and at least half of them;
  * - those claims make up at least a third of the topic.
- * Each leftover mark shows on one topic at most, closest match first.
+ * Each leftover mark shows on one topic at most, closest match first. A mark
+ * that another record continued is never shown again except on its own topic.
  */
 export function resolveMarks(topics: TopicV2[], marks: Record<string, ReadingMark>) {
   const shown = new Map<string, Shown>();
-  const continued = new Set<string>();
+  const continued = new Set(Object.values(marks).map((mark) => mark.from).filter((key): key is string => Boolean(key)));
   for (const topic of topics) {
-    const own = marks[topic.key];
-    if (!own) continue;
-    shown.set(topic.key, { key: topic.key, mark: own });
-    if (own.from) continued.add(own.from);
+    if (!Object.hasOwn(marks, topic.key)) continue;
+    shown.set(topic.key, { key: topic.key, mark: marks[topic.key] });
   }
   const byKey = new Map(topics.map((topic) => [topic.key, topic]));
   const holder = new Map<string, string>();
@@ -185,9 +184,9 @@ export function updateReading(organization: OrganizationV2, key: string, change:
   if (fields.includes('rating')) mark.rating = asked.rating as number | null;
   if (fields.includes('bookmarked')) mark.bookmarked_at = asked.bookmarked ? (mark.bookmarked_at ?? stamp) : null;
   marks[key] = mark;
-  // A cleared record whose topic no longer exists does nothing.
+  // A cleared record whose topic no longer exists does nothing, unless it still stands for a mark it continued.
   const liveKeys = new Set(organization.topics.map((item) => item.key));
-  for (const [other, entry] of Object.entries(marks)) if (!liveKeys.has(other) && !hasMarks(entry)) delete marks[other];
+  for (const [other, entry] of Object.entries(marks)) if (!liveKeys.has(other) && !hasMarks(entry) && !entry.from) delete marks[other];
   saveMarks(marks);
   return readingView(mark, live) ?? NO_MARK;
 }

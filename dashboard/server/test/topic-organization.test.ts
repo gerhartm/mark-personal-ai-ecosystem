@@ -732,5 +732,9 @@ describe('tidying weak topics and reading marks', () => {
     expect(reading.updateReading(org(), 't-next', { read: false }, live())).toEqual(reading.NO_MARK);
     // Cleared stays cleared, and the k-four mark it continued does not move to t-other.
     expect(listed().topics.filter((entry: any) => entry.reading)).toEqual([]);
+    // Nor does it come back after the next rebuild, even once a change elsewhere tidies up old records.
+    organize([topic('k-again', [one[0], one[1], one[2], one[3]], later()), topic('elsewhere', [spare[3], spare[4]], later())], '2026-10-30T00:00:00.000Z');
+    reading.updateReading(org(), 'elsewhere', { rating: 2 }, live());
+    expect(card('k-again').reading).toBeNull();
   });
 });

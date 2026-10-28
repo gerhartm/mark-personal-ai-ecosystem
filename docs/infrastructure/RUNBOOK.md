@@ -112,7 +112,7 @@ Expected: no running Docker containers and no public Coolify listeners.
 
 ## Initial Coolify administrator — completed 2026-07-31
 
-Mark's approved owner email for Coolify and subsequent project-owned service accounts is `gerhartmark@gmail.com`. Use a different identity only after Mark or Darshan explicitly approves the exception.
+Mark's approved owner email for Coolify and subsequent project-owned service accounts is `gerhartmark@gmail.com`. Use a different identity only after Mark explicitly approves the exception.
 
 1. Resume Coolify.
 2. Open `http://159.195.16.212:8000`.
@@ -120,12 +120,12 @@ Mark's approved owner email for Coolify and subsequent project-owned service acc
 4. Generate a unique strong password of at least 20 characters.
 5. Immediately store the generated password in `.secrets/credentials/new-vps/ALL-CREDENTIALS.txt`, retaining owner-only `0600` permissions.
 6. Confirm login in a fresh session.
-7. Tell Darshan in the active project chat that the account and temporary password were created so he can rotate it later.
+7. Tell Mark that the account and temporary password were created so he can store and rotate it.
 8. Record the account owner, exact email, creation timestamp, verification result, and rotation status in the credential records. Never place the password in non-secret documentation, logs, source files, or Git.
 
 If the registration page shows an unexpected existing user, stop immediately. Do not attempt password resets until the database and audit state are inspected.
 
-Apply this same process to every future client-owned account created for Hermes, OpenViking, storage, backups, monitoring, domains, or related services: use Mark's approved owner email, generate a unique password, store it in the V2 master credential file, notify Darshan in chat, and mark it for later rotation.
+Apply this same process to every future client-owned account created for Hermes, OpenViking, storage, backups, monitoring, domains, or related services: use Mark's approved owner email, generate a unique password, store it in the V2 master credential file, tell Mark, and mark it for later rotation.
 
 Completion state:
 
@@ -645,7 +645,7 @@ To remove public routing without changing the application, restore that file to 
 
 `intel.forkedbrain.fyi` is the live legacy Crypto Intelligence endpoint on the old VPS. Treat its DNS record, `crypto-intel` tunnel, public-hostname route, and connector as protected production state.
 
-Do not create, edit, move, or delete any Cloudflare DNS record, tunnel, route, Access policy, or zone setting until Darshan has received the exact proposed plan, affected hostnames, verification steps, and rollback procedure and has explicitly approved execution.
+Do not create, edit, move, or delete any Cloudflare DNS record, tunnel, route, Access policy, or zone setting until Mark has received the exact proposed plan, affected hostnames, verification steps, and rollback procedure and has explicitly approved execution.
 
 The implemented V2 approach is isolation by hostname and tunnel: tunnel `mark-personal-ai-v2` serves `brain.forkedbrain.fyi`, `manage.forkedbrain.fyi`, and Coolify support hostname `manage-realtime.forkedbrain.fyi` while leaving `intel.forkedbrain.fyi` unchanged. OpenViking remains internal with no public DNS hostname. A later Crypto Intelligence cutover requires its own migration and acceptance plan.
 

@@ -141,7 +141,7 @@ Historical event-backup folders, OpenClaw runtime state, cookies, credentials, r
 7. **Passed at the provider layer:** checksum backup and disposable restore acceptance completed before this fixture run.
 8. **Passed:** the exact fixture namespace, acceptance-only session, and staging were removed.
 9. **Passed:** the canonical 66-event migration build reports 47 sources, 113 total packets, 18 of 18 transcripts extracted, and zero failures without writing to V2.
-10. **Pending:** only after Darshan reviews and approves the final reconciliation may client records be imported.
+10. **Pending:** only after Mark reviews and approves the final reconciliation may client records be imported.
 
 ## Deferred decisions
 

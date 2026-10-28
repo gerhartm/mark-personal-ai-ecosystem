@@ -1,5 +1,7 @@
 # Claude Code project entry: Mark Crypto Intelligence V2
 
+Mark Gerhart owns this project and approves every change to it. Where older documents ask for Darshan's approval, review or acceptance, Mark's applies instead.
+
 Before dashboard work, read these documents in order:
 
 1. `docs/migration/CLAUDE-CODE-DASHBOARD-HANDOFF.md`
@@ -7,7 +9,7 @@ Before dashboard work, read these documents in order:
 3. `docs/infrastructure/README.md`
 4. `docs/infrastructure/RUNBOOK.md`
 
-Claude Code owns dashboard product design and implementation. Begin by proposing the information architecture, primary workflows, visual direction, component system, and authenticated frontend/backend boundary for Darshan's approval. Do not copy the old dashboard or begin with an unreviewed UI implementation.
+Claude Code owns dashboard product design and implementation. Begin by proposing the information architecture, primary workflows, visual direction, component system, and authenticated frontend/backend boundary for Mark's approval. Do not copy the old dashboard or begin with an unreviewed UI implementation.
 
 Use this pinned visual direction: "Follow a premium dark liquid-glass fintech intelligence style with smooth ambient motion, layered translucent surfaces, precise data hierarchy, and restrained cyan-blue accents."
 
@@ -15,7 +17,7 @@ Use Three.js selectively for beautiful, meaningful 3D components such as an ambi
 
 The immutable structured handoff and private media archive are already checksum-verified on the V2 VPS. Use a working database copy/migrations; never mutate the frozen handoff or serve media publicly.
 
-The 197-record OpenViking semantic import is prepared but production memory is intentionally empty because the configured OpenAI Platform account has exhausted its credits. Do not work around that with a new provider, local model, or architecture change without Darshan's explicit approval.
+The 197-record OpenViking semantic import is prepared but production memory is intentionally empty because the configured OpenAI Platform account has exhausted its credits. Do not work around that with a new provider, local model, or architecture change without Mark's explicit approval.
 
 Preserve these boundaries:
 

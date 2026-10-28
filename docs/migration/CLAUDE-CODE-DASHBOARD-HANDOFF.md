@@ -153,7 +153,7 @@ Claude Code should decide the visual system and final navigation, but the finish
 
 1. Read this handoff and the migration manifest before touching UI code.
 2. Inspect the SQLite schema and representative redacted shapes; do not copy client content into source control, test snapshots, screenshots, logs, or prompts that leave the approved environment.
-3. Propose the information architecture, primary user journeys, visual direction, design tokens, component system, motion and 3D budget, and dashboard/backend boundary for Darshan's approval.
+3. Propose the information architecture, primary user journeys, visual direction, design tokens, component system, motion and 3D budget, and dashboard/backend boundary for Mark's approval.
 4. Create a new isolated dashboard application in the existing Mark project; do not edit Hermes/OpenViking containers.
 5. Use a migrated working database while retaining the frozen handoff for reconciliation.
 6. Implement authenticated backend reads and Hermes requests before connecting the polished UI.
@@ -173,7 +173,7 @@ Dashboard implementation is not complete until:
 - no secret is present in frontend bundles, logs, source control, or screenshots;
 - desktop and mobile flows pass accessibility and usability review;
 - migration, backup, deployment, monitoring, rollback, and legacy cutover steps are documented;
-- Mark or Darshan explicitly accepts the preview before any `intel.forkedbrain.fyi` change.
+- Mark explicitly accepts the preview before any `intel.forkedbrain.fyi` change.
 
 ## Out of scope for this handoff
 

@@ -254,6 +254,45 @@ The Anthropic credential is retained only for controlled rollback and is not sel
 
 The gateway status may briefly retain a recent-history message that the pre-restart process is gone. That message was produced by the deliberate restart acceptance test; verify the current process and dashboard before treating it as an incident.
 
+### Per-task models for the Crypto dashboard
+
+The Crypto dashboard's one-off Hermes calls (`llm.oneshot`) name a task, and Hermes routes each task through `auxiliary.<task>` in `/opt/data/config.yaml`. With nothing set for a task, Hermes uses the main model above. These settings do not change the main provider, so Satoshi, ForkedBrain, Ask, Studio and the dashboard editor are unaffected.
+
+| Task | Used for | Setting |
+| --- | --- | --- |
+| `crypto_topics` | Topics: sorting claims into categories, grouping them into topics, new wording; also filing new claims | `openai-api`, `gpt-6-astra`, reasoning `high` |
+| `crypto_analysis` | Analysis pages (not built yet) | `openai-api`, `gpt-6-astra`, reasoning `high` |
+| `crypto_claims` | Extracting claims from each new source | not set: main model |
+
+Apply with a backup, as the Hermes service user so the file keeps its owner and `0600` mode:
+
+```bash
+H=hermes-27am3wgv7vkohkenprml4s3p
+docker exec -u hermes $H cp -p /opt/data/config.yaml /opt/data/config.yaml.pre-crypto-task-models-$(date -u +%Y%m%dT%H%MZ)
+for task in crypto_topics crypto_analysis; do
+  docker exec -u hermes $H hermes config set auxiliary.$task.provider openai-api
+  docker exec -u hermes $H hermes config set auxiliary.$task.model gpt-6-astra
+  docker exec -u hermes $H hermes config set auxiliary.$task.reasoning_effort high
+done
+docker exec -u hermes $H hermes config check
+```
+
+Verify with the read-only model check, `tools/owner-access/hermes-model-check.py` (it makes no model call and prints no keys). Its last section must show `crypto_topics` and `crypto_analysis` going to `gpt-6-astra`, with the main model unchanged:
+
+```bash
+docker exec -i -u hermes $H /opt/hermes/.venv/bin/python - < hermes-model-check.py
+```
+
+Then run Preview in the Control Center's Topics section (70 sample claims; nothing is saved) and confirm `gpt-6-astra` requests in the OpenAI usage page.
+
+Time limits: Hermes v0.21.1 gives one-off calls a fixed 60-second timeout that takes precedence over `auxiliary.<task>.timeout`, so a `timeout` setting has no effect on these calls. How those 60 seconds apply to a long answer depends on Hermes's provider client (the model check prints its no-progress window); high reasoning on a large batch may reach them. If a preview or regrouping reports Hermes's time limit, lower the effort for Topics only:
+
+```bash
+docker exec -u hermes $H hermes config set auxiliary.crypto_topics.reasoning_effort medium
+```
+
+Rollback: remove the task settings (`hermes config unset auxiliary.crypto_topics`, and the same for `crypto_analysis`, run as above), or copy the `config.yaml.pre-crypto-task-models-*` backup back over `/opt/data/config.yaml` with `cp -p` as the Hermes user. Either way, the tasks return to the main model. Hermes reads these settings when a call is made, so a restart should not be needed in either direction; if the model check shows the new route but the usage page still shows only Sol, restart Hermes once from Coolify.
+
 ### Telegram owner-experience acceptance mode
 
 Darshan's existing allowlisted implementation chat is intentionally configured as a bounded Mark owner-experience test. The native Telegram channel prompt makes Satoshi address that chat as Mark and retrieve Mark's canonical context, while the gateway's numeric-user allowlist remains the real access boundary.

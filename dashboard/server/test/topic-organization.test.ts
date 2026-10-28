@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
  * and answers in the documented JSON shapes, so the real validation, storage
  * and migration code runs against a copy of the stored corpus.
  */
-const state = vi.hoisted(() => ({ calls: [] as string[], topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, longDekNextGroups: 0, alsoUnsorted: false, outage: false, shift: false, garbageCategorize: false, categorizeRules: '', duringGroup: null as null | (() => void) }));
+const state = vi.hoisted(() => ({ calls: [] as string[], tasks: new Set<string>(), topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, longDekNextGroups: 0, alsoUnsorted: false, outage: false, shift: false, garbageCategorize: false, categorizeRules: '', duringGroup: null as null | (() => void) }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
     const start = input.indexOf(`${name}\n`);
@@ -28,6 +28,7 @@ vi.mock('../src/hermes-client.js', () => {
   return {
     runHermesAgent: vi.fn(),
     generateWithHermes: vi.fn(async (input: string, options: any) => {
+      state.tasks.add(String(options?.task));
       if (state.outage) throw new Error('429 insufficient_quota');
       const head = String(options?.instructions?.[0] ?? '');
       if (head.startsWith('Assign each research claim')) {
@@ -333,6 +334,9 @@ describe('rebuilding Topics from claims', () => {
     expect(counts.placed + counts.unsorted + counts.dropped + counts.missing).toBe(preview.claim_count);
     expect(preview.topics.some((topic) => topic.title.startsWith('Retitled topic'))).toBe(true);
     expect(organization.activeOrganizationV2()).toBeNull();
+    // Sorting, grouping and new wording all go to Hermes as the crypto_topics task.
+    expect([...state.tasks]).toEqual([organization.TOPICS_TASK]);
+    expect(organization.TOPICS_TASK).toBe('crypto_topics');
   });
 
   it('changes nothing when Hermes is unavailable', async () => {

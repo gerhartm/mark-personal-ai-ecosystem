@@ -140,6 +140,13 @@ const CATEGORY_HINTS = [
 ].join(', ');
 if (!CATEGORY_IDS.every((id) => CATEGORY_HINTS.includes(`${id} (`))) throw new Error('category hints are incomplete');
 
+/**
+ * The Hermes task name for claim extraction. Hermes routes it through
+ * auxiliary.crypto_claims in its config; with nothing set there it uses
+ * Hermes's main model, as before.
+ */
+export const CLAIMS_TASK = 'crypto_claims';
+
 export async function extractChunk(content: string, title: string, priorClaims: string[] = []) {
   const blocks = evidenceBlocks(content);
   const instructions = [
@@ -159,7 +166,7 @@ export async function extractChunk(content: string, title: string, priorClaims: 
   let previous = '';
   for (let attempt = 0; attempt < 2; attempt++) {
     const raw = await generateWithHermes(`Source title: ${title}\n\nALREADY EXTRACTED CLAIMS\n${JSON.stringify(priorClaims.slice(-12).map(claim => claim.slice(0, 400)))}\n\nSOURCE BLOCKS\n${JSON.stringify(blocks.map((text, id) => ({ id, text })))}${attempt ? `\n\nPREVIOUS EXTRACTION TO CORRECT\n${previous}\nVALIDATION ISSUES\n${String(lastError)}\nUse dates: [] when the date is not explicit.` : ''}`, {
-      instructions, maxTokens: 6_000, temperature: 0.1, timeoutMs: 120_000,
+      instructions, task: CLAIMS_TASK, maxTokens: 6_000, temperature: 0.1, timeoutMs: 120_000,
     });
     try { return validateExtraction(resolveEvidenceBlocks(parse(raw), blocks), content, true); }
     catch (error) { lastError = error; previous = raw; }

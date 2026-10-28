@@ -225,6 +225,9 @@ dates are omitted. Three failed processing attempts stop with a visible retry
 action. A five-second worker tick schedules work; it is not a promise that a
 document finishes in five seconds. Provider availability and document length
 determine completion time and processing consumes the existing model allowance.
+Extraction calls go to Hermes as task `crypto_claims`, so Hermes can pin their
+model (`auxiliary.crypto_claims` in Hermes's config); with nothing set there
+Hermes uses its main model.
 
 Bulk requests accept up to 100 items each, with a persistent per-item queue. The
 UI splits larger selections into bounded requests. Supported uploads are TXT,
@@ -269,8 +272,12 @@ broken topics, views stated as fact and forgotten claims are worth a whole new
 answer; length and style notes alone do not trigger one.
 
 Grouping requests hold up to 60 claims and list up to 80 existing topics from
-the same categories by title, so each answer fits well within the six-minute
-limit per call (four minutes for sorting). A call that gets no answer is retried
+the same categories by title. Every Topics call goes to Hermes as task
+`crypto_topics`, so Hermes can pin its model and reasoning effort
+(`auxiliary.crypto_topics` in Hermes's config; with nothing set there Hermes
+uses its main model). The limits leave room for a reasoning model at high
+effort: twelve minutes and 24,000 output tokens per grouping call, eight minutes
+and 16,000 tokens for sorting, six minutes and 8,000 tokens for new wording. A call that gets no answer is retried
 once after a 30-second pause. A batch that still gets no answer waits: its
 claims stay uncategorized or ungrouped. Two such batches in a row, or no answer
 to any batch, stop the rebuild. Failure messages say why in fixed wording

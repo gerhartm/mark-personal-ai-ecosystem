@@ -128,6 +128,19 @@ const pause = (ms: number) => (ms > 0 ? new Promise((resolve) => setTimeout(reso
  */
 export const limits = { groupClaims: 60, groupChars: 24_000, existingTopics: 80 };
 
+/**
+ * The Hermes task name for every Topics call. Hermes routes it through
+ * auxiliary.crypto_topics in its config, which pins the model and reasoning
+ * effort; with nothing set there it uses Hermes's main model. Token caps and
+ * time limits leave room for a reasoning model thinking at high effort.
+ */
+export const TOPICS_TASK = 'crypto_topics';
+export const calls = {
+  categorize: { maxTokens: 16_000, timeoutMs: 480_000 },
+  group: { maxTokens: 24_000, timeoutMs: 720_000 },
+  retitle: { maxTokens: 8_000, timeoutMs: 360_000 },
+};
+
 const clean = (value: unknown) => String(value ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 const now = () => new Date().toISOString();
 export const claimRef = (eventId: string, position: number) => `${eventId}:${position}`;
@@ -505,7 +518,7 @@ async function categorizeBatch(batch: ClaimRow[]): Promise<Categorized> {
     let raw: string;
     try {
       raw = await generateWithHermes(`CLAIMS\n${batch.filter((claim) => !result.has(claim.ref)).map((claim) => claimLine(claim)).join('\n')}${issues ? `\n\nCORRECT THESE ISSUES\n${issues}` : ''}`, {
-        instructions, maxTokens: 8_000, temperature: 0.1, timeoutMs: 240_000,
+        instructions, task: TOPICS_TASK, ...calls.categorize, temperature: 0.1,
       });
     } catch (error) {
       failure = classifyHermesFailure(error);
@@ -768,7 +781,7 @@ async function retitleDropped(outcome: BatchOutcome, batch: ClaimRow[], takenTit
   })).join('\n');
   let raw: string;
   try {
-    raw = await generateWithHermes(`TOPICS\n${input}`, { instructions, maxTokens: 4_000, temperature: 0.2, timeoutMs: 180_000 });
+    raw = await generateWithHermes(`TOPICS\n${input}`, { instructions, task: TOPICS_TASK, ...calls.retitle, temperature: 0.2 });
   } catch {
     return outcome;
   }
@@ -853,7 +866,7 @@ async function groupBatch(
     let raw: string;
     try {
       raw = await generateWithHermes(`${input}${issues.length ? `\n\nCORRECT THESE ISSUES\n${issues.slice(0, 12).join('\n')}` : ''}`, {
-        instructions, maxTokens: 12_000, temperature: 0.2, timeoutMs: 360_000,
+        instructions, task: TOPICS_TASK, ...calls.group, temperature: 0.2,
       });
     } catch (error) {
       failure = classifyHermesFailure(error);

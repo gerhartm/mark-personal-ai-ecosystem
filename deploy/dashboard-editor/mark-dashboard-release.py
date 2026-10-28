@@ -7,6 +7,10 @@ health check, automatic recovery and the release ledger):
 - Satoshi's editor sends one JSON request on stdin through its restricted SSH key.
 - An operator logged in to the host runs `mark-dashboard-release operator ...` to check
   or deploy a reviewed GitHub branch, restore a published version, or read the history.
+
+Operator branches may also change the project's instructions and documentation
+(CLAUDE.md, AGENTS.md, README.md and docs/). Documentation travels with a website release,
+or on its own without rebuilding or restarting the website.
 """
 import argparse
 import fcntl
@@ -93,10 +97,27 @@ def healthy():
     return False
 
 
-def version(source, message):
+def documentation(path):
+    """Project instructions and docs that may be published without touching the website."""
+    return path in ('CLAUDE.md', 'AGENTS.md', 'README.md') or path.startswith('docs/')
+
+
+def apply_docs(commit, paths):
+    """Stage documentation files exactly as they are in a reviewed commit."""
+    present = set(git('ls-tree', '-r', '--name-only', commit, '--', *paths).splitlines()) if paths else set()
+    for path in paths:
+        if path in present:
+            git('checkout', commit, '--', path)
+        else:
+            git('rm', '-q', '--ignore-unmatch', '--', path)
+
+
+def version(source, message, docs=None):
     shutil.rmtree(REPO / 'dashboard')
     copy_source(source, REPO / 'dashboard')
     git('add', '-A', '--', 'dashboard')
+    if docs:
+        apply_docs(*docs)
     if not git('diff', '--cached', '--name-only'):
         raise RuntimeError('No dashboard code changes to version.')
     git('-c', 'core.hooksPath=/dev/null', 'commit', '-m', message)
@@ -158,7 +179,7 @@ def build(release, run_id, kind):
     return image
 
 
-def publish(history, release, run_id, image, message, kind='editor', draft=False, target_commit=None, extra=None):
+def publish(history, release, run_id, image, message, kind='editor', draft=False, target_commit=None, extra=None, docs=None):
     """Back up, version and push a checked release, then replace only the dashboard service."""
     old_commit = history['current_commit']
     old_compose = COMPOSE.read_text()
@@ -171,7 +192,7 @@ def publish(history, release, run_id, image, message, kind='editor', draft=False
     (backup / 'image-before.txt').write_text(old_image)
     with sqlite3.connect(f'file:{BASE}/data/crypto-intelligence.db?mode=ro', uri=True) as db:
         with sqlite3.connect(backup / 'database-before.db') as destination: db.backup(destination)
-    commit = version(release, message)
+    commit = version(release, message, docs)
     if draft:
         draft_branch = f'satoshi-dashboard-drafts/{run_id}'
         try:
@@ -196,8 +217,9 @@ def publish(history, release, run_id, image, message, kind='editor', draft=False
             COMPOSE.write_text(old_compose)
             cmd(compose)
             if not healthy(): raise RuntimeError('Deployment and automatic recovery failed; operator required.') from failure
-        # Keep failures visible in history while restoring the old source with a new commit.
-        git('restore', f'--source={old_commit}', '--staged', '--worktree', '--', 'dashboard')
+        # Keep failures visible in history while restoring the old source (and any
+        # documentation that travelled with it) with a new commit.
+        git('restore', f'--source={old_commit}', '--staged', '--worktree', '--', '.')
         git('-c', 'core.hooksPath=/dev/null', 'commit', '-m', f'Recover previous dashboard after failed release {run_id[:12]}')
         recovery = git('rev-parse', 'HEAD')
         push_verified(recovery)
@@ -214,6 +236,28 @@ def publish(history, release, run_id, image, message, kind='editor', draft=False
     save(HISTORY, history)
     save(backup / 'release.json', receipt)
     mirror()
+    return receipt
+
+
+def publish_docs(history, commit, paths, message, extra=None):
+    """Version documentation-only changes without rebuilding or restarting the website."""
+    old_commit = history['current_commit']
+    try:
+        apply_docs(commit, paths)
+        if not git('diff', '--cached', '--name-only'):
+            raise RuntimeError('No documentation changes to publish.')
+        git('-c', 'core.hooksPath=/dev/null', 'commit', '-m', message)
+        new = git('rev-parse', 'HEAD')
+        push_verified(new)
+    except Exception:
+        git('reset', '-q', '--hard', old_commit)
+        raise
+    receipt = {'status': 'documented', 'commit': new, 'previous_commit': old_commit, 'commit_url': f'{URL}/commit/{new}',
+               'branch': BRANCH, 'changed_files': paths[:50], 'website': 'unchanged', 'time': time.time()}
+    if extra: receipt.update(extra)
+    history['current_commit'] = new
+    history['releases'].append(receipt)
+    save(HISTORY, history)
     return receipt
 
 
@@ -241,7 +285,7 @@ def perform(request):
         cmd(['git', 'init', '-q', str(dashboard)])
         (dashboard / '.git/info/exclude').write_text('data/\nnode_modules/\ndist/\ntest-support/\n.editor-tmp/\n.acceptance-checks/\n.npm/\n.cache/\n._*\n*.tsbuildinfo\n')
         cmd(['git', '-C', str(dashboard), 'add', '-A'])
-        cmd(['git', '-C', str(dashboard), '-c', 'user.name=darshanahirrao', '-c', 'user.email=02darsh@gmail.com', '-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'Published dashboard baseline ' + history['current_commit']])
+        cmd(['git', '-C', str(dashboard), '-c', 'user.name=Dashboard editor', '-c', 'user.email=editor@localhost', '-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'Published dashboard baseline ' + history['current_commit']])
         # Native Hermes tools run as uid/gid 10000, not docker-exec root.
         for directory, dirs, files in os.walk(work):
             os.chown(directory, 10000, 10000)
@@ -286,11 +330,12 @@ def operator_source(history, branch, commit, allow_schema=False):
     if subprocess.run(['git', '-C', str(REPO), 'merge-base', '--is-ancestor', base, commit]).returncode:
         raise RuntimeError(f'{branch} is not based on the published dashboard ({base[:12]}); update the branch from {BRANCH} first.')
     changed = git('diff', '--name-only', base, commit).splitlines()
-    outside = [path for path in changed if not path.startswith('dashboard/')]
+    outside = [path for path in changed if not path.startswith('dashboard/') and not documentation(path)]
     if outside:
-        raise RuntimeError('Operator releases may only change dashboard/; this branch also changes ' + ', '.join(outside[:5]))
+        raise RuntimeError('Operator releases may only change dashboard/ and documentation (CLAUDE.md, AGENTS.md, '
+                           'README.md, docs/); this branch also changes ' + ', '.join(outside[:5]))
     if not changed:
-        raise RuntimeError('No dashboard changes between the published release and this commit.')
+        raise RuntimeError('No changes between the published release and this commit.')
     if SCHEMA in changed and not allow_schema:
         raise RuntimeError('Database schema code changed; review compatibility, then rerun with --allow-schema-change.')
     return changed
@@ -326,6 +371,16 @@ def operator(args, ask=None):
         image = build(release, run_id, 'operator')
         return publish(history, release, run_id, image, f'Restore dashboard to {target[:12]}', kind='operator', target_commit=target, extra={'operator': True})
     changed = operator_source(history, args.branch, args.commit, args.allow_schema_change)
+    docs = [path for path in changed if documentation(path)]
+    summary = ' '.join((args.summary or '').split()) or args.branch
+    source = {'operator': True, 'source_branch': args.branch, 'source_commit': args.commit}
+    if len(docs) == len(changed):
+        if args.command == 'check':
+            return {'status': 'checked', 'deployed': False, 'documentation_only': True, 'branch': args.branch, 'commit': args.commit,
+                    'changed_files': changed[:50], 'changed_count': len(changed)}
+        confirm(f'Publish documentation from {args.branch} at {args.commit[:12]} ({len(docs)} changed files). '
+                f'The website at {SITE} is not rebuilt or restarted.', 'deploy', args.yes, ask)
+        return publish_docs(history, args.commit, docs, f'Operator docs {args.branch}@{args.commit[:12]}: {summary[:160]}', extra=source)
     if args.command == 'deploy':
         confirm(f'Deploy {args.branch} at {args.commit[:12]} ({len(changed)} changed files) to {SITE}. The database is backed up first, and the previous version comes back automatically if the health check fails.', 'deploy', args.yes, ask)
     export_dashboard(args.commit, release, run_id)
@@ -333,9 +388,8 @@ def operator(args, ask=None):
     if args.command == 'check':
         shutil.rmtree(release)
         return {'status': 'checked', 'deployed': False, 'branch': args.branch, 'commit': args.commit, 'changed_files': changed[:50], 'changed_count': len(changed), 'image': image}
-    summary = ' '.join((args.summary or '').split()) or args.branch
     message = f'Operator release {args.branch}@{args.commit[:12]}: {summary[:160]}'
-    return publish(history, release, run_id, image, message, kind='operator', extra={'operator': True, 'source_branch': args.branch, 'source_commit': args.commit})
+    return publish(history, release, run_id, image, message, kind='operator', extra=source, docs=(args.commit, docs) if docs else None)
 
 
 def operator_cli(argv, ask=None):

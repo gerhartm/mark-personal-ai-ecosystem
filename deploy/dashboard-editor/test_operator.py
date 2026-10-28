@@ -162,10 +162,99 @@ class OperatorRelease(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'not based on the published dashboard'):
             r.operator(self.args('check', branch='ux/unrelated', commit=commit))
 
-    def test_changes_outside_dashboard_are_refused(self):
-        commit = self.branch('ux/docs-too', {'dashboard/page.tsx': 'new', 'README.md': 'changed'})
-        with self.assertRaisesRegex(RuntimeError, 'only change dashboard/'):
-            r.operator(self.args('check', branch='ux/docs-too', commit=commit))
+    def test_changes_outside_dashboard_and_docs_are_refused(self):
+        for name, files in (('ux/infra-too', {'dashboard/page.tsx': 'new', 'deploy/compose.yml': 'changed'}),
+                            ('ux/helper', {'deploy/dashboard-editor/mark-dashboard-release.py': 'changed'}),
+                            ('ux/nested-readme', {'forkedbrain/README.md': 'changed'})):
+            commit = self.branch(name, files)
+            with self.assertRaisesRegex(RuntimeError, 'only change dashboard/ and documentation'):
+                r.operator(self.args('check', branch=name, commit=commit))
+        self.assertEqual(self.docker, []); self.assertEqual(self.remote_tip(), self.baseline)
+
+    def published_file(self, commit, path):
+        return sh('git', '--git-dir', str(self.remote), 'show', f'{commit}:{path}')
+
+    def test_docs_only_check_builds_nothing(self):
+        commit = self.branch('ux/owner-docs', {'CLAUDE.md': 'Mark approves.', 'docs/runbook.md': 'steps'})
+        result = r.operator(self.args('check', branch='ux/owner-docs', commit=commit))
+        self.assertEqual(result['status'], 'checked'); self.assertTrue(result['documentation_only'])
+        self.assertEqual(sorted(result['changed_files']), ['CLAUDE.md', 'docs/runbook.md'])
+        self.assertEqual(self.docker, []); self.assertEqual(self.remote_tip(), self.baseline)
+
+    def test_docs_only_deploy_publishes_without_rebuilding_the_website(self):
+        commit = self.branch('ux/owner-docs', {'CLAUDE.md': 'Mark approves.', 'README.md': 'new readme', 'docs/runbook.md': 'steps'})
+        receipt = self.deploy(commit, 'ux/owner-docs')
+        self.assertEqual(receipt['status'], 'documented'); self.assertEqual(receipt['website'], 'unchanged')
+        self.assertEqual(self.docker, []); self.assertEqual(self.live_image, 'mark-crypto-dashboard:baseline')
+        self.assertEqual(r.COMPOSE.read_text(), COMPOSE)
+        self.assertEqual(self.remote_tip(), receipt['commit'])
+        self.assertEqual(self.published_file(receipt['commit'], 'CLAUDE.md'), 'Mark approves.')
+        self.assertEqual(self.published_file(receipt['commit'], 'README.md'), 'new readme')
+        self.assertEqual(self.published_file(receipt['commit'], 'docs/runbook.md'), 'steps')
+        self.assertEqual(self.tree(receipt['commit']), self.tree(self.baseline))
+        self.assertTrue(sh('git', '--git-dir', str(self.remote), 'log', '-1', '--format=%s', receipt['commit']).startswith('Operator docs ux/owner-docs@'))
+        history = json.loads(r.HISTORY.read_text())
+        self.assertEqual(history['current_commit'], receipt['commit']); self.assertEqual(history['releases'][-1]['status'], 'documented')
+        self.assertEqual(r.git('status', '--porcelain'), '')
+        # The next release starts cleanly from the documentation commit.
+        self.assertEqual(r.current()['current_commit'], receipt['commit'])
+
+    def test_docs_deploy_can_delete_a_document(self):
+        commit = self.branch('ux/drop-readme', {'docs/new.md': 'kept'})
+        sh('git', 'rm', '-q', 'README.md', cwd=self.dev); sh('git', 'commit', '-m', 'Drop readme', cwd=self.dev)
+        sh('git', 'push', '-f', 'origin', 'HEAD:refs/heads/ux/drop-readme', cwd=self.dev)
+        commit = sh('git', 'rev-parse', 'HEAD', cwd=self.dev)
+        receipt = self.deploy(commit, 'ux/drop-readme')
+        files = sh('git', '--git-dir', str(self.remote), 'ls-tree', '-r', '--name-only', receipt['commit']).splitlines()
+        self.assertNotIn('README.md', files); self.assertIn('docs/new.md', files)
+
+    def test_docs_push_failure_leaves_everything_as_it_was(self):
+        commit = self.branch('ux/owner-docs', {'CLAUDE.md': 'Mark approves.'})
+        with patch.object(r, 'push_verified', side_effect=RuntimeError('GitHub did not confirm')):
+            with self.assertRaisesRegex(RuntimeError, 'GitHub did not confirm'):
+                self.deploy(commit, 'ux/owner-docs')
+        self.assertEqual(r.git('rev-parse', 'HEAD'), self.baseline); self.assertEqual(r.git('status', '--porcelain'), '')
+        self.assertEqual(json.loads(r.HISTORY.read_text())['current_commit'], self.baseline)
+        self.assertEqual(self.remote_tip(), self.baseline)
+
+    def test_docs_travel_with_a_website_release(self):
+        commit = self.branch('ux/layout-and-docs', {'dashboard/page.tsx': 'new layout', 'CLAUDE.md': 'Mark approves.'})
+        receipt = self.deploy(commit, 'ux/layout-and-docs')
+        self.assertEqual(receipt['status'], 'deployed')
+        self.assertEqual(self.tree(receipt['commit']), self.tree(commit))
+        self.assertEqual(self.published_file(receipt['commit'], 'CLAUDE.md'), 'Mark approves.')
+        self.assertEqual(self.live_image, receipt['image'])
+
+    def test_failed_release_with_docs_restores_docs_too(self):
+        commit = self.branch('ux/broken-docs', {'dashboard/page.tsx': 'broken', 'docs/new.md': 'new', 'README.md': 'changed'})
+        with patch.object(r, 'healthy', side_effect=[False, True]):
+            with self.assertRaisesRegex(RuntimeError, 'previous dashboard preserved'):
+                self.deploy(commit, 'ux/broken-docs')
+        recovery = json.loads(r.HISTORY.read_text())['current_commit']
+        self.assertEqual(sh('git', '--git-dir', str(self.remote), 'rev-parse', f'{recovery}^{{tree}}'),
+                         sh('git', '--git-dir', str(self.remote), 'rev-parse', f'{self.baseline}^{{tree}}'))
+
+    def test_revert_after_a_docs_release_keeps_the_docs(self):
+        layout = self.branch('ux/layout-pass-1', {'dashboard/page.tsx': 'new layout'})
+        self.deploy(layout, 'ux/layout-pass-1')
+        docs = self.branch('ux/owner-docs', {'CLAUDE.md': 'Mark approves.'})
+        self.deploy(docs, 'ux/owner-docs')
+        with patch.dict(os.environ, {'TMUX': 'fixture'}):
+            receipt = r.operator(self.args('revert', to='previous'), ask=lambda prompt: 'restore')
+        self.assertEqual(receipt['restored_from'], self.baseline)
+        self.assertEqual(self.tree(receipt['commit']), self.tree(self.baseline))
+        self.assertEqual(self.published_file(receipt['commit'], 'CLAUDE.md'), 'Mark approves.')
+
+    @unittest.skipUnless(os.geteuid() == 0, 'prepare hands the workspace to the Hermes user')
+    def test_editor_baseline_is_not_signed_by_a_person(self):
+        run_id = 'd' * 32
+        folder = self.editor / 'runs' / run_id; folder.mkdir(parents=True)
+        r.save(folder / 'status.json', {'status': 'editing'})
+        (self.editor / 'test-support/frozen').mkdir()
+        r.perform({'action': 'prepare', 'run_id': run_id})
+        workspace = self.editor / 'workspaces' / run_id / 'dashboard'
+        author = sh('git', '-c', f'safe.directory={workspace}', '-C', str(workspace), 'log', '-1', '--format=%an <%ae>')
+        self.assertEqual(author, 'Dashboard editor <editor@localhost>')
 
     def test_commit_must_be_the_branch_tip(self):
         first = self.branch('ux/moving', {'dashboard/page.tsx': 'one'})

@@ -1,5 +1,7 @@
 # Project entry: Crypto Intelligence
 
+Mark Gerhart owns this project and approves every change to it. Where older documents ask for Darshan's approval, review or acceptance, Mark's applies instead.
+
 Start with `README.md`, `dashboard/README.md` and `docs/README.md`. The reviewed handbooks describe the current implementation. Older design proposals and infrastructure notes are historical evidence and can describe superseded screens, models or login methods.
 
 Read `docs/development/README.md` before running the application or tests. Use isolated data and preserve the private frozen handoff. Read `docs/operations/dashboard-editing.md` before publication: `satoshi-dashboard`, its remote and the host release ledger must remain consistent.

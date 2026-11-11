@@ -271,18 +271,27 @@ Claims that only cite a document ("the source asserts…") count as facts. Only
 broken topics, views stated as fact and forgotten claims are worth a whole new
 answer; length and style notes alone do not trigger one.
 
-Grouping requests hold up to 60 claims and list up to 80 existing topics from
-the same categories by title. Every Topics call goes to Hermes as task
-`crypto_topics`, so Hermes can pin its model and reasoning effort
-(`auxiliary.crypto_topics` in Hermes's config; with nothing set there Hermes
-uses its main model). The limits leave room for a reasoning model at high
-effort: twelve minutes and 24,000 output tokens per grouping call, eight minutes
-and 16,000 tokens for sorting, six minutes and 8,000 tokens for new wording. A call that gets no answer is retried
-once after a 30-second pause. A batch that still gets no answer waits: its
-claims stay uncategorized or ungrouped. Two such batches in a row, or no answer
-to any batch, stop the rebuild. Failure messages say why in fixed wording
-(time limit, empty answer, out of credits, rate limit, unreachable); provider
-messages are never shown.
+Sorting requests hold up to 60 claims. Grouping requests hold up to 30 claims
+and list up to 80 existing topics from the same categories by title. Every
+Topics call goes to Hermes as task `crypto_topics`, so Hermes can pin its model
+and reasoning effort (`auxiliary.crypto_topics` in Hermes's config; with nothing
+set there Hermes uses its main model). The time and token limits leave room for
+a reasoning model: twelve minutes and 24,000 output tokens per grouping call,
+eight minutes and 16,000 tokens for sorting, six minutes and 8,000 tokens for
+new wording.
+
+Hermes ends a streamed answer that shows no progress for 60 seconds, so batches
+stay small. A sorting or grouping batch that gets no answer because of a time
+limit, an empty answer or an error is split in halves, down to 8 claims, and the
+halves are sent in its place rather than the whole batch again; a rate limit or
+an unreachable Hermes gets one retry of the same batch after a 30-second pause
+instead. A batch that still gets no answer waits: its claims stay uncategorized
+or ungrouped. Two such batches in a row, or no answer to any batch, stop the
+rebuild. Failure messages say why in fixed wording (time limit, empty answer,
+out of credits, rate limit, unreachable); provider messages are never shown.
+Hermes's cut-off messages (a stalled stream, a broken pipe, and the main
+model's rejection of the task's reasoning setting when Hermes falls back to it)
+count as the time limit.
 
 A rebuild saves nothing when Hermes stops responding, when more than a tenth of
 the claims cannot be categorized, or when grouping fails for more than a quarter
@@ -311,10 +320,14 @@ after new wording.
 Group waiting claims (Control center) gives claims that are in no topic a second
 look. Waiting claims are batched by category, never mixed, beside the existing
 topics of that category, so they can join a topic or start one with each other.
-Existing topics keep their claims and every claim keeps its category. It runs as
-a background job (`topics.waiting.job`); new filing runs and rebuilds wait while
-it runs, nothing is saved if Topics changed meanwhile, and a filing run that was
-already under way skips claims that are in a topic by the time it saves. Claims a rebuild could not
+Existing topics keep their claims and every claim keeps its category. What it
+grouped is saved even when Hermes gave no answer for some batches: those claims
+keep waiting, the result line says how many, and grouping again retries them.
+When Hermes stays silent twice in a row it stops and keeps what it has. It runs
+as a background job (`topics.waiting.job`); new filing runs and rebuilds wait
+while it runs, nothing is saved if Topics changed meanwhile, and a filing run
+that was already under way skips claims that are in a topic by the time it
+saves. Claims a rebuild could not
 categorize are not included; the next rebuild retries them. Undo last rebuild
 also removes what this added.
 
@@ -358,7 +371,8 @@ null to clear) and `bookmarked` (true or false).
 
 Once a rebuild exists, a filing worker checks every minute for claims that are
 not yet organized, including claims committed during a rebuild or before a
-restart, and files up to 40 at a time with one Hermes call: they join an
+restart, and files up to 20 at a time, beside up to 10 waiting claims of the
+same categories, with one Hermes call: they join an
 existing topic, start a new topic with another waiting claim, or wait under
 their category. Filing never blocks source processing and pauses for 15 minutes
 when Hermes is unavailable or answers without usable categories; a claim that

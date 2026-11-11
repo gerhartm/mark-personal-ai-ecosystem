@@ -8,7 +8,8 @@ import { join, resolve } from 'node:path';
  * and answers in the documented JSON shapes, so the real validation, storage
  * and migration code runs against a copy of the stored corpus.
  */
-const state = vi.hoisted(() => ({ calls: [] as string[], tasks: new Set<string>(), topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, longDekNextGroups: 0, alsoUnsorted: false, outage: false, shift: false, garbageCategorize: false, categorizeRules: '', duringGroup: null as null | (() => void) }));
+const state = vi.hoisted(() => ({ calls: [] as string[], tasks: new Set<string>(), groupSent: [] as string[][], sortSent: [] as string[][],
+  groupFails: null as null | ((claims: any[]) => string | null), sortFails: null as null | ((claims: any[]) => string | null), topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, longDekNextGroups: 0, alsoUnsorted: false, outage: false, shift: false, garbageCategorize: false, categorizeRules: '', duringGroup: null as null | (() => void) }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
     const start = input.indexOf(`${name}\n`);
@@ -35,7 +36,11 @@ vi.mock('../src/hermes-client.js', () => {
         state.calls.push('categorize');
         state.categorizeRules = options.instructions.join('\n');
         if (state.garbageCategorize) return 'Error: the provider could not complete this request.';
-        return JSON.stringify({ claims: section(input, 'CLAIMS').map((claim: any) => ({ id: claim.id, category: pick(claim.text), round: roundFor(claim.text) })) });
+        const sorting = section(input, 'CLAIMS');
+        state.sortSent.push(sorting.map((claim: any) => claim.id));
+        const sortFailure = state.sortFails?.(sorting);
+        if (sortFailure) throw new Error(sortFailure);
+        return JSON.stringify({ claims: sorting.map((claim: any) => ({ id: claim.id, category: pick(claim.text), round: roundFor(claim.text) })) });
       }
       if (head.startsWith("Organize Mark's stored research claims")) {
         state.calls.push('group');
@@ -45,6 +50,9 @@ vi.mock('../src/hermes-client.js', () => {
         if (longDek) state.longDekNextGroups--;
         if (state.failNextGroupCalls > 0) { state.failNextGroupCalls--; return 'not json'; }
         const claims = section(input, 'CLAIMS');
+        state.groupSent.push(claims.map((claim: any) => claim.id));
+        const groupFailure = state.groupFails?.(claims);
+        if (groupFailure) throw new Error(groupFailure);
         const existing = section(input, 'EXISTING TOPICS');
         const byCategory = new Map<string, string[]>();
         for (const claim of claims) byCategory.set(claim.category, [...(byCategory.get(claim.category) ?? []), claim.id]);
@@ -290,6 +298,13 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.classifyHermesFailure(new Error('Something unexpected happened'))).toBe('error');
     expect(new organization.HermesUnavailableError('timeout').message).toMatch(/longer than the time limit/);
     expect(new organization.HermesUnavailableError().message).toBe('Hermes did not respond, so nothing was changed. Check Hermes availability and retry.');
+    // Hermes's no-progress cut-off, the call it breaks beside it, and the fallback that rejects the reasoning setting.
+    for (const message of [
+      'one-shot generation failed: [Errno 32] Broken pipe',
+      'one-shot generation failed: Codex auxiliary Responses stream stalled: no new output for 60.0s (86.4s elapsed)',
+      'one-shot generation failed: Codex auxiliary Responses stream produced no output within 60.0s (no-progress timeout, 60.0s elapsed)',
+      `one-shot generation failed: Error code: 400 - {'error': {'message': "Unknown parameter: 'reasoning'.", 'param': 'reasoning'}}`,
+    ]) expect(organization.classifyHermesFailure(new Error(message))).toBe('timeout');
   });
   it('measures failure limits by share and prefers the answer that files more claims', () => {
     expect(organization.exceedsShare(1, 4, 0.25)).toBe(false);
@@ -538,6 +553,71 @@ describe('rebuilding Topics from claims', () => {
     expect(categoriesNow()).toEqual(before);
     expect(organization.activeOrganizationV2()?.generated_at).toBe(earlier.generated_at);
     expect(() => organization.undoTopicRebuild('topic-test')).toThrow(/no rebuild/i);
+  });
+});
+
+describe('when Hermes cuts long answers off', () => {
+  let saved: typeof organization.limits;
+  beforeAll(() => { saved = { ...organization.limits }; });
+  const reset = () => {
+    state.groupSent = []; state.sortSent = []; state.groupFails = null; state.sortFails = null;
+    Object.assign(organization.limits, saved);
+  };
+  const key = (refs: string[]) => refs.join(',');
+
+  it('splits a batch that stalls instead of sending it again whole, and repeats one that hit a rate limit', async () => {
+    reset();
+    try {
+      // Sorting: the 60-claim batch stalls, so it is sent as two halves.
+      state.sortFails = (claims) => (claims.length > 30 ? 'one-shot generation failed: [Errno 32] Broken pipe' : null);
+      // Grouping: batches over 20 claims stall; their halves answer.
+      state.groupFails = (claims) => (claims.length > 20 ? 'one-shot generation failed: Codex auxiliary Responses stream stalled: no new output for 60.0s' : null);
+      const preview = await prompts.previewTopics('topic-test');
+      expect(preview.failed_groups).toBe(0);
+      expect(state.sortSent.map((refs) => refs.length)).toEqual([60, 30, 30, 10]);
+      const big = state.groupSent.filter((refs) => refs.length > 20);
+      expect(big.length).toBeGreaterThan(0);
+      // Each stalled batch went out once; its halves went out in its place.
+      for (const refs of big) {
+        expect(state.groupSent.filter((sent) => key(sent) === key(refs))).toHaveLength(1);
+        const [first, second] = [refs.slice(0, Math.ceil(refs.length / 2)), refs.slice(Math.ceil(refs.length / 2))];
+        expect(state.groupSent.some((sent) => key(sent) === key(first))).toBe(true);
+        expect(state.groupSent.some((sent) => key(sent) === key(second))).toBe(true);
+      }
+      // A rate limit is not a reason to split: the same batch is sent again.
+      reset();
+      let limited = 1;
+      state.groupFails = () => (limited-- > 0 ? 'Rate limit reached for requests' : null);
+      await prompts.previewTopics('topic-test');
+      expect(key(state.groupSent[0])).toBe(key(state.groupSent[1]));
+    } finally {
+      reset();
+    }
+  });
+
+  it('keeps the claims a regrouping placed when Hermes keeps cutting one category off', async () => {
+    reset();
+    const original = database.one<any>("SELECT value FROM generation_meta WHERE key='topics.organization.v2'")?.value;
+    try {
+      const refs = organization.loadClaims().map((claim) => claim.ref);
+      const half = Math.floor(refs.length / 2);
+      // Every claim waits: the first half under defi, the rest under macro, which Hermes never answers.
+      const categories = Object.fromEntries(refs.map((ref, index) => [ref, index < half ? 'defi' : 'macro']));
+      database.run('INSERT OR REPLACE INTO generation_meta (key, value) VALUES (?, ?)', organization.ORGANIZATION_KEY,
+        JSON.stringify({ version: 2, generated_at: '2026-11-11T00:00:00.000Z', generated_by: 'test', prompt_revision: 1, categories, topics: [] }));
+      state.groupFails = (claims) => (claims.some((claim) => claim.category === 'macro') ? 'one-shot generation failed: [Errno 32] Broken pipe' : null);
+      const result = await prompts.groupWaitingTopics('topic-test');
+      expect(result.placed).toBeGreaterThan(0);
+      expect(result.failed_claims).toBe(refs.length - half);
+      expect(result.failure).toMatch(/time limit/);
+      expect(result.waiting_after).toBe(refs.length - result.placed);
+      const after = organization.activeOrganizationV2()!;
+      expect(after.topics.length).toBeGreaterThan(0);
+      expect(after.topics.every((topic) => topic.category === 'defi')).toBe(true);
+    } finally {
+      reset();
+      if (original) database.run("UPDATE generation_meta SET value=? WHERE key='topics.organization.v2'", original);
+    }
   });
 });
 

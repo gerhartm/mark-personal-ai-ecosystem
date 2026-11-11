@@ -254,6 +254,49 @@ The Anthropic credential is retained only for controlled rollback and is not sel
 
 The gateway status may briefly retain a recent-history message that the pre-restart process is gone. That message was produced by the deliberate restart acceptance test; verify the current process and dashboard before treating it as an incident.
 
+### Per-task models for the Crypto dashboard
+
+The Crypto dashboard's one-off Hermes calls (`llm.oneshot`) name a task, and Hermes routes each task through `auxiliary.<task>` in `/opt/data/config.yaml`. With nothing set for a task, Hermes uses the main model above. These settings do not change the main provider, so Satoshi, ForkedBrain, Ask, Studio and the dashboard editor are unaffected.
+
+| Task | Used for | Setting |
+| --- | --- | --- |
+| `crypto_topics` | Topics: sorting claims into categories, grouping them into topics, new wording; also filing new claims | `openai-api`, `gpt-6-astra`, `api_mode: codex_responses`, reasoning `medium` |
+| `crypto_analysis` | Analysis pages (not built yet; the reasoning level is settled when they are) | `openai-api`, `gpt-6-astra`, `api_mode: codex_responses`, reasoning `high` |
+| `crypto_claims` | Extracting claims from each new source | not set: main model |
+
+Why `codex_responses`: Hermes v0.21.1 sends a task's `reasoning_effort` as a `reasoning` field. OpenAI's chat completions interface rejects that field (`400 Unknown parameter: 'reasoning'`); the Responses interface, which `api_mode: codex_responses` selects, accepts it and streams the model's progress. `hermes config set` warns that these keys are not recognized; that warning is expected, and Hermes reads them.
+
+Apply with a backup, as the Hermes service user so the file keeps its owner and `0600` mode:
+
+```bash
+H=hermes-27am3wgv7vkohkenprml4s3p
+docker exec -u hermes $H cp -p /opt/data/config.yaml /opt/data/config.yaml.pre-crypto-task-models-$(date -u +%Y%m%dT%H%MZ)
+for task in crypto_topics crypto_analysis; do
+  docker exec -u hermes $H hermes config set auxiliary.$task.provider openai-api
+  docker exec -u hermes $H hermes config set auxiliary.$task.model gpt-6-astra
+  docker exec -u hermes $H hermes config set auxiliary.$task.api_mode codex_responses
+done
+docker exec -u hermes $H hermes config set auxiliary.crypto_topics.reasoning_effort medium
+docker exec -u hermes $H hermes config set auxiliary.crypto_analysis.reasoning_effort high
+docker exec -u hermes $H hermes config check
+```
+
+Verify with the read-only model check, `tools/owner-access/hermes-model-check.py` (it makes no model call and prints no keys). Its last section must show `crypto_topics` and `crypto_analysis` going to `gpt-6-astra`, with the main model unchanged:
+
+```bash
+docker exec -i -u hermes $H /opt/hermes/.venv/bin/python - < hermes-model-check.py
+```
+
+Then run Preview in the Control Center's Topics section (70 sample claims; nothing is saved). Hermes logs each call's route as `Auxiliary crypto_topics: using openai-api (gpt-6-astra)`; the OpenAI usage page shows the same requests.
+
+Time limits: Hermes v0.21.1 gives one-off calls a fixed 60-second timeout that takes precedence over `auxiliary.<task>.timeout`. On the Responses interface it is a no-progress window, not a cap on the whole answer: Hermes stops a stream that shows no new output for 60 seconds (logged as `Codex auxiliary Responses stream stalled` or `produced no output within 60.0s`). Stopping it also closes the connection Hermes shares between one-off calls, so another call in flight at that moment fails too (logged as `llm.oneshot failed: [Errno 32] Broken pipe`). Hermes then retries and falls back to the main model, which rejects the task's `reasoning` field, so a stalled task fails instead of being answered by Sol. On 11 November 2026, `high` stalled on 60-claim grouping batches and on a filing call; `medium` passed. If stalls return, lower the effort again or make the dashboard's grouping batches smaller. To see what happened to recent calls:
+
+```bash
+docker exec -u hermes $H sh -c 'grep -h -i -E "auxiliary crypto_|codex auxiliary|llm.oneshot failed" /opt/data/logs/*.log | sort -u | tail -20 | cut -c1-300'
+```
+
+Rollback: `hermes config unset auxiliary.crypto_topics` (and the same for `crypto_analysis`), run as above, returns the tasks to the main model. So does copying the 28 October backup, `config.yaml.pre-crypto-task-models-*`, back over `/opt/data/config.yaml` with `cp -p` as the Hermes user; the 11 November backup, `config.yaml.pre-crypto-responses-*`, holds the failing pre-fix settings and is kept only as a record. Hermes rereads `config.yaml` when it changes, so no restart is needed in either direction.
+
 ### Telegram owner-experience acceptance mode
 
 Darshan's existing allowlisted implementation chat is intentionally configured as a bounded Mark owner-experience test. The native Telegram channel prompt makes Satoshi address that chat as Mark and retrieve Mark's canonical context, while the gateway's numeric-user allowlist remains the real access boundary.

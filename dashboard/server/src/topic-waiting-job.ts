@@ -22,6 +22,9 @@ type WaitingJob = {
   created?: number;
   waiting_after?: number;
   failed_groups?: number;
+  /** Claims in batches Hermes never answered, and why, in fixed wording. */
+  failed_claims?: number;
+  failure?: string;
   grouping?: ReturnType<typeof totalStats>;
 };
 const KEY = 'topics.waiting.job';
@@ -69,7 +72,8 @@ export async function processTopicWaitingJob() {
     save({
       ...current, status: 'ready', updated_at: new Date().toISOString(),
       waiting_before: result.waiting_before, placed: result.placed, joined: result.joined, created: result.created,
-      waiting_after: result.waiting_after, failed_groups: result.failed_groups, grouping: totalStats(result.batches),
+      waiting_after: result.waiting_after, failed_groups: result.failed_groups,
+      failed_claims: result.failed_claims, failure: result.failure, grouping: totalStats(result.batches),
     });
     return true;
   } catch (error) {

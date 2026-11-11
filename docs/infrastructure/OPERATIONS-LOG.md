@@ -1166,3 +1166,10 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - 11 Nov, between 21:06 and 21:26 UTC: set `auxiliary.crypto_topics.reasoning_effort` to `medium`. Preview passed with 14 topics from 70 claims and 6 left waiting (the 27 Oct preview on Sol: 11 topics, 9 waiting). Hermes logged the route as `Auxiliary crypto_topics: using openai-api (gpt-6-astra)`.
 - Scope: Hermes source, the main provider (`gpt-5.6-sol`, high reasoning), OpenViking, Satoshi, ForkedBrain, Cloudflare and the dashboard database schema were unchanged. Hermes picked up each config change without a restart.
 - Rollback: see "Per-task models for the Crypto dashboard" in the runbook. Either backup restores the configuration from before that step.
+
+## 2026-11-11, about 21:30-22:20 UTC: Regrouping waiting claims on Astra cut off
+
+- Operator: Mark.
+- After the tidy, Group waiting claims sent 674 claims to GPT-6 Astra at medium reasoning in 60-claim grouping batches. Hermes cut off about half of the calls after 60 seconds without output (`stream stalled`, `produced no output within 60.0s`), its fallback to the main model was rejected for the task's `reasoning` field, and 322 claims went ungrouped. Because that was more than a quarter, the run saved nothing.
+- Fix: dashboard branch `ux/topics-astra-batches` (`d2cdbe7`), published through the operator release path. Grouping batches hold up to 30 claims and sorting batches up to 60; a batch Hermes cuts off is split in halves instead of being sent again whole; a regrouping keeps what it grouped and reports the claims Hermes never answered; the filing worker sends up to 20 new claims and 10 waiting ones per call.
+- Scope: Hermes configuration, Hermes source and the database schema were unchanged.

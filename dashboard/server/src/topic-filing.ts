@@ -19,7 +19,7 @@ export async function runTopicFiling(now = Date.now()) {
   busy = true;
   try {
     // Filing waits while a rebuild or a regrouping of waiting claims is changing Topics.
-    return await fileNewClaims({ limit: 40, rebuildBusy: () => topicRebuildBusy() || topicWaitingBusy() });
+    return await fileNewClaims({ limit: 20, rebuildBusy: () => topicRebuildBusy() || topicWaitingBusy() });
   } catch (error) {
     pausedUntil = Date.now() + BACKOFF;
     console.warn('[topics] filing paused', error instanceof Error ? error.message : error);

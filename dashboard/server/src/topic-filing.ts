@@ -1,6 +1,7 @@
 import { fileNewClaims } from './topic-organization.js';
 import { topicRebuildBusy } from './topic-jobs.js';
 import { topicWaitingBusy } from './topic-waiting-job.js';
+import { topicAnalysisBusy } from './topic-analysis-job.js';
 
 /**
  * Files newly processed claims into Topics on its own timer, so source
@@ -14,12 +15,16 @@ let busy = false;
 let pausedUntil = 0;
 let timer: NodeJS.Timeout | undefined;
 
+/** True while a filing run is waiting on Hermes, so a long job can start after it. */
+export const topicFilingRunning = () => busy;
+
 export async function runTopicFiling(now = Date.now()) {
   if (busy || now < pausedUntil) return null;
   busy = true;
   try {
     // Filing waits while a rebuild or a regrouping of waiting claims is changing Topics.
-    return await fileNewClaims({ limit: 20, rebuildBusy: () => topicRebuildBusy() || topicWaitingBusy() });
+    // It also waits while analysis pages are written: they share Hermes's connection, and a cut-off on one call breaks the other.
+    return await fileNewClaims({ limit: 20, rebuildBusy: () => topicRebuildBusy() || topicWaitingBusy() || topicAnalysisBusy() });
   } catch (error) {
     pausedUntil = Date.now() + BACKOFF;
     console.warn('[topics] filing paused', error instanceof Error ? error.message : error);

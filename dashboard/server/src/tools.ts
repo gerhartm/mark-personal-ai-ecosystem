@@ -9,6 +9,7 @@ import { all, one, db } from './db.js';
 import { buildSourceBrief, eventPresentation } from './presentation.js';
 import { activeTopicOrganization } from './prompt-controls.js';
 import { activeOrganizationV2, listTopicsV2 } from './topic-organization.js';
+import { analysisView } from './topic-analysis.js';
 import { eventEditorial, RESEARCH_EVENT } from './editorial-store.js';
 import { repeats } from './editorial.js';
 
@@ -686,7 +687,11 @@ export function listTopics(limit?: number, selected?: string): any {
   if (organizedV2) {
     const payload = listTopicsV2(organizedV2, selected);
     if (!selected) return limit == null ? payload.topics : payload.topics.slice(0, Math.max(1, limit));
-    if (payload) return payload;
+    if (payload) {
+      const topic = organizedV2.topics.find((item) => item.key === selected);
+      payload.analysis = topic ? analysisView(topic, organizedV2, payload.claims.map((claim: any) => `${claim.event_id}:${claim.position}`)) : null;
+      return payload;
+    }
   }
   const records = all<any>(`SELECT e.id,e.source_id,e.primary_category,e.significance,
     ${SUBJECT_DATE} AS subject_date,

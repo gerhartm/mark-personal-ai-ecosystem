@@ -261,7 +261,7 @@ The Crypto dashboard's one-off Hermes calls (`llm.oneshot`) name a task, and Her
 | Task | Used for | Setting |
 | --- | --- | --- |
 | `crypto_topics` | Topics: sorting claims into categories, grouping them into topics, new wording; also filing new claims | `openai-api`, `gpt-6-astra`, `api_mode: codex_responses`, reasoning `medium` |
-| `crypto_analysis` | Analysis pages (not built yet; the reasoning level is settled when they are) | `openai-api`, `gpt-6-astra`, `api_mode: codex_responses`, reasoning `high` |
+| `crypto_analysis` | Topic analysis pages: one call per topic, written from Control Center | `openai-api`, `gpt-6-astra`, `api_mode: codex_responses`, reasoning `high` |
 | `crypto_claims` | Extracting claims from each new source | not set: main model |
 
 Why `codex_responses`: Hermes v0.21.1 sends a task's `reasoning_effort` as a `reasoning` field. OpenAI's chat completions interface rejects that field (`400 Unknown parameter: 'reasoning'`); the Responses interface, which `api_mode: codex_responses` selects, accepts it and streams the model's progress. `hermes config set` warns that these keys are not recognized; that warning is expected, and Hermes reads them.
@@ -293,6 +293,13 @@ Time limits: Hermes v0.21.1 gives one-off calls a fixed 60-second timeout that t
 
 ```bash
 docker exec -u hermes $H sh -c 'grep -h -i -E "auxiliary crypto_|codex auxiliary|llm.oneshot failed" /opt/data/logs/*.log | sort -u | tail -20 | cut -c1-300'
+```
+
+Analysis pages send one larger request per topic (up to 40 claims with their passages) and the dashboard waits up to 15 minutes for each, but the same 60-second no-progress window applies. Write the five sample pages first. If they fail with the time-limit reason ("Hermes took longer than the time limit to answer" in Control Center's list), lower the effort and write the samples again; pages already written are kept, and nothing in the dashboard changes:
+
+```bash
+docker exec -u hermes $H cp -p /opt/data/config.yaml /opt/data/config.yaml.pre-crypto-analysis-medium-$(date -u +%Y%m%dT%H%MZ)
+docker exec -u hermes $H hermes config set auxiliary.crypto_analysis.reasoning_effort medium
 ```
 
 Rollback: `hermes config unset auxiliary.crypto_topics` (and the same for `crypto_analysis`), run as above, returns the tasks to the main model. So does copying the 28 October backup, `config.yaml.pre-crypto-task-models-*`, back over `/opt/data/config.yaml` with `cp -p` as the Hermes user; the 11 November backup, `config.yaml.pre-crypto-responses-*`, holds the failing pre-fix settings and is kept only as a record. Hermes rereads `config.yaml` when it changes, so no restart is needed in either direction.

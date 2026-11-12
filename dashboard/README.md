@@ -382,6 +382,49 @@ evidence passage (or the stored claim when no passage was kept), never as a
 fragment of a longer name, and each claim yields at most one round
 (`venture.rounds.v1`).
 
+### Analysis pages
+
+A topic with at least two claims can have an analysis page, shown above its
+claims: the argument (a thesis and two to six numbered points), pushback the
+claims themselves raise, key quotes, what it means, why it matters, what is
+contested, what to watch, and up to four connections to other topics, each
+labelled same mechanism, in tension, leads to, follows from or context. The
+numbers after a point lead to the claims it rests on: clicking one clears the
+claim filters, scrolls to the claim and outlines it.
+
+Hermes writes each page in one call, as task `crypto_analysis`
+(`auxiliary.crypto_analysis` in Hermes's config), from the topic's 40 most
+significant claims, the retained passage behind each (up to 900 characters),
+the research note written when it was extracted, and the 24 other topics most
+related to it (shared words, shared sources, same category). The Topic analysis
+instruction in Control center shapes the writing; fixed rules keep every fact,
+figure, name and date to that evidence. Each answer is checked: every point
+names claim IDs from the topic, every written figure must appear in the claims,
+passages, notes or claim dates (number words such as "two" count as wording), a
+quote must keep at least nine in ten of its passage's words and add no figure,
+and a connection must name one of the related topics. Missing or malformed
+sections, unknown claim IDs and invented figures get one corrected retry; a
+weak quote, watch item or connection is dropped on its own. A call with no
+answer is retried once after 30 seconds. A call may take up to 15 minutes and
+24,000 output tokens.
+
+Pages are stored per topic key in `generation_meta` (`topics.analysis.<key>`)
+with the claims they were written from, and are never deleted, so a topic
+brought back by an undo finds its page again. A page shows how many claims were
+added since it was written; once the claims added and removed reach a fifth of
+what it was written from (and at least two), it counts as out of date and is
+written again by the next run.
+
+Control center writes pages in the background (`topics.analysis.job`): Write 5
+sample pages takes the five largest topics without a current page, Write all
+remaining takes the rest, and Rewrite on a topic page rewrites that topic. Each
+page is saved as soon as it is written. A topic with no usable answer is listed
+with the reason and the run moves on; the next run retries it. Two topics in a
+row with no answer from Hermes stop the run. Rebuilds, previews, regrouping and
+filing wait while pages are written, because they share Hermes's connection,
+and a queued run waits for a filing run that is already talking to Hermes. A run
+interrupted by a restart is marked failed at startup, with its pages kept.
+
 ## Deliberate boundaries
 
 - No second database, vector service, or memory provider.

@@ -65,9 +65,10 @@ import { processingSummary, sourceProcessingRows, retrySource } from './source-q
 import { startSourceProcessor } from './source-processor.js';
 import { enqueueImport, listImports, retryImport, startImportWorker } from './imports.js';
 import { queueTopicRebuild, resetTopicRebuildStatus, topicRebuildStatus, startTopicRebuildWorker } from './topic-jobs.js';
-import { startTopicFilingWorker } from './topic-filing.js';
+import { startTopicFilingWorker, topicFilingRunning } from './topic-filing.js';
 import { queueTopicPreview, startTopicPreviewWorker, topicPreviewStatus } from './topic-preview-job.js';
 import { queueTopicWaiting, resetTopicWaitingStatus, startTopicWaitingWorker, topicWaitingBusy, topicWaitingStatus } from './topic-waiting-job.js';
+import { queueTopicAnalysis, startTopicAnalysisWorker, topicAnalysisBusy, topicAnalysisStatus } from './topic-analysis-job.js';
 import { TopicOrganizationError, activeOrganizationV2, canUndoRebuild, estimateRebuildCalls, listRounds, liveClaimRefs, tidySummary, tidyTopics, undoTidy, undoTopicRebuild } from './topic-organization.js';
 import { TopicReadingError, updateReading } from './topic-reading.js';
 import { RESEARCH_EVENT } from './editorial-store.js';
@@ -410,6 +411,7 @@ app.post('/api/prompt-controls/topics/preview', async (req, reply) => {
   if (isStudioRateLimited(`${actor}:${remote}`)) {
     return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before starting another preview.' });
   }
+  if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
   return reply.code(202).send(queueTopicPreview(actor));
 });
 app.get('/api/prompt-controls/topics/waiting', async () => topicWaitingStatus());
@@ -422,10 +424,36 @@ app.post('/api/prompt-controls/topics/waiting', async (req, reply) => {
   if (['queued', 'running'].includes(topicRebuildStatus().status)) {
     return reply.code(409).send({ error: 'rebuild_running', message: 'Wait for the current rebuild to finish first.' });
   }
+  if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
   if (!activeOrganizationV2()) {
     return reply.code(409).send({ error: 'no_topics', message: 'Rebuild Topics first. There are no waiting claims to group yet.' });
   }
   return reply.code(202).send(queueTopicWaiting(actor));
+});
+const ANALYSIS_RUNNING = { error: 'analysis_running', message: 'Wait for the analysis pages being written to finish first. Topics jobs and analysis share Hermes, so they run one at a time.' };
+const topicJobsBusy = () => ['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy()
+  || ['queued', 'running'].includes(String(topicPreviewStatus().status));
+app.get('/api/prompt-controls/analysis/status', async () => topicAnalysisStatus());
+app.post('/api/prompt-controls/analysis/write', async (req, reply) => {
+  const actor = requestActor(req);
+  const mode = (req.body as { mode?: unknown } | undefined)?.mode;
+  if (mode !== 'sample' && mode !== 'all') return reply.code(400).send({ error: 'invalid_mode', message: 'Choose sample or all.' });
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isStudioRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before starting analysis pages again.' });
+  }
+  if (topicJobsBusy()) return reply.code(409).send({ error: 'topics_busy', message: 'Wait for the current rebuild, preview or regrouping to finish first.' });
+  if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
+  if (!activeOrganizationV2()) return reply.code(409).send({ error: 'no_topics', message: 'Rebuild Topics first. There are no topics to analyse yet.' });
+  return reply.code(202).send(queueTopicAnalysis(actor, mode));
+});
+app.post('/api/topics/:tag/analysis', async (req, reply) => {
+  const tag = (req.params as { tag: string }).tag;
+  const organization = activeOrganizationV2();
+  if (!organization?.topics.some((topic) => topic.key === tag)) return reply.code(404).send({ error: 'not_found', message: 'That topic no longer exists. Refresh Topics and try again.' });
+  if (topicJobsBusy()) return reply.code(409).send({ error: 'topics_busy', message: 'Wait for the current rebuild, preview or regrouping to finish first.' });
+  if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
+  return reply.code(202).send(queueTopicAnalysis(requestActor(req), 'one', tag));
 });
 const topicsBusy = () => ['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy();
 app.get('/api/prompt-controls/topics/tidy', async () => tidySummary());
@@ -452,6 +480,7 @@ app.post('/api/prompt-controls/topics/tidy/undo', async (req, reply) => {
   }
 });
 app.post('/api/prompt-controls/topics/rebuild/undo', async (req, reply) => {
+  if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
   if (['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy()) {
     return reply.code(409).send({ error: 'rebuild_running', message: 'Wait for the current rebuild or regrouping to finish before undoing.' });
   }
@@ -474,6 +503,7 @@ app.post('/api/prompt-controls/topics/rebuild', async (req, reply) => {
   if (topicWaitingBusy()) {
     return reply.code(409).send({ error: 'waiting_running', message: 'Wait for the waiting claims to finish grouping before rebuilding.' });
   }
+  if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
   try {
     return reply.code(202).send(queueTopicRebuild(actor));
   } catch (error) {
@@ -951,6 +981,7 @@ if (process.env.NODE_ENV !== 'test') {
   startTopicRebuildWorker();
   startTopicPreviewWorker();
   startTopicWaitingWorker();
+  startTopicAnalysisWorker({ hermesInUse: topicFilingRunning });
   startTopicFilingWorker();
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);
   console.log(`  media archive: ${MEDIA_ROOT ? 'mounted' : 'not mounted (degraded, documented)'}`);

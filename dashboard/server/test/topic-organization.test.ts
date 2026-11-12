@@ -357,7 +357,7 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.classifyHermesFailure(new Error('Hermes websocket failed'))).toBe('connection');
     expect(organization.classifyHermesFailure(new Error('Something unexpected happened'))).toBe('error');
     expect(new organization.HermesUnavailableError('timeout').message).toMatch(/longer than the time limit/);
-    expect(new organization.HermesUnavailableError().message).toBe('Hermes did not respond, so nothing was changed. Check Hermes availability and retry.');
+    expect(new organization.HermesUnavailableError().message).toBe('The AI did not respond, so nothing was changed. Check the AI connection in Control Center and retry.');
     // Hermes's no-progress cut-off, the call it breaks beside it, and the fallback that rejects the reasoning setting.
     for (const message of [
       'one-shot generation failed: [Errno 32] Broken pipe',

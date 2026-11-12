@@ -16,6 +16,10 @@ const state = vi.hoisted(() => ({
   /** Topics that never get a usable answer. */
   unusable: new Set<string>(),
   outage: false,
+  /** A pause before each answer, and how many requests were open at once. */
+  delayMs: 0,
+  inFlight: 0,
+  maxInFlight: 0,
 }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
@@ -53,6 +57,13 @@ vi.mock('../src/hermes-client.js', () => {
     runHermesAgent: vi.fn(),
     generateWithHermes: vi.fn(async (input: string, options: any) => {
       state.calls.push({ input, options });
+      state.inFlight++;
+      state.maxInFlight = Math.max(state.maxInFlight, state.inFlight);
+      try {
+        if (state.delayMs) await new Promise((done) => setTimeout(done, state.delayMs));
+      } finally {
+        state.inFlight--;
+      }
       if (state.outage) throw new Error('429 insufficient_quota');
       const variant = state.next.shift();
       if (variant === 'silent') throw new Error('Hermes request timeout');
@@ -200,6 +211,8 @@ describe('writing and storing a page', () => {
     expect(stored.quotes.length).toBeGreaterThan(0);
     expect(stored.connections.length).toBeGreaterThan(0);
     expect(stored.generated_by).toBe('mark');
+    // Without an OpenAI key the page is written through Hermes, and says so.
+    expect(stored.written_with).toEqual({ via: 'hermes', model: null, reasoning: null });
   });
 
   it('gives one corrected retry for an invented figure, then saves', async () => {
@@ -354,6 +367,29 @@ describe('writing pages in the background', () => {
     jobs.queueTopicAnalysis('mark', 'one', 'no-such-topic');
     expect(await jobs.processTopicAnalysisJob()).toBe(false);
     expect(jobs.topicAnalysisStatus()).toMatchObject({ status: 'failed', error: 'That topic no longer exists.' });
+  });
+
+  it('writes several pages at once when the route allows it, naming every page in progress', async () => {
+    clearPages();
+    const saved = { ...jobs.ANALYSIS_CONCURRENCY };
+    jobs.ANALYSIS_CONCURRENCY.hermes = 3;
+    state.delayMs = 30;
+    state.maxInFlight = 0;
+    const seen: string[][] = [];
+    const watch = setInterval(() => { const writing = jobs.topicAnalysisStatus().progress?.writing; if (writing?.length) seen.push(writing); }, 5);
+    try {
+      jobs.queueTopicAnalysis('mark', 'sample');
+      expect(await jobs.processTopicAnalysisJob()).toBe(true);
+    } finally {
+      clearInterval(watch);
+      Object.assign(jobs.ANALYSIS_CONCURRENCY, saved);
+      state.delayMs = 0;
+    }
+    expect(state.maxInFlight).toBe(3);
+    expect(seen.some((writing) => writing.length === 3)).toBe(true);
+    const status = jobs.topicAnalysisStatus();
+    expect(status).toMatchObject({ status: 'ready', written: 5 });
+    expect(status.written_topics!.map((topic) => topic.key).sort()).toEqual(KEYS.slice(0, 5).sort());
   });
 
   it('waits for a filing run already talking to Hermes, and marks a run cut short by a restart', async () => {

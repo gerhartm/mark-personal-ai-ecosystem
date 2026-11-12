@@ -18,6 +18,7 @@ services:
       AUTH_PASSWORD_HASH_FILE: /run/secrets/crypto-dashboard-login-password
       AUTH_SESSION_SECRET_FILE: /run/secrets/crypto-dashboard-session-secret
       TURNSTILE_SECRET_KEY_FILE: /run/secrets/crypto-dashboard-turnstile-secret
+      OPENAI_API_KEY_FILE: /run/secrets/openai-api-key
     ports:
       - "127.0.0.1:9330:5183"
     volumes:
@@ -29,6 +30,7 @@ services:
       - /srv/mark-v2/secrets/crypto-dashboard-login-password:/run/secrets/crypto-dashboard-login-password:ro
       - /srv/mark-v2/secrets/crypto-dashboard-session-secret:/run/secrets/crypto-dashboard-session-secret:ro
       - /srv/mark-v2/secrets/crypto-dashboard-turnstile-secret:/run/secrets/crypto-dashboard-turnstile-secret:ro
+      - /srv/mark-v2/secrets/crypto-dashboard-openai-key:/run/secrets/openai-api-key:ro
     networks:
       - personal-ai
     read_only: true

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { effectiveRoute } from './ai-client.js';
 import { audit, one, run } from './db.js';
 import { getPromptControl } from './prompt-controls.js';
-import { analysisSummary, analysisTargets, TopicAnalysisError, writeTopicAnalysis, type AnalysisTarget } from './topic-analysis.js';
+import { ANALYSIS_TASK, analysisSummary, analysisTargets, TopicAnalysisError, writeTopicAnalysis, type AnalysisTarget } from './topic-analysis.js';
 import { HermesUnavailableError, activeOrganizationV2, failureText } from './topic-organization.js';
 
 /**
@@ -10,8 +11,9 @@ import { HermesUnavailableError, activeOrganizationV2, failureText } from './top
  * page, "all" writes every topic whose page is missing or out of date, and
  * "one" rewrites a single topic. A topic that gets no usable answer is listed
  * with the reason and the job moves on; running it again retries those topics.
- * Two topics in a row with no answer from Hermes at all stop the job, keeping
- * every page already written.
+ * Two topics in a row with no answer from the AI at all stop the job, keeping
+ * every page already written. On the direct OpenAI route several pages are
+ * written at once; through Hermes, one at a time.
  */
 export type AnalysisMode = 'sample' | 'all' | 'one';
 export const SAMPLE_SIZE = 5;
@@ -24,7 +26,8 @@ type AnalysisJob = {
   actor?: string;
   requested_at?: string;
   updated_at?: string;
-  progress?: { done: number; total: number; current: string };
+  /** current: the pages being written, joined; writing: the same titles as a list. */
+  progress?: { done: number; total: number; current: string; writing?: string[] };
   written?: number;
   /** The pages this run wrote, so the panel can link to them (up to 50). */
   written_topics?: Array<{ key: string; title: string }>;
@@ -35,10 +38,13 @@ type AnalysisJob = {
 };
 const KEY = 'topics.analysis.job';
 const MAX_SILENT_TOPICS = 2;
+/** Pages written at once on the direct OpenAI route. Hermes gets one at a time: a cut-off on one call breaks a call beside it. */
+export const ANALYSIS_CONCURRENCY = { openai: 4, hermes: 1 };
 let busy = false;
 let timer: NodeJS.Timeout | undefined;
-// A queued job starts once a filing run already talking to Hermes has finished:
-// the two share Hermes's connection, and a cut-off on one call breaks the other.
+// A queued job starts once a running filing run has finished, so pages are
+// written from topics that are not changing (and, on the Hermes route, so the
+// two never share Hermes's connection, where a cut-off on one call breaks the other).
 let hermesInUse: () => boolean = () => false;
 
 function job(): AnalysisJob {
@@ -94,27 +100,42 @@ export async function processTopicAnalysisJob() {
   try {
     const targets = targetsFor(current);
     const control = getPromptControl('analysis');
+    const width = Math.max(1, Math.min(ANALYSIS_CONCURRENCY[effectiveRoute(ANALYSIS_TASK).via], targets.length));
+    const writing = new Map<string, string>();
+    let next = 0;
+    let done = 0;
     let silentInRow = 0;
-    for (const [index, target] of targets.entries()) {
-      save({ ...running, progress: { done: index, total: targets.length, current: target.title }, updated_at: new Date().toISOString() });
-      try {
-        const { dropped } = await writeTopicAnalysis(target.key, current.actor ?? 'mark', { text: control.instructions, revision: control.revision });
-        running.written = (running.written ?? 0) + 1;
-        running.written_topics = [...(running.written_topics ?? []), { key: target.key, title: target.title }].slice(-50);
-        running.dropped = (running.dropped ?? 0) + dropped.length;
-        silentInRow = 0;
-      } catch (error) {
-        const reason = error instanceof HermesUnavailableError
-          ? (failureText(error.failure) || 'Hermes did not answer.')
-          : error instanceof TopicAnalysisError ? error.message : 'The page could not be written.';
-        running.failures = [...(running.failures ?? []), { key: target.key, title: target.title, reason }];
-        if (error instanceof HermesUnavailableError) {
-          if (++silentInRow >= MAX_SILENT_TOPICS) { running.stopped = true; break; }
-        } else {
+    const report = () => save({ ...running, progress: { done, total: targets.length, current: [...writing.values()].join('; '), writing: [...writing.values()] }, updated_at: new Date().toISOString() });
+    const worker = async () => {
+      while (!running.stopped && next < targets.length) {
+        const target = targets[next++];
+        writing.set(target.key, target.title);
+        report();
+        try {
+          const { dropped } = await writeTopicAnalysis(target.key, current.actor ?? 'mark', { text: control.instructions, revision: control.revision });
+          running.written = (running.written ?? 0) + 1;
+          running.written_topics = [...(running.written_topics ?? []), { key: target.key, title: target.title }].slice(-50);
+          running.dropped = (running.dropped ?? 0) + dropped.length;
           silentInRow = 0;
+        } catch (error) {
+          const reason = error instanceof HermesUnavailableError
+            ? (failureText(error.failure) || 'The AI did not answer.')
+            : error instanceof TopicAnalysisError ? error.message : 'The page could not be written.';
+          running.failures = [...(running.failures ?? []), { key: target.key, title: target.title, reason }];
+          // Pages already being written finish; no new page starts once the AI has stayed silent twice in a row.
+          if (error instanceof HermesUnavailableError) {
+            if (++silentInRow >= MAX_SILENT_TOPICS) running.stopped = true;
+          } else {
+            silentInRow = 0;
+          }
+        } finally {
+          writing.delete(target.key);
+          done++;
+          report();
         }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: width }, worker));
     save({ ...running, status: 'ready', progress: undefined, updated_at: new Date().toISOString() });
     audit(current.actor ?? 'mark', 'topics.analysis', current.mode === 'one' ? `topics.analysis.${current.topic}` : 'topics.analysis',
       { mode: current.mode, written: running.written, failed: running.failures?.length ?? 0, dropped: running.dropped, stopped: Boolean(running.stopped) });
@@ -122,7 +143,7 @@ export async function processTopicAnalysisJob() {
   } catch (error) {
     // Our own messages are safe to show; provider details never are.
     save({ ...running, status: 'failed', progress: undefined, updated_at: new Date().toISOString(),
-      error: error instanceof TopicAnalysisError ? error.message : 'Analysis pages could not be written. Pages already written are kept. Check Hermes availability and retry.' });
+      error: error instanceof TopicAnalysisError ? error.message : 'Analysis pages could not be written. Pages already written are kept. Check the AI connection in Control Center and retry.' });
     return false;
   } finally { busy = false; }
 }

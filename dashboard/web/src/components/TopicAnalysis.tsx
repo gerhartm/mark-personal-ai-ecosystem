@@ -10,6 +10,7 @@ type Connection = { topic: string; relation: string; text: string; title: string
 export type Analysis = {
   topic_key: string;
   generated_at: string;
+  written_with?: { via: 'openai' | 'hermes'; model: string | null; reasoning: string | null };
   claims: string[];
   thesis: string;
   points: Point[];
@@ -139,7 +140,7 @@ export function TopicAnalysisSection({ tag, analysis, claimCount, claimsByRef, o
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-[var(--line)] pb-3">
         <h2 id="analysis-heading" className="font-mono text-[11.5px] tracking-[0.12em] text-[var(--accent-text)] uppercase">Analysis</h2>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-dim">
-          <span>Written {formatDate(analysis.generated_at)} from {plural(analysis.claims.length, 'claim')}</span>
+          <span>Written {formatDate(analysis.generated_at)} from {plural(analysis.claims.length, 'claim')}{analysis.written_with?.via === 'openai' && analysis.written_with.model ? ` by ${analysis.written_with.model}, ${analysis.written_with.reasoning} reasoning` : analysis.written_with?.via === 'hermes' ? ' through Hermes' : ''}</span>
           {analysis.new_claims ? <span className={analysis.out_of_date ? 'text-[var(--accent-text)]' : ''} data-testid="analysis-new-claims">· {plural(analysis.new_claims, 'claim')} added since</span> : null}
           <button type="button" className="cursor-pointer text-[var(--accent-text)] underline-offset-2 hover:underline disabled:cursor-wait disabled:text-dim" disabled={sending || busy} onClick={write}>
             {writingThis ? 'Rewriting' : analysis.out_of_date ? 'Rewrite with new claims' : 'Rewrite'}
@@ -224,7 +225,7 @@ export function TopicAnalysisSection({ tag, analysis, claimCount, claimsByRef, o
       ) : null}
 
       <p className="border-t border-[var(--line)] pt-3 font-mono text-[10.5px] leading-relaxed text-dim">
-        Analysis is Hermes&apos;s interpretation of the claims below. Its facts, figures and quotes come only from them; the numbers lead to the claims each point rests on.
+        This analysis is an AI interpretation of the claims below. Its facts, figures and quotes come only from them; the numbers lead to the claims each point rests on.
       </p>
       {message ? <p role={message.error ? 'alert' : 'status'} className={`mt-2 font-mono text-[11px] ${message.error ? 'text-[var(--danger-text)]' : 'text-[var(--sage)]'}`}>{message.text}</p> : null}
     </section>

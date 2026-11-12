@@ -17,7 +17,7 @@
  */
 import { all, one, run } from './db.js';
 import { prose } from './editorial.js';
-import { generateWithHermes } from './hermes-client.js';
+import { effectiveRoute, generate } from './ai-client.js';
 import {
   HermesUnavailableError, activeOrganizationV2, categoryLabel, classifyHermesFailure, liveClaimRefs, loadClaims,
   parseModelJson, timing, ungroundedNumbers, type ClaimRow, type HermesFailure, type OrganizationV2, type TopicV2,
@@ -46,6 +46,8 @@ export type TopicAnalysis = {
   claims: string[];
   generated_at: string;
   generated_by: string;
+  /** Which route, model and reasoning level wrote it. */
+  written_with?: { via: 'openai' | 'hermes'; model: string | null; reasoning: string | null };
   instruction_revision: number;
   thesis: string;
   points: AnalysisPoint[];
@@ -449,6 +451,7 @@ export async function writeTopicAnalysis(key: string, actor: string, instruction
   if (!organization || !topic) throw new TopicAnalysisError('not_found', 'That topic no longer exists.', 404);
   const input = analysisInput(topic, organization);
   if (input.claims.length < 2) throw new TopicAnalysisError('too_few_claims', 'A topic needs at least two claims for an analysis page.', 409);
+  const route = effectiveRoute(ANALYSIS_TASK);
   const instructions = analysisInstructions(instruction.text);
   const prompt = analysisPrompt(input);
   let issues: string[] = [];
@@ -457,7 +460,7 @@ export async function writeTopicAnalysis(key: string, actor: string, instruction
   for (let attempt = 0; attempt < 2; attempt++) {
     let raw: string;
     try {
-      raw = await generateWithHermes(issues.length ? `${prompt}\n\nCORRECT THESE ISSUES\n${issues.slice(0, 10).join('\n')}` : prompt, {
+      raw = await generate(issues.length ? `${prompt}\n\nCORRECT THESE ISSUES\n${issues.slice(0, 10).join('\n')}` : prompt, {
         instructions, task: ANALYSIS_TASK, ...ANALYSIS_CALL, temperature: 0.4,
       });
     } catch (error) {
@@ -478,6 +481,7 @@ export async function writeTopicAnalysis(key: string, actor: string, instruction
     const analysis: TopicAnalysis = {
       version: 1, topic_key: topic.key, topic_title: topic.title, claims: input.claims.map((claim) => claim.ref).sort(),
       generated_at: new Date().toISOString(), generated_by: actor, instruction_revision: instruction.revision,
+      written_with: route.via === 'openai' ? { via: 'openai', model: route.model ?? null, reasoning: route.reasoning ?? null } : { via: 'hermes', model: null, reasoning: null },
       ...checked.analysis,
     };
     // Live claims beyond the request's limit still count as written from, so the page is not shown as out of date.

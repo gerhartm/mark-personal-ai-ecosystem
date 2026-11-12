@@ -12,7 +12,7 @@
  */
 import { createHash } from 'node:crypto';
 import { all, audit, db, one, run } from './db.js';
-import { generateWithHermes } from './hermes-client.js';
+import { classifyHermesFailure, failureText, generate, type HermesFailure } from './ai-client.js';
 import { RESEARCH_EVENT } from './editorial-store.js';
 import { readingForTopics } from './topic-reading.js';
 
@@ -89,37 +89,12 @@ export class TopicOrganizationError extends Error {
   }
 }
 
-/** Why a Hermes call produced no answer. Only these fixed descriptions are shown; provider messages never are. */
-export type HermesFailure = 'timeout' | 'empty' | 'quota' | 'rate_limit' | 'connection' | 'error';
-const FAILURE_TEXT: Record<HermesFailure, string> = {
-  timeout: 'Hermes took longer than the time limit to answer.',
-  empty: 'Hermes returned an empty answer, which usually means the request was too large.',
-  quota: 'The AI provider reported that the account is out of credits.',
-  rate_limit: 'The AI provider reported a rate limit.',
-  connection: 'Hermes could not be reached.',
-  error: 'Hermes returned an error.',
-};
-export const failureText = (failure: HermesFailure | null | undefined) => (failure ? FAILURE_TEXT[failure] : '');
+export { classifyHermesFailure, failureText, type HermesFailure } from './ai-client.js';
 
-export function classifyHermesFailure(error: unknown): HermesFailure {
-  const text = error instanceof Error ? error.message : String(error ?? '');
-  if (/timeout|timed out/i.test(text)) return 'timeout';
-  // Hermes ends a streamed answer that shows no progress for 60 seconds ("stalled", "produced no
-  // output"), and the cut-off also breaks a call running beside it ("Broken pipe"). Hermes then falls
-  // back to its main model, which rejects the task's reasoning setting; that 400 is what arrives here.
-  // All of these mean the answer took too long.
-  if (/stalled|produced no output|no-progress|broken pipe|unknown parameter: 'reasoning'/i.test(text)) return 'timeout';
-  if (/empty response/i.test(text)) return 'empty';
-  if (/insufficient_quota|quota|billing|credit/i.test(text)) return 'quota';
-  if (/\b429\b|rate.?limit/i.test(text)) return 'rate_limit';
-  if (/websocket|socket|ECONN|ENOTFOUND|ticket|login|fetch failed|network/i.test(text)) return 'connection';
-  return 'error';
-}
-
-/** Hermes could not be reached or answered with errors on every attempt. Nothing is saved. */
+/** The AI (through Hermes or OpenAI) could not be reached or answered with errors on every attempt. Nothing is saved. */
 export class HermesUnavailableError extends TopicOrganizationError {
   constructor(public failure: HermesFailure | null = null) {
-    super('hermes_unavailable', `Hermes did not respond, so nothing was changed. ${failureText(failure)} Check Hermes availability and retry.`.replace(/\s+/g, ' '), 503);
+    super('hermes_unavailable', `The AI did not respond, so nothing was changed. ${failureText(failure)} Check the AI connection in Control Center and retry.`.replace(/\s+/g, ' '), 503);
   }
 }
 
@@ -543,7 +518,7 @@ async function categorizeBatch(batch: ClaimRow[], splitOnFailure = false): Promi
   for (let attempt = 0; attempt < 2; attempt++) {
     let raw: string;
     try {
-      raw = await generateWithHermes(`CLAIMS\n${batch.filter((claim) => !result.has(claim.ref)).map((claim) => claimLine(claim)).join('\n')}${issues ? `\n\nCORRECT THESE ISSUES\n${issues}` : ''}`, {
+      raw = await generate(`CLAIMS\n${batch.filter((claim) => !result.has(claim.ref)).map((claim) => claimLine(claim)).join('\n')}${issues ? `\n\nCORRECT THESE ISSUES\n${issues}` : ''}`, {
         instructions, task: TOPICS_TASK, ...calls.categorize, temperature: 0.1,
       });
     } catch (error) {
@@ -570,7 +545,7 @@ async function categorizeBatch(batch: ClaimRow[], splitOnFailure = false): Promi
   }
   if (!answered) throw new HermesUnavailableError(failure);
   // An answer that categorizes nothing is usually a provider error returned as text.
-  if (!result.size) throw new TopicOrganizationError('unusable_answer', 'Hermes answered without usable categories, so nothing was changed. Retry later.', 503);
+  if (!result.size) throw new TopicOrganizationError('unusable_answer', 'The AI answered without usable categories, so nothing was changed. Retry later.', 503);
   return result;
 }
 
@@ -809,7 +784,7 @@ async function retitleDropped(outcome: BatchOutcome, batch: ClaimRow[], takenTit
   })).join('\n');
   let raw: string;
   try {
-    raw = await generateWithHermes(`TOPICS\n${input}`, { instructions, task: TOPICS_TASK, ...calls.retitle, temperature: 0.2 });
+    raw = await generate(`TOPICS\n${input}`, { instructions, task: TOPICS_TASK, ...calls.retitle, temperature: 0.2 });
   } catch {
     return outcome;
   }
@@ -894,7 +869,7 @@ async function groupBatch(
   for (let attempt = 0; attempt < 2; attempt++) {
     let raw: string;
     try {
-      raw = await generateWithHermes(`${input}${issues.length ? `\n\nCORRECT THESE ISSUES\n${issues.slice(0, 12).join('\n')}` : ''}`, {
+      raw = await generate(`${input}${issues.length ? `\n\nCORRECT THESE ISSUES\n${issues.slice(0, 12).join('\n')}` : ''}`, {
         instructions, task: TOPICS_TASK, ...calls.group, temperature: 0.2,
       });
     } catch (error) {
@@ -1065,7 +1040,7 @@ async function organize(claims: ClaimRow[], markInstruction: string, onProgress?
   const categorized = claims.filter((claim) => categories[claim.ref]);
   const uncategorized = claims.length - categorized.length;
   if (exceedsShare(uncategorized, claims.length, MAX_UNCATEGORIZED)) {
-    throw new TopicOrganizationError('categorize_incomplete', `Hermes could not sort ${uncategorized} of ${claims.length} claims into categories, so nothing was changed. ${failureText(sorting.last)} Retry the rebuild.`.replace(/\s+/g, ' '), 503);
+    throw new TopicOrganizationError('categorize_incomplete', `The AI could not sort ${uncategorized} of ${claims.length} claims into categories, so nothing was changed. ${failureText(sorting.last)} Retry the rebuild.`.replace(/\s+/g, ' '), 503);
   }
   const categoryOf = (ref: string) => categories[ref];
   const groupBatches = packBatches(categorized, categoryOf);
@@ -1078,7 +1053,7 @@ async function organize(claims: ClaimRow[], markInstruction: string, onProgress?
   });
   done = total;
   if (exceedsShare(grouping.failedClaims, categorized.length, MAX_FAILED_GROUPING)) {
-    throw new TopicOrganizationError('grouping_incomplete', `Hermes could not group ${grouping.failedClaims} of ${categorized.length} claims, so nothing was changed. ${failureText(grouping.last)} Retry the rebuild.`.replace(/\s+/g, ' '), 503);
+    throw new TopicOrganizationError('grouping_incomplete', `The AI could not group ${grouping.failedClaims} of ${categorized.length} claims, so nothing was changed. ${failureText(grouping.last)} Retry the rebuild.`.replace(/\s+/g, ' '), 503);
   }
   onProgress?.({ stage: 'saving', done, total });
   return {
@@ -1361,7 +1336,7 @@ async function matchBatch(batch: ClaimRow[], categoryOf: (ref: string) => Catego
   for (let attempt = 0; attempt < 2; attempt++) {
     let raw: string;
     try {
-      raw = await generateWithHermes(`${input}${issues ? `\n\nCORRECT THESE ISSUES\n${issues}` : ''}`, { instructions, task: TOPICS_TASK, ...calls.match, temperature: 0.2 });
+      raw = await generate(`${input}${issues ? `\n\nCORRECT THESE ISSUES\n${issues}` : ''}`, { instructions, task: TOPICS_TASK, ...calls.match, temperature: 0.2 });
     } catch (error) {
       failure = classifyHermesFailure(error);
       if (splitOnFailure && !answered && splittable(failure)) break;
@@ -1521,7 +1496,7 @@ async function groupAcross(
   for (let attempt = 0; attempt < 2; attempt++) {
     let raw: string;
     try {
-      raw = await generateWithHermes(`${input}${issues.length ? `\n\nCORRECT THESE ISSUES\n${issues.slice(0, 12).join('\n')}` : ''}`, {
+      raw = await generate(`${input}${issues.length ? `\n\nCORRECT THESE ISSUES\n${issues.slice(0, 12).join('\n')}` : ''}`, {
         instructions, task: TOPICS_TASK, ...calls.across, temperature: 0.2,
       });
     } catch (error) {
@@ -1883,7 +1858,7 @@ export function relatedWaiting(fresh: ClaimRow[], pool: ClaimRow[], categoryOf: 
  * into new topics shared with other waiting claims, or under their category.
  * Claims committed while a rebuild ran, or before a restart, are picked up on
  * the next run. Returns null when there is no organization or a rebuild is in
- * progress; throws when Hermes is unavailable so the caller can back off.
+ * progress; throws when the AI is unavailable so the caller can back off.
  */
 export async function fileNewClaims(options: { sourceId?: string; limit?: number; rebuildBusy?: () => boolean } = {}) {
   const rebuildBusy = options.rebuildBusy ?? (() => false);

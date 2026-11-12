@@ -9,7 +9,7 @@ type AnalysisStatus = {
   status: 'idle' | 'queued' | 'running' | 'ready' | 'failed';
   mode?: 'sample' | 'all' | 'one';
   updated_at?: string;
-  progress?: { done: number; total: number; current: string };
+  progress?: { done: number; total: number; current: string; writing?: string[] };
   written?: number;
   written_topics?: TopicRef[];
   failures?: Array<TopicRef & { reason: string }>;
@@ -62,7 +62,7 @@ export function AnalysisPanel({ dirty }: { dirty: boolean }) {
       <Eyebrow>Analysis pages</Eyebrow>
       <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">
         {plural(pages.topics, 'topic')} can have an analysis page: {pages.written} written{pages.out_of_date ? ` (${pages.out_of_date} out of date)` : ''}, {pages.missing} not yet.
-        {' '}Each page sets out the argument, key quotes, what it means, what is contested, what to watch and how the topic connects to others, in one AI call on the analysis model. Topics jobs and automatic filing wait while pages are written.
+        {' '}Each page sets out the argument, key quotes, what it means, what is contested, what to watch and how the topic connects to others, in one AI call (the AI connection below sets the model). Topics jobs and automatic filing wait while pages are written.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -88,12 +88,15 @@ export function AnalysisPanel({ dirty }: { dirty: boolean }) {
 
       {busy ? (
         <p role="status" className="mt-3 font-mono text-[11px] text-[var(--sage)]" data-testid="analysis-progress">
-          {data.status === 'queued' ? 'Queued. Writing starts shortly.' : data.progress ? `Writing page ${data.progress.done + 1} of ${data.progress.total}: ${data.progress.current}` : 'Writing analysis pages.'}
+          {data.status === 'queued' ? 'Queued. Writing starts shortly.'
+            : !data.progress ? 'Writing analysis pages.'
+            : (data.progress.writing?.length ?? 1) > 1 ? `Writing pages: ${data.progress.done} of ${data.progress.total} done. Now writing ${data.progress.writing!.length} at once: ${data.progress.writing!.join('; ')}`
+            : `Writing page ${data.progress.done + 1} of ${data.progress.total}: ${data.progress.current}`}
         </p>
       ) : null}
       {finished ? (
         <div role="status" className="mt-3 font-mono text-[11px] leading-relaxed text-[var(--sage)]" data-testid="analysis-result">
-          <p>Done {formatDate(data.updated_at)}: wrote {plural(data.written ?? 0, 'page')}.{data.stopped ? ' Stopped after Hermes gave no answer for two topics in a row; run it again to continue.' : ''}</p>
+          <p>Done {formatDate(data.updated_at)}: wrote {plural(data.written ?? 0, 'page')}.{data.stopped ? ' Stopped after the AI gave no answer for two topics in a row; run it again to continue.' : ''}</p>
           {data.written_topics?.length ? (
             <p className="mt-1">Read them: {data.written_topics.map((topic, index) => (
               <span key={topic.key}>{index ? '; ' : ''}<Link className="text-[var(--accent-text)] underline underline-offset-2" to={`/topics/${encodeURIComponent(topic.key)}`}>{topic.title}</Link></span>

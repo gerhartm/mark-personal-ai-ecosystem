@@ -60,6 +60,9 @@ Environment, all optional, all by name only:
 | `HERMES_BASE_URL` | Hermes dashboard origin. Unset means Ask runs in its explicit degraded state |
 | `HERMES_DASHBOARD_USERNAME` | Hermes dashboard service account name |
 | `HERMES_DASHBOARD_PASSWORD_FILE` | mounted file containing the Hermes dashboard password |
+| `OPENAI_API_KEY_FILE` | read-only mounted file containing the site's OpenAI API key, used only for topic sorting and analysis pages (see AI connection). Unset means those jobs go through Hermes |
+| `OPENAI_API_KEY` | the key itself, for local runs only; the file wins when both are set |
+| `OPENAI_BASE_URL` | OpenAI API origin, defaults to `https://api.openai.com/v1`; tests point it at a stand-in |
 | `INTELLIGENCE_AUTO_REFRESH_HOURS` | minimum interval between scheduled live intelligence reviews, defaults to `24` |
 | `SOURCE_PROCESSING_ENABLED` | set to `false` to pause source extraction and bulk workers; enabled by default, extraction also requires Hermes |
 | `OPENVIKING_BASE_URL` | private OpenViking service origin. Unset leaves Capture explicitly unavailable |
@@ -172,6 +175,8 @@ Fastify backend  ->  crypto-intelligence.db   (one database, one FTS index)
    |
    +-> Hermes central brain -> configured model provider
    |
+   +-> OpenAI Responses API   (topic sorting and analysis pages only; see AI connection)
+   |
    +-> OpenViking native resource API -> unified semantic memory
 ```
 
@@ -241,7 +246,7 @@ source was retained; evidence status separately reports extraction completion.
 
 The 13 categories are fixed in `server/src/topic-organization.ts` and mirrored
 for display in `web/src/lib/categories.ts`. A rebuild runs two passes through
-Hermes: it sorts every claim into one category, then groups claims into topics
+the AI: it sorts every claim into one category, then groups claims into topics
 within each category and writes their titles and context lines from the Topics
 instruction in Control center. Claims from one source about the same story or
 debate are asked to share a category, so a debate is not split across
@@ -277,19 +282,20 @@ categories by title. Matching requests (filing and regrouping) hold up to 25
 claims and list every topic, in every category, by short alias, category and
 title (up to 400, the ones sharing the most words with the batch when there are
 more). A cross-category grouping request holds up to 120 claims as short lines.
-Every
-Topics call goes to Hermes as task `crypto_topics`, so Hermes can pin its model
-and reasoning effort (`auxiliary.crypto_topics` in Hermes's config; with nothing
-set there Hermes uses its main model). The time and token limits leave room for
-a reasoning model: twelve minutes and 24,000 output tokens per grouping call,
-ten minutes and 16,000 tokens per matching call, eight minutes and 16,000 tokens
-for sorting, six minutes and 8,000 tokens for new wording.
+Every Topics call goes along the route set for task `crypto_topics` in the AI
+connection (below): by default straight to OpenAI, where a call may take up to
+25 minutes. Through Hermes, Hermes can pin the task's model and reasoning effort
+(`auxiliary.crypto_topics` in Hermes's config; with nothing set there Hermes
+uses its main model), and the time and token limits are twelve minutes and
+24,000 output tokens per grouping call, ten minutes and 16,000 tokens per
+matching call, eight minutes and 16,000 tokens for sorting, six minutes and
+8,000 tokens for new wording.
 
-Hermes ends a streamed answer that shows no progress for 60 seconds, so batches
-stay small. A sorting or grouping batch that gets no answer because of a time
+Hermes ends a streamed answer that shows no progress for 60 seconds, which is
+why batches are this small; the direct route uses the same sizes. A sorting or grouping batch that gets no answer because of a time
 limit, an empty answer or an error is split in halves, down to 8 claims, and the
 halves are sent in its place rather than the whole batch again; a rate limit or
-an unreachable Hermes gets one retry of the same batch after a 30-second pause
+an unreachable AI service gets one retry of the same batch after a 30-second pause
 instead. A batch that still gets no answer waits: its claims stay uncategorized
 or ungrouped. Two such batches in a row, or no answer to any batch, stop the
 rebuild. Failure messages say why in fixed wording (time limit, empty answer,
@@ -298,7 +304,7 @@ Hermes's cut-off messages (a stalled stream, a broken pipe, and the main
 model's rejection of the task's reasoning setting when Hermes falls back to it)
 count as the time limit.
 
-A rebuild saves nothing when Hermes stops responding, when more than a tenth of
+A rebuild saves nothing when the AI stops responding, when more than a tenth of
 the claims cannot be categorized, or when grouping fails for more than a quarter
 of the claims. Of two usable answers, one that states fewer views as fact wins
 unless it puts under 90% as many claims into topics; otherwise the answer that
@@ -327,12 +333,12 @@ categories, in two passes:
 
 1. Matching: batches of claims are checked against the titles of every topic,
    in every category. A claim that tells an existing topic's story joins it.
-   Hermes also writes a one-line story for each claim, with names spelled the
+   The AI also writes a one-line story for each claim, with names spelled the
    usual way (a story line that adds a figure is not used; the claim's own text
    stands in).
 2. Grouping: the claims that joined no topic are read together, across
    categories, as story lines with their text and source. Claims that tell one
-   story start a new topic, under the one category Hermes chooses for it. The
+   story start a new topic, under the one category the AI chooses for it. The
    rules for new topics above still apply.
 
 A topic keeps one category, so the Topics page filters still work; a claim
@@ -344,9 +350,9 @@ shared words, so related claims stay in one request.
 
 Group waiting claims runs both passes over every waiting claim, usually five or
 six AI calls for about a hundred claims. Existing topics keep their claims. What
-it placed is saved even when Hermes gave no answer for some requests: those
+it placed is saved even when the AI gave no answer for some requests: those
 claims keep waiting, the result line says how many (and how many placed claims
-moved to another category), and grouping again retries them. When Hermes stays
+moved to another category), and grouping again retries them. When the AI stays
 silent twice in a row it stops and keeps what it has. It runs
 as a background job (`topics.waiting.job`); new filing runs and rebuilds wait
 while it runs, nothing is saved if Topics changed meanwhile, and a filing run
@@ -400,7 +406,7 @@ waiting claims: those sharing the most words with the new claims, in any
 category, then the most recent ones in the new claims' categories. New claims
 join an existing topic, start a new topic with other claims, or wait under
 their category. Filing never blocks source processing and pauses for 15 minutes
-when Hermes is unavailable or answers without usable categories; a claim that
+when the AI is unavailable or answers without usable categories; a claim that
 gets three unusable answers waits for the next full rebuild. Funding rounds are
 kept only when the company and amount appear as whole names in the retained
 evidence passage (or the stored claim when no passage was kept), never as a
@@ -417,8 +423,8 @@ labelled same mechanism, in tension, leads to, follows from or context. The
 numbers after a point lead to the claims it rests on: clicking one clears the
 claim filters, scrolls to the claim and outlines it.
 
-Hermes writes each page in one call, as task `crypto_analysis`
-(`auxiliary.crypto_analysis` in Hermes's config), from the topic's 40 most
+The AI writes each page in one call, along the route set for task
+`crypto_analysis` in the AI connection (below), from the topic's 40 most
 significant claims, the retained passage behind each (up to 900 characters),
 the research note written when it was extracted, and the 24 other topics most
 related to it (shared words, shared sources, same category). The Topic analysis
@@ -430,8 +436,10 @@ quote must keep at least nine in ten of its passage's words and add no figure,
 and a connection must name one of the related topics. Missing or malformed
 sections, unknown claim IDs and invented figures get one corrected retry; a
 weak quote, watch item or connection is dropped on its own. A call with no
-answer is retried once after 30 seconds. A call may take up to 15 minutes and
-24,000 output tokens.
+answer is retried once after 30 seconds. A call may take up to 30 minutes on the
+direct route; through Hermes (`auxiliary.crypto_analysis` in its config) it may
+take up to 15 minutes and 24,000 output tokens. Each page records the model and
+reasoning level that wrote it, or that it came through Hermes.
 
 Pages are stored per topic key in `generation_meta` (`topics.analysis.<key>`)
 with the claims they were written from, and are never deleted, so a topic
@@ -444,19 +452,64 @@ Control center writes pages in the background (`topics.analysis.job`): Write 5
 sample pages takes the five largest topics without a current page, Write all
 remaining takes the rest, and Rewrite on a topic page rewrites that topic. Each
 page is saved as soon as it is written. A topic with no usable answer is listed
-with the reason and the run moves on; the next run retries it. Two topics in a
-row with no answer from Hermes stop the run. Rebuilds, previews, regrouping and
-filing wait while pages are written, because they share Hermes's connection,
-and a queued run waits for a filing run that is already talking to Hermes. A run
-interrupted by a restart is marked failed at startup, with its pages kept.
+with the reason and the run moves on; the next run retries it. On the direct
+route four pages are written at once; through Hermes, one at a time, since a
+cut-off on one Hermes call breaks a call beside it. Two topics in a row with no
+answer from the AI stop the run. Rebuilds, previews, regrouping and filing wait
+while pages are written, and a queued run waits for a filing run already under
+way, so pages are written from topics that are not changing. A run interrupted
+by a restart is marked failed at startup, with its pages kept.
+
+### AI connection
+
+Hermes is the central brain and answers everything else: Ask, Studio, Prep,
+Quiz, claim extraction, Satoshi and Telegram. Its one-off answers end after 60
+seconds without progress, which is too short for a reasoning model working on
+the site's two long batch jobs, so since 12 November 2026 (approved by Mark)
+those can call OpenAI directly:
+
+| Job | Task | Covers |
+|---|---|---|
+| Topic sorting | `crypto_topics` | rebuilds, previews, Group waiting claims and filing |
+| Analysis pages | `crypto_analysis` | one call per topic page |
+
+Each job has a route (OpenAI direct or Hermes), a model (`gpt-6-astra` or
+`gpt-5.6-sol`) and a reasoning level (low, medium or high), set in Control
+center's AI connection panel and stored as `ai.routes` in `app_settings`; every
+change is audited, and routes cannot change while a Topics or analysis job runs.
+The default is OpenAI direct with `gpt-6-astra` at high reasoning. On the Hermes
+route, Hermes's own settings choose the model. Without a key, a job set to OpenAI
+direct goes through Hermes and the panel says so. A failed direct call is
+reported like any other failure, never retried through Hermes.
+
+A direct call uses the Responses API in background mode: the request is sent
+with `background: true` and `store: true` (so a long answer can still be read
+when it finishes), the answer is requested as a JSON object, and the site checks
+every four seconds until it is done, then deletes the stored copy. There is no
+60-second window and no output-token cap. The site cancels a request that is
+still queued after 5 minutes, or unfinished after 25 minutes (Topics) or 30
+minutes (analysis pages); brief network errors while checking are tolerated.
+Failures are reported in the fixed wording above.
+
+The panel shows whether the key is present (never the key itself), what each
+job uses now, and for the last seven days each job's calls, failures, tokens in
+and out (with reasoning tokens) and average time per call, plus the last call's
+outcome (`ai.usage` in `app_settings`, kept for 30 days). A failed call is
+recorded as a fixed label and, from OpenAI, its status and code ("rate limit,
+OpenAI 429 rate_limit_exceeded"); a provider's own message is never stored or
+shown. Test sends a one-line request along a job's current route. The routes are
+`GET /api/ai/connection`, `PUT /api/ai/connection` with
+`{ "jobs": { "<task>": { "via", "model", "reasoning" } } }`, and
+`POST /api/ai/connection/test` with `{ "task" }`.
 
 ## Deliberate boundaries
 
 - No second database, vector service, or memory provider.
 - No patch to Hermes or OpenViking native behavior.
-- No model-provider key in this container or repository. Runtime credentials
-  are the tenant-scoped OpenViking key and Satoshi registration service secret,
-  both supplied by read-only file mounts.
+- No model-provider key in the repository or image. The one model-provider key
+  in this container is the site's OpenAI key for its two long jobs (approved 12
+  November 2026); like the tenant-scoped OpenViking key and the Satoshi
+  registration service secret, it is supplied by a read-only file mount.
 - No direct public origin listener. Production binds to VPS loopback and is
   published only through the existing Cloudflare tunnel and dashboard login.
 - No change to `intel.forkedbrain.fyi`; it remains the isolated legacy service.

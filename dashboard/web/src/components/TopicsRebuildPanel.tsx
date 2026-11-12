@@ -227,7 +227,7 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
           {waiting.data?.status === 'ready' && waiting.data.waiting_before != null ? (
             <p role="status" className="mt-3 font-mono text-[11px] leading-relaxed text-[var(--sage)]">
               Done: {plural(waiting.data.placed ?? 0, 'claim')} of {waiting.data.waiting_before} placed. {plural(waiting.data.joined ?? 0, 'claim')} joined existing topics and {plural(waiting.data.created ?? 0, 'new topic')} started.{waiting.data.moved ? ` ${plural(waiting.data.moved, 'placed claim')} moved to another category.` : ''} {plural(waiting.data.waiting_after ?? 0, 'claim')} still waiting.
-              {waiting.data.failed_claims ? ` Hermes gave no answer for ${plural(waiting.data.failed_claims, 'claim')}, so ${waiting.data.failed_claims === 1 ? 'it keeps' : 'they keep'} waiting and grouping again gives ${waiting.data.failed_claims === 1 ? 'it' : 'them'} another try.${waiting.data.failure ? ` ${waiting.data.failure}` : ''}` : ''}
+              {waiting.data.failed_claims ? ` The AI gave no answer for ${plural(waiting.data.failed_claims, 'claim')}, so ${waiting.data.failed_claims === 1 ? 'it keeps' : 'they keep'} waiting and grouping again gives ${waiting.data.failed_claims === 1 ? 'it' : 'them'} another try.${waiting.data.failure ? ` ${waiting.data.failure}` : ''}` : ''}
             </p>
           ) : null}
           {waiting.data?.status === 'failed' ? <p role="alert" className="mt-3 font-mono text-[11px] text-[var(--danger-text)]">{waiting.data.error}</p> : null}

@@ -295,7 +295,7 @@ Time limits: Hermes v0.21.1 gives one-off calls a fixed 60-second timeout that t
 docker exec -u hermes $H sh -c 'grep -h -i -E "auxiliary crypto_|codex auxiliary|llm.oneshot failed" /opt/data/logs/*.log | sort -u | tail -20 | cut -c1-300'
 ```
 
-Analysis pages send one larger request per topic (up to 40 claims with their passages) and the dashboard waits up to 15 minutes for each, but the same 60-second no-progress window applies. Write the five sample pages first. If they fail with the time-limit reason ("Hermes took longer than the time limit to answer" in Control Center's list), lower the effort and write the samples again; pages already written are kept, and nothing in the dashboard changes:
+Analysis pages send one larger request per topic (up to 40 claims with their passages) and the dashboard waits up to 15 minutes for each, but the same 60-second no-progress window applies. Since the release of 12 November 2026 these settings matter only for jobs routed through Hermes; see "Direct OpenAI route for long Crypto jobs" below. On the Hermes route, if pages fail with the time-limit reason ("The AI took longer than the time limit to answer" in Control Center's list), lower the effort and write them again; pages already written are kept, and nothing in the dashboard changes:
 
 ```bash
 docker exec -u hermes $H cp -p /opt/data/config.yaml /opt/data/config.yaml.pre-crypto-analysis-medium-$(date -u +%Y%m%dT%H%MZ)
@@ -303,6 +303,50 @@ docker exec -u hermes $H hermes config set auxiliary.crypto_analysis.reasoning_e
 ```
 
 Rollback: `hermes config unset auxiliary.crypto_topics` (and the same for `crypto_analysis`), run as above, returns the tasks to the main model. So does copying the 28 October backup, `config.yaml.pre-crypto-task-models-*`, back over `/opt/data/config.yaml` with `cp -p` as the Hermes user; the 11 November backup, `config.yaml.pre-crypto-responses-*`, holds the failing pre-fix settings and is kept only as a record. Hermes rereads `config.yaml` when it changes, so no restart is needed in either direction.
+
+### Direct OpenAI route for long Crypto jobs
+
+Approved by Mark on 12 November 2026 as a deliberate exception to "Hermes is the single central brain": the Crypto site may call OpenAI directly for its long batch jobs, topic sorting (`crypto_topics`) and analysis pages (`crypto_analysis`). Measured reason: Hermes ends any one-off answer that shows no progress for 60 seconds (above), which forced medium reasoning, small batches and split requests, and its fallback to the main model fails these tasks; the newest Hermes release (v0.23.1) and its development branch keep the same 60-second limit for `llm.oneshot`. Hermes remains the brain for everything else: Satoshi and Telegram, memory, Ask, Studio, Prep, Quiz and claim extraction are unchanged.
+
+How it works: the site sends each request to OpenAI's Responses API in background mode (`background: true`, `store: true` so a long answer can still be read, answer requested as JSON), checks back every few seconds until it finishes, then deletes the stored copy. There is no 60-second limit; the site cancels a request still queued after 5 minutes or unfinished after 25 minutes (topics) or 30 minutes (analysis). Analysis pages are written four at a time on this route and one at a time through Hermes. Control Center's AI connection panel shows whether the key is present, sets each job's route (OpenAI direct or Hermes), model and reasoning level, tests a route with a small request, and shows each job's calls, failures and tokens for the last seven days. Without a key, jobs set to OpenAI direct go through Hermes and the panel says so. A failed direct call is reported, never retried through Hermes.
+
+Install the key (run as root on the server). Mark creates the key in the OpenAI Platform dashboard, in the project that holds the credits, and pastes it only into this prompt; it is not shown on screen and is not kept in shell history:
+
+```bash
+K=/srv/mark-v2/secrets/crypto-dashboard-openai-key
+install -m 0600 /dev/null "$K"
+read -rsp 'Paste the OpenAI key, then press Enter: ' KEY; echo; printf '%s' "$KEY" > "$K"; unset KEY
+chown --reference=/srv/mark-v2/secrets/crypto-dashboard-session-secret "$K"
+chmod --reference=/srv/mark-v2/secrets/crypto-dashboard-session-secret "$K"
+wc -c < "$K"   # prints only the length; expect well over 40
+```
+
+Mount it into the site (the live definition is `/srv/mark-v2/crypto-dashboard/deploy/docker-compose.production.yml`; the release tool changes only its image line, so this edit persists):
+
+```bash
+C=/srv/mark-v2/crypto-dashboard/deploy/docker-compose.production.yml
+cp -p "$C" "$C.pre-openai-$(date -u +%Y%m%dT%H%MZ)"
+python3 - "$C" <<'EOF'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+if 'OPENAI_API_KEY_FILE' in text:
+    sys.exit('Already added; nothing changed.')
+env = "      TURNSTILE_SECRET_KEY_FILE: /run/secrets/crypto-dashboard-turnstile-secret\n"
+vol = "      - /srv/mark-v2/secrets/crypto-dashboard-turnstile-secret:/run/secrets/crypto-dashboard-turnstile-secret:ro\n"
+if text.count(env) != 1 or text.count(vol) != 1:
+    sys.exit('The file differs from the expected layout; nothing changed. Stop and ask.')
+text = text.replace(env, env + "      OPENAI_API_KEY_FILE: /run/secrets/openai-api-key\n")
+text = text.replace(vol, vol + "      - /srv/mark-v2/secrets/crypto-dashboard-openai-key:/run/secrets/openai-api-key:ro\n")
+open(path, 'w').write(text)
+print('Added the key file to the Crypto site definition.')
+EOF
+docker compose -p crypto-dashboard-20260905t095230z -f "$C" config -q && echo 'Definition is valid.'
+```
+
+Create the key file before adding the mount: Docker turns a missing mount source into an empty directory. The next release recreates the site with the mount; to apply it without a release, run `docker compose -p crypto-dashboard-20260905t095230z -f "$C" up -d --no-deps crypto-dashboard`. Then open Control Center → AI connection: it must say the key is connected, and **Test** on each job must pass through OpenAI.
+
+Switch a job back to Hermes in the same panel (saved and audited as `ai.routes`; refused while a Topics or analysis job runs). To remove the route entirely, restore the `.pre-openai-*` copy of the definition, recreate the site as above, and delete the key file; every job then goes through Hermes. Rotate the key in the OpenAI dashboard and replace the file the same way.
 
 ### Telegram owner-experience acceptance mode
 

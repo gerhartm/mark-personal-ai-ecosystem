@@ -69,7 +69,8 @@ import { startTopicFilingWorker, topicFilingRunning } from './topic-filing.js';
 import { queueTopicPreview, startTopicPreviewWorker, topicPreviewStatus } from './topic-preview-job.js';
 import { queueTopicWaiting, resetTopicWaitingStatus, startTopicWaitingWorker, topicWaitingBusy, topicWaitingStatus } from './topic-waiting-job.js';
 import { queueTopicAnalysis, startTopicAnalysisWorker, topicAnalysisBusy, topicAnalysisStatus } from './topic-analysis-job.js';
-import { TopicOrganizationError, activeOrganizationV2, canUndoRebuild, estimateRebuildCalls, listRounds, liveClaimRefs, tidySummary, tidyTopics, undoTidy, undoTopicRebuild } from './topic-organization.js';
+import { AiConfigurationError, aiConnection, saveAiRoutes, testAiRoute } from './ai-client.js';
+import { TopicOrganizationError, activeOrganizationV2, classifyHermesFailure, failureText, canUndoRebuild, estimateRebuildCalls, listRounds, liveClaimRefs, tidySummary, tidyTopics, undoTidy, undoTopicRebuild } from './topic-organization.js';
 import { TopicReadingError, updateReading } from './topic-reading.js';
 import { RESEARCH_EVENT } from './editorial-store.js';
 
@@ -430,10 +431,40 @@ app.post('/api/prompt-controls/topics/waiting', async (req, reply) => {
   }
   return reply.code(202).send(queueTopicWaiting(actor));
 });
-const ANALYSIS_RUNNING = { error: 'analysis_running', message: 'Wait for the analysis pages being written to finish first. Topics jobs and analysis share Hermes, so they run one at a time.' };
+const ANALYSIS_RUNNING = { error: 'analysis_running', message: 'Wait for the analysis pages being written to finish first. Topics jobs and analysis pages run one at a time, so pages are written from topics that are not changing.' };
 const topicJobsBusy = () => ['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy()
   || ['queued', 'running'].includes(String(topicPreviewStatus().status));
 app.get('/api/prompt-controls/analysis/status', async () => topicAnalysisStatus());
+
+// Where the long AI jobs run: OpenAI directly or Hermes. The key itself is never sent to the browser.
+app.get('/api/ai/connection', async () => aiConnection());
+app.put('/api/ai/connection', async (req, reply) => {
+  if (topicJobsBusy() || topicAnalysisBusy()) {
+    return reply.code(409).send({ error: 'jobs_running', message: 'Wait for the running Topics or analysis job to finish before changing the AI connection.' });
+  }
+  try {
+    saveAiRoutes(requestActor(req), (req.body as { jobs?: unknown } | undefined)?.jobs);
+    return aiConnection();
+  } catch (error) {
+    if (error instanceof AiConfigurationError) return reply.code(400).send({ error: 'invalid_route', message: error.message });
+    throw error;
+  }
+});
+app.post('/api/ai/connection/test', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isStudioRateLimited(`${actor}:${remote}`)) return reply.code(429).send({ error: 'rate_limited', message: 'Please wait a minute before testing again.' });
+  const task = (req.body as { task?: unknown } | undefined)?.task;
+  try {
+    return await testAiRoute(String(task ?? ''));
+  } catch (error) {
+    if (error instanceof AiConfigurationError) return reply.code(400).send({ error: 'invalid_route', message: error.message });
+    // Only the fixed wording and the provider's status code are shown, never the provider's own message.
+    const text = error instanceof Error ? error.message : String(error);
+    const code = /^OpenAI (\d{3} [\w.-]+)/.exec(text)?.[1];
+    return reply.code(502).send({ error: 'test_failed', message: `${failureText(classifyHermesFailure(error))}${code ? ` (OpenAI ${code})` : ''}` });
+  }
+});
 app.post('/api/prompt-controls/analysis/write', async (req, reply) => {
   const actor = requestActor(req);
   const mode = (req.body as { mode?: unknown } | undefined)?.mode;

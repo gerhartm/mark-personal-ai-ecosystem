@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorState, Eyebrow, LoadingRows, ViewHead } from '../components/Desk';
+import { AiConnectionPanel } from '../components/AiConnectionPanel';
 import { AnalysisPanel } from '../components/AnalysisPanel';
 import { TopicsRebuildPanel } from '../components/TopicsRebuildPanel';
 import { api, invalidate, useQuery } from '../lib/api';
@@ -213,6 +214,7 @@ export function ControlCenter() {
           ) : null}
         </div>
       </div>
+      <AiConnectionPanel />
     </section>
   );
 }

@@ -271,14 +271,19 @@ Claims that only cite a document ("the source asserts…") count as facts. Only
 broken topics, views stated as fact and forgotten claims are worth a whole new
 answer; length and style notes alone do not trigger one.
 
-Sorting requests hold up to 60 claims. Grouping requests hold up to 30 claims
-and list up to 80 existing topics from the same categories by title. Every
+Sorting requests hold up to 60 claims. Grouping requests in a rebuild or
+preview hold up to 30 claims and list up to 80 existing topics from the same
+categories by title. Matching requests (filing and regrouping) hold up to 25
+claims and list every topic, in every category, by short alias, category and
+title (up to 400, the ones sharing the most words with the batch when there are
+more). A cross-category grouping request holds up to 120 claims as short lines.
+Every
 Topics call goes to Hermes as task `crypto_topics`, so Hermes can pin its model
 and reasoning effort (`auxiliary.crypto_topics` in Hermes's config; with nothing
 set there Hermes uses its main model). The time and token limits leave room for
 a reasoning model: twelve minutes and 24,000 output tokens per grouping call,
-eight minutes and 16,000 tokens for sorting, six minutes and 8,000 tokens for
-new wording.
+ten minutes and 16,000 tokens per matching call, eight minutes and 16,000 tokens
+for sorting, six minutes and 8,000 tokens for new wording.
 
 Hermes ends a streamed answer that shows no progress for 60 seconds, so batches
 stay small. A sorting or grouping batch that gets no answer because of a time
@@ -317,13 +322,32 @@ unsorted by the answer, dropped by the checks (with reasons), missing (never
 mentioned, or mentioned only with a wrong ID, category or as a repeat), and kept
 after new wording.
 
-Group waiting claims (Control center) gives claims that are in no topic a second
-look. Waiting claims are batched by category, never mixed, beside the existing
-topics of that category, so they can join a topic or start one with each other.
-Existing topics keep their claims and every claim keeps its category. What it
-grouped is saved even when Hermes gave no answer for some batches: those claims
-keep waiting, the result line says how many, and grouping again retries them.
-When Hermes stays silent twice in a row it stops and keeps what it has. It runs
+Filing and Group waiting claims (Control center) place claims across
+categories, in two passes:
+
+1. Matching: batches of claims are checked against the titles of every topic,
+   in every category. A claim that tells an existing topic's story joins it.
+   Hermes also writes a one-line story for each claim, with names spelled the
+   usual way (a story line that adds a figure is not used; the claim's own text
+   stands in).
+2. Grouping: the claims that joined no topic are read together, across
+   categories, as story lines with their text and source. Claims that tell one
+   story start a new topic, under the one category Hermes chooses for it. The
+   rules for new topics above still apply.
+
+A topic keeps one category, so the Topics page filters still work; a claim
+placed in a topic takes that topic's category, and a claim that stays waiting
+keeps its own. Before this, a claim could only join a topic in its own category,
+so two claims about one story filed under different categories never met. When
+a grouping request is cut off, the claims are split into halves ordered by
+shared words, so related claims stay in one request.
+
+Group waiting claims runs both passes over every waiting claim, usually five or
+six AI calls for about a hundred claims. Existing topics keep their claims. What
+it placed is saved even when Hermes gave no answer for some requests: those
+claims keep waiting, the result line says how many (and how many placed claims
+moved to another category), and grouping again retries them. When Hermes stays
+silent twice in a row it stops and keeps what it has. It runs
 as a background job (`topics.waiting.job`); new filing runs and rebuilds wait
 while it runs, nothing is saved if Topics changed meanwhile, and a filing run
 that was already under way skips claims that are in a topic by the time it
@@ -371,9 +395,10 @@ null to clear) and `bookmarked` (true or false).
 
 Once a rebuild exists, a filing worker checks every minute for claims that are
 not yet organized, including claims committed during a rebuild or before a
-restart, and files up to 20 at a time, beside up to 10 waiting claims of the
-same categories, with one Hermes call: they join an
-existing topic, start a new topic with another waiting claim, or wait under
+restart, and files up to 20 at a time with the two passes above, beside up to 5
+waiting claims: those sharing the most words with the new claims, in any
+category, then the most recent ones in the new claims' categories. New claims
+join an existing topic, start a new topic with other claims, or wait under
 their category. Filing never blocks source processing and pauses for 15 minutes
 when Hermes is unavailable or answers without usable categories; a claim that
 gets three unusable answers waits for the next full rebuild. Funding rounds are

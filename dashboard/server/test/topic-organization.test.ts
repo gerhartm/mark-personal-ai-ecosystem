@@ -9,6 +9,7 @@ import { join, resolve } from 'node:path';
  * and migration code runs against a copy of the stored corpus.
  */
 const state = vi.hoisted(() => ({ calls: [] as string[], tasks: new Set<string>(), groupSent: [] as string[][], sortSent: [] as string[][],
+  matchSent: [] as string[][], acrossSent: [] as any[][], inventStory: '',
   groupFails: null as null | ((claims: any[]) => string | null), sortFails: null as null | ((claims: any[]) => string | null), topicNumber: 0, failNextGroupCalls: 0, silentNextGroupCalls: 0, longDekNextGroups: 0, alsoUnsorted: false, outage: false, shift: false, garbageCategorize: false, categorizeRules: '', duringGroup: null as null | (() => void) }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
@@ -74,6 +75,65 @@ vi.mock('../src/hermes-client.js', () => {
           unsorted.push(...ids);
         }
         if (state.alsoUnsorted) unsorted.push(...claims.map((claim: any) => claim.id));
+        return JSON.stringify({ topics, unsorted });
+      }
+      // Matching: a claim naming "Zephyr" joins the topic whose title names it, in any category; otherwise
+      // the first claim of each category joins the first topic of that category, as grouping used to.
+      if (head.startsWith("Match Mark's research claims")) {
+        state.calls.push('match');
+        state.duringGroup?.();
+        if (state.silentNextGroupCalls > 0) { state.silentNextGroupCalls--; throw new Error('Hermes request timeout'); }
+        if (state.failNextGroupCalls > 0) { state.failNextGroupCalls--; return 'not json'; }
+        const claims = section(input, 'CLAIMS');
+        state.matchSent.push(claims.map((claim: any) => claim.id));
+        const failure = state.groupFails?.(claims);
+        if (failure) throw new Error(failure);
+        const topics = section(input, 'TOPICS');
+        const firstOf = new Set<string>();
+        return JSON.stringify({ claims: claims.map((claim: any) => {
+          const marked = /Zephyr/.test(claim.text) ? topics.find((topic: any) => /Zephyr/.test(topic.title)) : null;
+          const same = !marked && !/Quorvex|Brightline|Halcyon/.test(claim.text) && !firstOf.has(claim.category) ? topics.find((topic: any) => topic.category === claim.category) : null;
+          if (same) firstOf.add(claim.category);
+          const story = state.inventStory && claim.text.includes(state.inventStory) ? `${claim.text.slice(0, 60)} and 987 more` : `Story: ${claim.text.slice(0, 90)}`;
+          return { id: claim.id, topic: (marked ?? same)?.t ?? null, story };
+        }) });
+      }
+      // Grouping across categories: claims naming "Quorvex" start one topic under chains_infrastructure, and
+      // claims naming "Brightline" one under stablecoins, whatever their category; other claims pair up within
+      // their category, as grouping used to.
+      if (head.startsWith('Find the research claims below that tell the same story')) {
+        state.calls.push('across');
+        state.duringGroup?.();
+        if (state.silentNextGroupCalls > 0) { state.silentNextGroupCalls--; throw new Error('Hermes request timeout'); }
+        const claims = section(input, 'CLAIMS');
+        state.acrossSent.push(claims);
+        const failure = state.groupFails?.(claims);
+        if (failure) throw new Error(failure);
+        const topics: any[] = [];
+        const unsorted: string[] = [];
+        const marked: string[] = [];
+        for (const [word, category] of [['Quorvex', 'chains_infrastructure'], ['Brightline', 'stablecoins']]) {
+          const ids = claims.filter((claim: any) => claim.text.includes(word)).map((claim: any) => claim.id);
+          if (!ids.length) continue;
+          marked.push(...ids);
+          const code = letters(++state.topicNumber);
+          topics.push({ key: `new-${word}`, category, title: `Synthetic topic ${code} shows ${word} activity moving between venues`, dek: `Context line for synthetic topic ${code}, written for an automated test.`, claims: ids });
+        }
+        const byCategory = new Map<string, string[]>();
+        for (const claim of claims) if (!marked.includes(claim.id)) byCategory.set(claim.category, [...(byCategory.get(claim.category) ?? []), claim.id]);
+        for (const [category, ids] of byCategory) {
+          while (ids.length >= 2) {
+            const code = letters(++state.topicNumber);
+            topics.push({
+              key: `new-${code}`, category,
+              title: `Synthetic topic ${code} shows Lendex lending shifting between venues`,
+              dek: `Context line for synthetic topic ${code}, written for an automated test.`,
+              description: 'A synthetic description that is long enough to be kept by the validator.',
+              claims: ids.splice(0, 2),
+            });
+          }
+          unsorted.push(...ids);
+        }
         return JSON.stringify({ topics, unsorted });
       }
       if (head.startsWith('Write a title and a context line')) {
@@ -469,16 +529,19 @@ describe('rebuilding Topics from claims', () => {
 
   it('never places a claim twice when a regrouping saves during a filing run', async () => {
     const source = `sha256:${'b'.repeat(64)}`;
-    database.run("INSERT INTO sources(source_id,identity_basis,title,source_type,source_channel,captured_at,origin) VALUES (?,?,'Overlap fixture','article','test','2026-10-22T00:00:00Z','ingested')", source, `text:${source}`);
-    processor.commitSourceClaims(source, [
-      { claim: 'A lending fixture reports that isolated pools kept a desk solvent during a fixture run.', quote: 'Isolated pools kept a desk solvent during a fixture run.', topic: 'Isolated pools kept a fixture desk solvent', category: 'defi', significance: 3, tags: [], entities: [], dates: [] },
-      { claim: 'A second lending fixture reports that pooled collateral spread losses across desks.', quote: 'Pooled collateral spread losses across desks.', topic: 'Pooled collateral spread fixture losses', category: 'defi', significance: 3, tags: [], entities: [], dates: [] },
-    ]);
     // Take one claim out of a DeFi topic so it is waiting, in the same category as the new claims.
     const live = organization.activeOrganizationV2()!;
     const donor = live.topics.find((topic) => topic.category === 'defi' && topic.claims.length >= 3)!;
     const waitingRef = donor.claims.pop()!;
     database.run("UPDATE generation_meta SET value=? WHERE key='topics.organization.v2'", JSON.stringify(live));
+    // The new claims repeat its wording, so filing sends it along to pair with them.
+    const waitingText = organization.loadClaims().find((claim) => claim.ref === waitingRef)!.text;
+    database.run("INSERT INTO sources(source_id,identity_basis,title,source_type,source_channel,captured_at,origin) VALUES (?,?,'Overlap fixture','article','test','2026-10-22T00:00:00Z','ingested')", source, `text:${source}`);
+    processor.commitSourceClaims(source, [
+      { claim: `A lending fixture reports that isolated pools kept a desk solvent during a fixture run.`, quote: 'Isolated pools kept a desk solvent during a fixture run.', topic: 'Isolated pools kept a fixture desk solvent', category: 'defi', significance: 3, tags: [], entities: [], dates: [] },
+      { claim: `A second fixture repeats it: ${waitingText}`, quote: waitingText, topic: 'A fixture repeats a waiting claim', category: 'defi', significance: 3, tags: [], entities: [], dates: [] },
+    ]);
+    state.matchSent = [];
     // While filing waits for its answer, a regrouping saves the same waiting claim into a topic.
     state.duringGroup = () => {
       state.duringGroup = null;
@@ -489,6 +552,7 @@ describe('rebuilding Topics from claims', () => {
     try {
       await organization.fileNewClaims({ sourceId: source });
     } finally { state.duringGroup = null; }
+    expect(state.matchSent.flat()).toContain(waitingRef);
     const seen = organization.activeOrganizationV2()!.topics.flatMap((topic) => topic.claims);
     expect(seen.filter((ref) => ref === waitingRef)).toHaveLength(1);
     expect(new Set(seen).size).toBe(seen.length);
@@ -560,7 +624,7 @@ describe('when Hermes cuts long answers off', () => {
   let saved: typeof organization.limits;
   beforeAll(() => { saved = { ...organization.limits }; });
   const reset = () => {
-    state.groupSent = []; state.sortSent = []; state.groupFails = null; state.sortFails = null;
+    state.groupSent = []; state.sortSent = []; state.matchSent = []; state.acrossSent = []; state.groupFails = null; state.sortFails = null;
     Object.assign(organization.limits, saved);
   };
   const key = (refs: string[]) => refs.join(',');
@@ -608,12 +672,16 @@ describe('when Hermes cuts long answers off', () => {
       state.groupFails = (claims) => (claims.some((claim) => claim.category === 'macro') ? 'one-shot generation failed: [Errno 32] Broken pipe' : null);
       const result = await prompts.groupWaitingTopics('topic-test');
       expect(result.placed).toBeGreaterThan(0);
-      expect(result.failed_claims).toBe(refs.length - half);
+      // Every macro claim keeps waiting, with any DeFi claims that shared a request Hermes cut off.
+      expect(result.failed_claims).toBeGreaterThanOrEqual(refs.length - half);
+      expect(result.failed_claims).toBeLessThan(refs.length);
       expect(result.failure).toMatch(/time limit/);
       expect(result.waiting_after).toBe(refs.length - result.placed);
       const after = organization.activeOrganizationV2()!;
       expect(after.topics.length).toBeGreaterThan(0);
       expect(after.topics.every((topic) => topic.category === 'defi')).toBe(true);
+      const placed = new Set(after.topics.flatMap((topic) => topic.claims));
+      expect(refs.slice(half).some((ref) => placed.has(ref))).toBe(false);
     } finally {
       reset();
       if (original) database.run("UPDATE generation_meta SET value=? WHERE key='topics.organization.v2'", original);
@@ -816,5 +884,178 @@ describe('tidying weak topics and reading marks', () => {
     organize([topic('k-again', [one[0], one[1], one[2], one[3]], later()), topic('elsewhere', [spare[3], spare[4]], later())], '2026-10-30T00:00:00.000Z');
     reading.updateReading(org(), 'elsewhere', { rating: 2 }, live());
     expect(card('k-again').reading).toBeNull();
+  });
+});
+
+describe('placing claims across categories', () => {
+  let original: string | undefined;
+  let members: string[];
+  const at = '2026-11-01T00:00:00.000Z';
+  const save = (value: unknown) => database.run('INSERT OR REPLACE INTO generation_meta (key, value) VALUES (?, ?)', organization.ORGANIZATION_KEY, JSON.stringify(value));
+  let sourceNumber = 0;
+  /** A new source with the given claims, which wait under the given categories unless left unfiled. */
+  const addSource = (claims: Array<{ text: string; category: string }>, file = true) => {
+    const id = `sha256:${(++sourceNumber).toString(16).padStart(4, '0')}${'c'.repeat(60)}`;
+    database.run("INSERT INTO sources(source_id,identity_basis,title,source_type,source_channel,captured_at,origin) VALUES (?,?,?,'article','test','2026-11-01T00:00:00Z','ingested')", id, `text:${id}`, `Across fixture ${sourceNumber}`);
+    processor.commitSourceClaims(id, claims.map((claim) => ({ claim: claim.text, quote: claim.text, topic: claim.text.slice(0, 60), category: claim.category, significance: 3, tags: [], entities: [], dates: [] })));
+    const refs = organization.loadClaims({ sourceId: id }).map((claim) => claim.ref);
+    if (file) {
+      const live = organization.activeOrganizationV2()!;
+      refs.forEach((ref, index) => { live.categories[ref] = claims[index].category as any; });
+      save(live);
+    }
+    return { id, refs };
+  };
+  const topicOf = (ref: string) => organization.activeOrganizationV2()!.topics.find((topic) => topic.claims.includes(ref));
+
+  beforeAll(() => {
+    original = database.one<any>("SELECT value FROM generation_meta WHERE key='topics.organization.v2'")?.value;
+    const refs = organization.loadClaims().map((claim) => claim.ref);
+    members = refs.slice(0, 9);
+    const topic = (key: string, category: string, title: string, claims: string[]) => ({ key, category, title, dek: `Context line for ${title.toLowerCase()}.`, description: '', claims, created_at: at, updated_at: at });
+    save({
+      version: 2, generated_at: at, generated_by: 'test', prompt_revision: 1,
+      categories: Object.fromEntries(members.map((ref, index) => [ref, index < 3 ? 'chains_infrastructure' : index < 6 ? 'defi' : 'markets_trading'])),
+      topics: [
+        topic('zephyr-validators', 'chains_infrastructure', 'Zephyr validators move stake into isolated pools after an outage', members.slice(0, 3)),
+        topic('lending-venues', 'defi', 'Lending venues compete on isolated risk design', members.slice(3, 6)),
+        topic('perp-venues', 'markets_trading', 'Perp venues compete for flow with new fee tiers', members.slice(6, 9)),
+      ],
+    });
+  });
+  afterAll(() => { if (original) database.run("UPDATE generation_meta SET value=? WHERE key='topics.organization.v2'", original); });
+
+  it('lets a waiting claim join a topic filed under another category, taking its category', async () => {
+    const { refs: [ref] } = addSource([{ text: 'A DeFi desk says Zephyr validators moved their stake into isolated pools after the outage.', category: 'defi' }]);
+    state.matchSent = [];
+    const result = await prompts.groupWaitingTopics('topic-test');
+    expect(topicOf(ref)?.key).toBe('zephyr-validators');
+    expect(organization.activeOrganizationV2()!.categories[ref]).toBe('chains_infrastructure');
+    expect(result).toMatchObject({ joined: 1, moved: 1, placed: 1 });
+    // Every topic was listed, whatever its category.
+    expect(state.matchSent.flat()).toContain(ref);
+  });
+
+  it('starts one topic from waiting claims filed under different categories, in the category chosen for it', async () => {
+    const first = addSource([{ text: 'Quorvex validators doubled their stake after the fee change, a DeFi analyst reports.', category: 'defi' }]).refs[0];
+    const second = addSource([{ text: 'Quorvex stake rose sharply once fees fell, a trading desk says, with 987 nodes online.', category: 'markets_trading' }]).refs[0];
+    state.acrossSent = [];
+    state.inventStory = 'doubled their stake';
+    const progress: string[] = [];
+    try {
+      await organization.groupWaitingClaims('topic-test', prompts.getPromptControl('topics').instructions, (step) => progress.push(step.stage));
+    } finally { state.inventStory = ''; }
+    const topic = topicOf(first)!;
+    expect(topic.category).toBe('chains_infrastructure');
+    expect(topic.claims).toEqual(expect.arrayContaining([first, second]));
+    const categories = organization.activeOrganizationV2()!.categories;
+    expect([categories[first], categories[second]]).toEqual(['chains_infrastructure', 'chains_infrastructure']);
+    // Both left-over claims went to Hermes in one request, as story lines; a story line that adds a figure is replaced by the claim's text.
+    const sent = state.acrossSent.find((lines) => lines.some((line: any) => line.id === first))!;
+    expect(sent.map((line: any) => line.id)).toEqual(expect.arrayContaining([first, second]));
+    expect(sent.find((line: any) => line.id === first).story).not.toMatch(/987/);
+    expect(sent.find((line: any) => line.id === second).story).toMatch(/^Story: /);
+    expect(progress).toEqual(expect.arrayContaining(['matching', 'grouping', 'saving']));
+    expect(progress.indexOf('matching')).toBeLessThan(progress.indexOf('grouping'));
+  });
+
+  it('still needs three claims or two sources for a new topic', async () => {
+    const { refs } = addSource([
+      { text: 'Quorvex governance moved to weekly votes, one podcast host says.', category: 'tokens_governance' },
+      { text: 'Quorvex governance votes now close faster, the same host adds.', category: 'regulation_policy' },
+    ]);
+    await prompts.groupWaitingTopics('topic-test');
+    expect(refs.map(topicOf)).toEqual([undefined, undefined]);
+    expect(organization.waitingSummary().waiting).toBeGreaterThanOrEqual(2);
+  });
+
+  it('files a new claim into a topic filed under another category', async () => {
+    const { id, refs: [ref] } = addSource([{ text: 'A macro note says Zephyr validators kept moving stake into isolated pools this week.', category: 'macro' }], false);
+    const result = await organization.fileNewClaims({ sourceId: id });
+    expect(result).toMatchObject({ claims: 1, placed: 1, moved: 1 });
+    expect(topicOf(ref)?.key).toBe('zephyr-validators');
+    expect(organization.activeOrganizationV2()!.categories[ref]).toBe('chains_infrastructure');
+  });
+
+  it('never adds a matched claim to a topic when a regrouping placed it while filing waited', async () => {
+    const waiting = addSource([{ text: 'Zephyr validators kept their stake in isolated pools through the upgrade, a staking guest says.', category: 'tokens_governance' }]).refs[0];
+    const { id } = addSource([{ text: 'Zephyr validators kept stake in isolated pools during the upgrade, a node operator says.', category: 'chains_infrastructure' }], false);
+    // While filing waits for its answer, a regrouping saves the waiting claim into another topic.
+    state.duringGroup = () => {
+      state.duringGroup = null;
+      const changed = organization.activeOrganizationV2()!;
+      changed.topics.find((topic) => topic.key === 'perp-venues')!.claims.push(waiting);
+      save(changed);
+    };
+    state.matchSent = [];
+    try {
+      await organization.fileNewClaims({ sourceId: id });
+    } finally { state.duringGroup = null; }
+    expect(state.matchSent.flat()).toContain(waiting);
+    const seen = organization.activeOrganizationV2()!.topics.flatMap((topic) => topic.claims);
+    expect(seen.filter((ref) => ref === waiting)).toHaveLength(1);
+    expect(topicOf(waiting)?.key).toBe('perp-venues');
+  });
+
+  it('sends related waiting claims from other categories along with new claims, so they can start a topic', async () => {
+    const waiting = addSource([{ text: 'Brightline Labs bridges settle stablecoin transfers between chains in seconds, a payments founder says.', category: 'payments' }]).refs[0];
+    const { id, refs: [fresh] } = addSource([{ text: 'Brightline Labs bridges now settle most stablecoin transfers between chains, an infrastructure report finds.', category: 'chains_infrastructure' }], false);
+    // Unrelated waiting claims in the new claim's category do not crowd it out.
+    for (let index = 0; index < 6; index++) addSource([{ text: `An unrelated chains note number ${index} about validator hardware upgrades in data centers.`, category: 'chains_infrastructure' }]);
+    state.matchSent = [];
+    await organization.fileNewClaims({ sourceId: id });
+    expect(state.matchSent.flat()).toContain(waiting);
+    const topic = topicOf(fresh)!;
+    expect(topic.claims).toEqual(expect.arrayContaining([fresh, waiting]));
+    expect(organization.activeOrganizationV2()!.categories[waiting]).toBe(topic.category);
+  });
+
+  it('keeps claims that share words next to each other, so a split request keeps related claims together', () => {
+    const claim = (ref: string, text: string) => ({ ref, text } as any);
+    const claims = [
+      claim('a:0', 'Halcyon rollup sequencers share fees with stakers'),
+      claim('b:0', 'Brightline bridges settle stablecoin transfers quickly'),
+      claim('c:0', 'Halcyon rollup fee sharing draws stakers and traders'),
+      claim('d:0', 'Brightline stablecoin bridges settle transfers in seconds'),
+      claim('e:0', 'Unrelated macro note on oil drilling'),
+    ];
+    const order = organization.similarityOrder(claims, new Map()).map((item) => item.ref);
+    expect(Math.abs(order.indexOf('a:0') - order.indexOf('c:0'))).toBe(1);
+    expect(Math.abs(order.indexOf('b:0') - order.indexOf('d:0'))).toBe(1);
+    expect(order.at(-1)).toBe('e:0');
+    // Waiting claims that share words with a new claim come before merely recent ones.
+    const picked = organization.relatedWaiting([claims[0]], [claims[1], claims[2], claims[4]].map((item, index) => ({ ...item, captured_at: `2026-11-0${3 - index}` })), () => 'defi', 2);
+    expect(picked.map((item) => item.ref)).toEqual(['c:0', 'b:0']);
+  });
+
+  it('estimates the calls a regrouping takes and splits a request Hermes cuts off', async () => {
+    const before = organization.waitingSummary();
+    expect(before.calls).toBe(Math.ceil(before.waiting / organization.limits.matchClaims) + 1);
+    const saved = { ...organization.limits };
+    // Many waiting claims, and Hermes cuts off any cross-category request of more than 15 claims.
+    for (let index = 0; index < 4; index++) {
+      addSource([
+        { text: `Halcyon rollup sequencers ${index} shared fees with stakers, a DeFi guest says.`, category: 'defi' },
+        { text: `Halcyon rollup fee sharing ${index} drew traders, a markets guest says.`, category: 'markets_trading' },
+        { text: `Halcyon rollup governance ${index} approved the fee switch, a governance guest says.`, category: 'tokens_governance' },
+        { text: `Halcyon rollup security ${index} survived an audit, a security guest says.`, category: 'security_exploits' },
+        { text: `Halcyon rollup payments ${index} settled faster, a payments guest says.`, category: 'payments' },
+      ]);
+    }
+    state.acrossSent = [];
+    state.groupFails = (claims) => (claims[0]?.story !== undefined && claims.length > 15 ? 'one-shot generation failed: Codex auxiliary Responses stream stalled: no new output for 60.0s' : null);
+    try {
+      const result = await prompts.groupWaitingTopics('topic-test');
+      expect(result.failed_claims).toBe(0);
+      expect(result.placed).toBeGreaterThan(0);
+      const sizes = state.acrossSent.map((lines) => lines.length);
+      expect(sizes[0]).toBeGreaterThan(15);
+      expect(sizes.slice(1).every((size) => size <= 15)).toBe(true);
+      // Each request after the split still reads claims from several categories together.
+      expect(state.acrossSent.slice(1).some((lines) => new Set(lines.map((line: any) => line.category)).size > 1)).toBe(true);
+    } finally {
+      state.groupFails = null;
+      Object.assign(organization.limits, saved);
+    }
   });
 });

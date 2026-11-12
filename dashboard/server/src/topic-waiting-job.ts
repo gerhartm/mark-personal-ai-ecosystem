@@ -4,9 +4,10 @@ import { groupWaitingTopics } from './prompt-controls.js';
 import { TopicOrganizationError, totalStats, waitingSummary, type Progress } from './topic-organization.js';
 
 /**
- * Regroups claims waiting for a topic in the background. It adds claims to
- * existing topics or starts new ones and never removes or recategorizes
- * anything. Filing and rebuilds wait while it runs.
+ * Regroups claims waiting for a topic in the background, across categories.
+ * It adds claims to existing topics or starts new ones and never removes
+ * anything; a placed claim takes its topic's category. Filing and rebuilds
+ * wait while it runs.
  */
 type WaitingJob = {
   id?: string;
@@ -20,6 +21,8 @@ type WaitingJob = {
   placed?: number;
   joined?: number;
   created?: number;
+  /** Placed claims that took the category of a topic filed under another category. */
+  moved?: number;
   waiting_after?: number;
   failed_groups?: number;
   /** Claims in batches Hermes never answered, and why, in fixed wording. */
@@ -72,7 +75,7 @@ export async function processTopicWaitingJob() {
     save({
       ...current, status: 'ready', updated_at: new Date().toISOString(),
       waiting_before: result.waiting_before, placed: result.placed, joined: result.joined, created: result.created,
-      waiting_after: result.waiting_after, failed_groups: result.failed_groups,
+      moved: result.moved, waiting_after: result.waiting_after, failed_groups: result.failed_groups,
       failed_claims: result.failed_claims, failure: result.failure, grouping: totalStats(result.batches),
     });
     return true;

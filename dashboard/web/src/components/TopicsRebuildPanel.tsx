@@ -3,7 +3,7 @@ import { Eyebrow } from './Desk';
 import { api, invalidate, useQuery } from '../lib/api';
 import { categoryColor, categoryLabel, formatDate, plural } from '../lib/desk';
 
-type Progress = { stage: 'categorizing' | 'grouping' | 'saving'; done: number; total: number };
+type Progress = { stage: 'categorizing' | 'matching' | 'grouping' | 'saving'; done: number; total: number };
 type JobStatus = 'idle' | 'queued' | 'running' | 'ready' | 'failed';
 type RebuildJob = {
   status: JobStatus;
@@ -29,6 +29,8 @@ type WaitingJob = {
   placed?: number;
   joined?: number;
   created?: number;
+  /** Placed claims that took the category of a topic filed under another category. */
+  moved?: number;
   waiting_after?: number;
   /** Claims in batches Hermes never answered, and why. */
   failed_claims?: number;
@@ -51,7 +53,8 @@ const progressText = (progress?: Progress) => {
   if (!progress) return 'Starting.';
   if (progress.stage === 'saving') return 'Saving the new Topics.';
   const step = `batch ${Math.min(progress.done + 1, progress.total)} of ${progress.total}`;
-  return progress.stage === 'categorizing' ? `Sorting claims into categories: ${step}.` : `Grouping claims into topics: ${step}.`;
+  if (progress.stage === 'categorizing') return `Sorting claims into categories: ${step}.`;
+  return progress.stage === 'matching' ? `Checking claims against every topic: ${step}.` : `Grouping claims into topics: ${step}.`;
 };
 
 /** Preview, rebuild and undo for Topics. Preview never changes Topics; rebuild runs in the background. */
@@ -215,7 +218,7 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
         <div className="mt-6 border-t border-[var(--line)] pt-4" data-testid="topics-waiting">
           <p className="mb-3 max-w-[68ch] font-serif text-[13.5px] leading-relaxed text-muted-foreground">
             {waiting.data?.waiting ? `${plural(waiting.data.waiting, 'claim')} ${waiting.data.waiting === 1 ? 'is' : 'are'} waiting for a topic.` : 'No claims are waiting for a topic.'}{' '}
-            Grouping them again gives each one a second look, category by category, beside the other waiting claims and the existing topics{waiting.data?.calls ? `, using about ${waiting.data.calls} AI calls` : ''}. Current topics keep their claims, and nothing is saved if Topics change while it runs.
+            Grouping them again checks each one against every topic, in any category, then reads the claims left over together to find ones that tell the same story{waiting.data?.calls ? `, using about ${waiting.data.calls} AI calls` : ''}. A claim that joins a topic filed under another category moves to that category. Current topics keep their claims, and nothing is saved if Topics change while it runs.
           </p>
           <button type="button" className="desk-button secondary" onClick={() => post('waiting', '/prompt-controls/topics/waiting', 'Grouping queued. Progress is saved here.')} disabled={dirty || !waiting.data?.waiting || waitingBusy || rebuildBusy || sending !== null}>
             {waitingBusy ? 'Grouping waiting claims' : 'Group waiting claims'}
@@ -223,7 +226,7 @@ export function TopicsRebuildPanel({ dirty }: { dirty: boolean }) {
           {waitingBusy ? <p role="status" className="mt-3 font-mono text-[11px] text-[var(--sage)]">{waiting.data?.status === 'queued' ? 'Queued. Grouping starts shortly.' : progressText(waiting.data?.progress)}</p> : null}
           {waiting.data?.status === 'ready' && waiting.data.waiting_before != null ? (
             <p role="status" className="mt-3 font-mono text-[11px] leading-relaxed text-[var(--sage)]">
-              Done: {plural(waiting.data.placed ?? 0, 'claim')} of {waiting.data.waiting_before} placed. {plural(waiting.data.joined ?? 0, 'claim')} joined existing topics and {plural(waiting.data.created ?? 0, 'new topic')} started. {plural(waiting.data.waiting_after ?? 0, 'claim')} still waiting.
+              Done: {plural(waiting.data.placed ?? 0, 'claim')} of {waiting.data.waiting_before} placed. {plural(waiting.data.joined ?? 0, 'claim')} joined existing topics and {plural(waiting.data.created ?? 0, 'new topic')} started.{waiting.data.moved ? ` ${plural(waiting.data.moved, 'placed claim')} moved to another category.` : ''} {plural(waiting.data.waiting_after ?? 0, 'claim')} still waiting.
               {waiting.data.failed_claims ? ` Hermes gave no answer for ${plural(waiting.data.failed_claims, 'claim')}, so ${waiting.data.failed_claims === 1 ? 'it keeps' : 'they keep'} waiting and grouping again gives ${waiting.data.failed_claims === 1 ? 'it' : 'them'} another try.${waiting.data.failure ? ` ${waiting.data.failure}` : ''}` : ''}
             </p>
           ) : null}

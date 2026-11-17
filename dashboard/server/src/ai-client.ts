@@ -52,9 +52,11 @@ const FAILURE_LABEL: Record<HermesFailure, string> = {
  * OpenAI's status and code when it sent them ("rate limit, OpenAI 429
  * rate_limit_exceeded"). Never a provider's own message, which can quote part of a key.
  */
+/** OpenAI's status, code and the parameter it objected to, from the start of an error ("400 invalid_request_error (input)"). */
+export const OPENAI_CODE = /^OpenAI (\d{3} [\w.-]+(?: \([\w.[\]-]{1,40}\))?)/;
 export function failureLabel(error: unknown) {
   const text = error instanceof Error ? error.message : String(error ?? '');
-  const code = /^OpenAI (\d{3} [\w.-]+)/.exec(text)?.[1];
+  const code = OPENAI_CODE.exec(text)?.[1];
   return `${FAILURE_LABEL[classifyHermesFailure(error)]}${code ? `, OpenAI ${code}` : ''}`;
 }
 
@@ -278,8 +280,10 @@ async function openAIRequest<T>(path: string, init: { method: string; body?: unk
   }
   if (!response.ok) {
     const code = body?.error?.code || body?.error?.type || 'error';
+    // The parameter OpenAI objects to is a field name, never a secret, and says what to fix.
+    const param = typeof body?.error?.param === 'string' && /^[\w.[\]-]{1,40}$/.test(body.error.param) ? ` (${body.error.param})` : '';
     const message = String(body?.error?.message ?? text ?? '').slice(0, 300);
-    throw new Error(`OpenAI ${response.status} ${code}: ${message}`);
+    throw new Error(`OpenAI ${response.status} ${code}${param}: ${message}`);
   }
   return body as T;
 }
@@ -301,6 +305,14 @@ export function outputText(response: OpenAIResponse) {
  * for as JSON. A request still queued after five minutes, or unfinished at the
  * job's time limit, is cancelled and reported as over the time limit.
  */
+/**
+ * OpenAI's JSON mode refuses a request whose input never says "JSON"
+ * (400 invalid_request_error), and the instructions do not count. The jobs'
+ * inputs are data, so a request that does not say it gets this line.
+ */
+export const JSON_REQUEST = 'Answer with the JSON object the instructions describe.';
+export const withJsonRequest = (input: string) => (/json/i.test(input) ? input : `${input}\n\n${JSON_REQUEST}`);
+
 export async function generateWithOpenAI(input: string, options: { instructions: string[]; model: string; reasoning: string; timeoutMs: number }) {
   const started = Date.now();
   const created = await openAIRequest<OpenAIResponse>('/responses', {
@@ -308,7 +320,7 @@ export async function generateWithOpenAI(input: string, options: { instructions:
     body: {
       model: options.model,
       instructions: options.instructions.join('\n\n'),
-      input,
+      input: withJsonRequest(input),
       reasoning: { effort: options.reasoning },
       text: { format: { type: 'json_object' } },
       background: true,

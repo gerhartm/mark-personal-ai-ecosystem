@@ -43,6 +43,10 @@ beforeAll(async () => {
     openai.calls.push(call);
     const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
     if (call.method === 'POST' && path === '/responses') {
+      // As OpenAI does: JSON mode needs the word in the input itself.
+      if (call.body?.text?.format?.type === 'json_object' && !/json/i.test(String(call.body.input))) {
+        return reply(400, { error: { type: 'invalid_request_error', code: null, param: 'input', message: "Response input messages must contain the word 'json' in some form to use 'text.format' of type 'json_object'." } });
+      }
       const created = openai.create?.(call.body) ?? { status: 200, body: { id: 'resp_1', status: 'queued' } };
       if (created.body instanceof Error) throw created.body;
       return reply(created.status, created.body);
@@ -85,7 +89,7 @@ describe('the direct OpenAI route', () => {
     const created = openai.calls[0];
     expect(created).toMatchObject({ method: 'POST', path: '/responses', auth: `Bearer ${KEY}` });
     expect(created.body).toEqual({
-      model: 'gpt-6-astra', instructions: 'Write an analysis.\n\nReturn JSON only.', input: 'TOPIC\n{"key":"a"}',
+      model: 'gpt-6-astra', instructions: 'Write an analysis.\n\nReturn JSON only.', input: `TOPIC\n{"key":"a"}\n\n${ai.JSON_REQUEST}`,
       reasoning: { effort: 'high' }, text: { format: { type: 'json_object' } }, background: true, store: true,
     });
     expect(openai.calls.filter((call) => call.method === 'GET')).toHaveLength(2);
@@ -95,6 +99,21 @@ describe('the direct OpenAI route', () => {
     expect(job.effective).toBe('openai');
     expect(job.week).toMatchObject({ calls: 1, failures: 0, input: 1200, output: 900, reasoning: 700 });
     expect(job.last).toMatchObject({ ok: true, via: 'openai', model: 'gpt-6-astra' });
+  });
+
+  it('says JSON in every input, since OpenAI ignores the instructions for that rule, and names a refused parameter', async () => {
+    // Topics and analysis inputs are data that never say JSON; the instructions do.
+    await ai.generate('CLAIMS\n{"id":"e1:0","claim":"A venue grew."}', { task: 'crypto_topics', instructions: ['Return JSON only.'] });
+    expect(openai.calls[0].body.input).toBe(`CLAIMS\n{"id":"e1:0","claim":"A venue grew."}\n\n${ai.JSON_REQUEST}`);
+    // An input that already says it is sent as it is.
+    openai.calls = [];
+    openai.checks = [completed('{"ok":true}')];
+    await ai.generate('Reply with the JSON object {"ok": true}.', { task: 'crypto_topics', instructions: ['Return JSON only.'] });
+    expect(openai.calls[0].body.input).toBe('Reply with the JSON object {"ok": true}.');
+    // When OpenAI refuses a parameter, the usage record names it, and only it.
+    openai.create = () => ({ status: 400, body: { error: { type: 'invalid_request_error', code: null, param: 'reasoning.effort', message: "Unsupported value: 'high' is not supported with this model." } } });
+    expect(await failureOf('crypto_topics')).toBe('error');
+    expect(ai.aiConnection().jobs.find((item) => item.task === 'crypto_topics')!.last?.error).toBe('error, OpenAI 400 invalid_request_error (reasoning.effort)');
   });
 
   it('keeps checking through a dropped connection, since the answer keeps running on OpenAI', async () => {

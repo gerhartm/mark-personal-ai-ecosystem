@@ -7,7 +7,9 @@ import { join, resolve } from 'node:path';
  * A stand-in for Hermes that answers analysis requests from the prompt it is
  * sent: it reads the topic, claim ids, passages and other topics and writes an
  * answer that passes the checks, unless a test asks for a bad one. The real
- * input, checks, storage and job code run against a copy of the stored corpus.
+ * input, checks, storage and job code run against a copy of the stored corpus,
+ * with known wording and passages on the claims the tests use, so the checks do
+ * not depend on what a given corpus contains.
  */
 const state = vi.hoisted(() => ({
   calls: [] as Array<{ input: string; options: any }>,
@@ -20,6 +22,17 @@ const state = vi.hoisted(() => ({
   delayMs: 0,
   inFlight: 0,
   maxInFlight: 0,
+}));
+/** A cleaned quote as a model gives it: the passage's opening words, up to about 300 characters. */
+const quoting = vi.hoisted(() => ({
+  excerpt(passage: string) {
+    let text = '';
+    for (const word of passage.replace(/…$/, '').split(/\s+/).filter(Boolean)) {
+      if (text && text.length + word.length + 1 > 300) break;
+      text = text ? `${text} ${word}` : word;
+    }
+    return text;
+  },
 }));
 vi.mock('../src/hermes-client.js', () => {
   const section = (input: string, name: string) => {
@@ -42,7 +55,7 @@ vi.mock('../src/hermes-client.js', () => {
         { text: 'Two sources describe the same shift from different angles, which makes it a pattern rather than an anecdote.', claims: ids.slice(1, 3) },
       ],
       counterpoints: [{ text: 'The evidence comes from speakers with a stake in the outcome, so it may overstate the shift.', claims: [ids[0]] }],
-      quotes: variant === 'no_quotes' ? [] : passages.slice(0, 3).map((entry: any) => ({ claim: entry.claims[0], text: String(entry.passage).replace(/…$/, ''), speaker: null })),
+      quotes: variant === 'no_quotes' ? [] : passages.slice(0, 3).map((entry: any) => ({ claim: entry.claims[0], text: quoting.excerpt(String(entry.passage)), speaker: null })),
       meaning: 'Beneath the claims is a simple mechanism: design choices decide where capital is safe, and capital moves to where its risk is easiest to price and to contain.',
       why_it_matters: 'For investors, venue design becomes a leading indicator of flows. For builders, risk controls become a product feature that wins deposits from larger rivals.',
       contested: 'The claims do not show how large the shift is, or whether it lasts beyond the current cycle.',
@@ -103,9 +116,26 @@ beforeAll(async () => {
   filing = await import('../src/topic-filing.js');
   tools = await import('../src/tools.js');
   organization.timing.retryPauseMs = 0;
-  // Topics of known sizes over the stored claims, the claims with passages first.
-  const claims = organization.loadClaims({ refs: organization.loadClaims().map((claim) => claim.ref), withEvidence: true })
-    .sort((a, b) => Number(Boolean(b.evidence)) - Number(Boolean(a.evidence)) || a.ref.localeCompare(b.ref));
+  // Topics of known sizes over the stored claims, taking one claim per event in turn so each topic spans
+  // several events. The release checks run on a corpus with no stored passages, so the claims used here get
+  // known wording and every event behind them a distinct passage and no other research note: nothing in
+  // them is a figure, so a figure in an answer is invented unless a test puts it there.
+  const byEvent = new Map<string, string[]>();
+  for (const claim of organization.loadClaims().sort((a, b) => a.ref.localeCompare(b.ref))) byEvent.set(claim.event_id, [...(byEvent.get(claim.event_id) ?? []), claim.ref]);
+  const total = SIZES.reduce((sum, size) => sum + size, 0);
+  const refs: string[] = [];
+  for (let round = 0; refs.length < total && [...byEvent.values()].some((list) => list.length > round); round++) {
+    for (const list of byEvent.values()) if (list[round] && refs.length < total) refs.push(list[round]);
+  }
+  const code = (index: number) => String.fromCharCode(97 + Math.floor(index / 26) % 26, 97 + (index % 26));
+  const eventOf = (ref: string) => ref.slice(0, ref.lastIndexOf(':'));
+  refs.forEach((ref, index) => database.run('UPDATE event_insights SET text = ? WHERE event_id = ? AND position = ?',
+    `Venue ${code(index)} drew deposits after it walled off the risk of each lending pool.`, eventOf(ref), Number(ref.slice(ref.lastIndexOf(':') + 1))));
+  [...new Set(refs.map(eventOf))].forEach((event, index) => {
+    database.run("DELETE FROM event_editorial WHERE kind = 'research' AND event_id = ?", event);
+    database.run("INSERT OR REPLACE INTO event_evidence (event_id, source_id, fingerprint, quote, date_evidence_json) SELECT id, source_id, ?, ?, '[]' FROM events WHERE id = ?",
+      `analysis-test-${event}`, `So, um, at venue ${code(index)} the deposits came in, you know, because each pool walls off its own risk and depositors can price it.`, event);
+  });
   let next = 0;
   const now = '2026-11-01T00:00:00.000Z';
   org = {
@@ -115,7 +145,7 @@ beforeAll(async () => {
       title: TITLES[index],
       dek: `Context line about ${KEYS[index].replace(/-/g, ' ')} and the venues it moves.`,
       description: 'Synthetic topic for the analysis tests.',
-      claims: claims.slice(next, (next += size)).map((claim) => claim.ref), created_at: now, updated_at: now,
+      claims: refs.slice(next, (next += size)), created_at: now, updated_at: now,
     })),
   };
   for (const topic of org.topics) for (const ref of topic.claims) org.categories[ref] = topic.category;
@@ -417,7 +447,7 @@ function answerFor(input: import('../src/topic-analysis.js').AnalysisInput) {
   const byEvent = new Map<string, string[]>();
   for (const claim of input.claims) byEvent.set(claim.event_id, [...(byEvent.get(claim.event_id) ?? []), claim.ref]);
   const quotes = [...byEvent].filter(([event]) => input.passages.get(event)).slice(0, 3)
-    .map(([event, refs]) => ({ claim: refs[0], text: input.passages.get(event)!, speaker: null }));
+    .map(([event, refs]) => ({ claim: refs[0], text: quoting.excerpt(input.passages.get(event)!), speaker: null }));
   return {
     thesis: `${input.topic.title} because venues now compete on the design of their risk controls.`,
     points: [

@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 const state = vi.hoisted(() => ({
   calls: [] as Array<{ input: string; options: any }>,
   /** Answers for the next calls, used before the default good answer. */
-  next: [] as Array<'invented' | 'unknown_id' | 'garbage' | 'silent' | 'no_quotes'>,
+  next: [] as Array<'invented' | 'unknown_id' | 'garbage' | 'silent' | 'no_quotes' | 'material'>,
   /** Topics that never get a usable answer. */
   unusable: new Set<string>(),
   outage: false,
@@ -56,7 +56,9 @@ vi.mock('../src/hermes-client.js', () => {
       ],
       counterpoints: [{ text: 'The evidence comes from speakers with a stake in the outcome, so it may overstate the shift.', claims: [ids[0]] }],
       quotes: variant === 'no_quotes' ? [] : passages.slice(0, 3).map((entry: any) => ({ claim: entry.claims[0], text: quoting.excerpt(String(entry.passage)), speaker: null })),
-      meaning: 'Beneath the claims is a simple mechanism: design choices decide where capital is safe, and capital moves to where its risk is easiest to price and to contain.',
+      meaning: variant === 'material'
+        ? 'The corpus points to a simple mechanism: design choices decide where capital is safe, and capital moves to where its risk is easiest to price and to contain.'
+        : 'Beneath the claims is a simple mechanism: design choices decide where capital is safe, and capital moves to where its risk is easiest to price and to contain.',
       why_it_matters: 'For investors, venue design becomes a leading indicator of flows. For builders, risk controls become a product feature that wins deposits from larger rivals.',
       contested: 'The claims do not show how large the shift is, or whether it lasts beyond the current cycle.',
       watch: ['Whether more venues adopt isolated designs after the next stress event.', 'A venue that grows 300% in a month.'],
@@ -184,6 +186,23 @@ describe('checking an analysis answer', () => {
     expect(noQuotes.hard.join(' ')).toMatch(/Give two to five quotes/);
   });
 
+  it('sends back a page that talks about its material instead of the topic, but not ordinary wording', () => {
+    const input = analysis.analysisInput(topicOf('lending-design'), org);
+    const good = answerFor(input);
+    const issues = (answer: object) => analysis.validateAnalysis(answer, input).hard.join(' ');
+    expect(issues({ ...good, contested: `${good.contested} All supplied PASSAGES entries are null, so no quotes are available.` }))
+      .toMatch(/contested talks about the material instead of the topic \("PASSAGES"\)/);
+    expect(issues({ ...good, meaning: `The corpus shows one thing clearly. ${good.meaning}` })).toMatch(/meaning talks about the material instead of the topic \("corpus"\)/);
+    expect(issues({ ...good, points: [{ ...good.points[0], text: `My interpretation is that ${good.points[0].text.toLowerCase()}` }, good.points[1]] }))
+      .toMatch(/points 1 talks about the material instead of the topic \("My interpretation"\)/);
+    // Lenders supply liquidity, and "claims" in lower case is an ordinary word.
+    expect(analysis.validateAnalysis({ ...good, meaning: `Lenders supplied liquidity to the pool while insurance claims rose. ${good.meaning}` }, input).hard).toEqual([]);
+    // A watch item that talks about the material is dropped on its own.
+    const checked = analysis.validateAnalysis({ ...good, watch: [...good.watch.slice(0, 1), 'Whether the corpus gains more notes on this.'] }, input);
+    expect(checked.hard).toEqual([]);
+    expect(checked.analysis.watch).toEqual([good.watch[0]]);
+  });
+
   it('reads number words as wording and written figures as figures', () => {
     const input = analysis.analysisInput(topicOf('lending-design'), org);
     const good = answerFor(input);
@@ -233,6 +252,7 @@ describe('writing and storing a page', () => {
     expect(options.maxTokens).toBe(24_000);
     expect(options.instructions.join('\n')).toContain(analysis.DEFAULT_ANALYSIS_INSTRUCTION);
     expect(options.instructions.join('\n')).toMatch(/never add a fact, figure, name or date/);
+    expect(options.instructions.join('\n')).toMatch(/never about the material you were given/);
     expect(dropped).toEqual(expect.arrayContaining(['a watch item', 'connection to not-a-topic']));
     const stored = analysis.storedAnalysis('lending-design')!;
     expect(stored).toEqual(page);
@@ -252,6 +272,15 @@ describe('writing and storing a page', () => {
     expect(state.calls).toHaveLength(2);
     expect(state.calls[1].input).toMatch(/CORRECT THESE ISSUES\nthesis uses figures that are not in the evidence \(999\)/);
     expect(analysis.storedAnalysis('liquidity-venues')!.thesis).not.toContain('999');
+  });
+
+  it('gives one corrected retry for a page that talks about its material', async () => {
+    state.calls = [];
+    state.next = ['material'];
+    await analysis.writeTopicAnalysis('liquidity-venues', 'mark', instruction());
+    expect(state.calls).toHaveLength(2);
+    expect(state.calls[1].input).toMatch(/CORRECT THESE ISSUES\n[\s\S]*meaning talks about the material instead of the topic \("corpus"\)/);
+    expect(analysis.storedAnalysis('liquidity-venues')!.meaning).not.toMatch(/corpus/i);
   });
 
   it('saves nothing when no answer passes the checks', async () => {

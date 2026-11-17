@@ -69,7 +69,7 @@ import { startTopicFilingWorker, topicFilingRunning } from './topic-filing.js';
 import { queueTopicPreview, startTopicPreviewWorker, topicPreviewStatus } from './topic-preview-job.js';
 import { queueTopicWaiting, resetTopicWaitingStatus, startTopicWaitingWorker, topicWaitingBusy, topicWaitingStatus } from './topic-waiting-job.js';
 import { queueTopicAnalysis, startTopicAnalysisWorker, topicAnalysisBusy, topicAnalysisStatus } from './topic-analysis-job.js';
-import { AiConfigurationError, aiConnection, saveAiRoutes, testAiRoute } from './ai-client.js';
+import { AiConfigurationError, aiConnection, OPENAI_CODE, saveAiRoutes, testAiRoute } from './ai-client.js';
 import { TopicOrganizationError, activeOrganizationV2, classifyHermesFailure, failureText, canUndoRebuild, estimateRebuildCalls, listRounds, liveClaimRefs, tidySummary, tidyTopics, undoTidy, undoTopicRebuild } from './topic-organization.js';
 import { TopicReadingError, updateReading } from './topic-reading.js';
 import { RESEARCH_EVENT } from './editorial-store.js';
@@ -461,7 +461,7 @@ app.post('/api/ai/connection/test', async (req, reply) => {
     if (error instanceof AiConfigurationError) return reply.code(400).send({ error: 'invalid_route', message: error.message });
     // Only the fixed wording and the provider's status code are shown, never the provider's own message.
     const text = error instanceof Error ? error.message : String(error);
-    const code = /^OpenAI (\d{3} [\w.-]+)/.exec(text)?.[1];
+    const code = OPENAI_CODE.exec(text)?.[1];
     return reply.code(502).send({ error: 'test_failed', message: `${failureText(classifyHermesFailure(error))}${code ? ` (OpenAI ${code})` : ''}` });
   }
 });

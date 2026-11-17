@@ -484,7 +484,9 @@ reported like any other failure, never retried through Hermes.
 
 A direct call uses the Responses API in background mode: the request is sent
 with `background: true` and `store: true` (so a long answer can still be read
-when it finishes), the answer is requested as a JSON object, and the site checks
+when it finishes), the answer is requested as a JSON object (OpenAI's JSON mode
+needs the word "JSON" in the input itself, not just the instructions, so an
+input that does not say it ends with a line asking for the JSON answer), and the site checks
 every four seconds until it is done, then deletes the stored copy. There is no
 60-second window and no output-token cap. The site cancels a request that is
 still queued after 5 minutes, or unfinished after 25 minutes (Topics) or 30

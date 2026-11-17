@@ -109,9 +109,23 @@ describe('read routes', () => {
 
   it('exposes page instructions without weakening the evidence contract', async () => {
     const response = await json('/api/prompt-controls');
-    expect(response.controls.map((control: any) => control.id)).toEqual(['topics', 'timeline', 'prep', 'haseeb', 'tarun']);
+    expect(response.controls.map((control: any) => control.id)).toEqual(['topics', 'analysis', 'timeline', 'prep', 'haseeb', 'tarun']);
     expect(response.controls.find((control: any) => control.id === 'timeline').mode).toBe('evidence');
     expect(response.controls.filter((control: any) => control.mode === 'generated').every((control: any) => control.instructions.length >= 80)).toBe(true);
+  });
+
+  it('reports the AI connection without exposing a key, and refuses an unknown model', async () => {
+    const connection = await json('/api/ai/connection');
+    expect(connection.jobs.map((job: any) => job.task)).toEqual(['crypto_topics', 'crypto_analysis']);
+    // These checks run without an OpenAI key, so both long jobs go through Hermes.
+    expect(connection.key).toBe(false);
+    expect(connection.jobs.every((job: any) => job.effective === 'hermes')).toBe(true);
+    const refused = await fetch(`${BASE}/api/ai/connection`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jobs: { crypto_analysis: { via: 'openai', model: 'gpt-9', reasoning: 'high' } } }),
+    });
+    expect(refused.status).toBe(400);
   });
 
   it('returns preserved Ask history without generating placeholder answers', async () => {

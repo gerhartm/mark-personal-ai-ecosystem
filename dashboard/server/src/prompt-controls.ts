@@ -1,7 +1,8 @@
 import { all, audit, db, one } from './db.js';
+import { DEFAULT_ANALYSIS_INSTRUCTION } from './topic-analysis.js';
 import { DEFAULT_TOPICS_INSTRUCTION, groupWaitingClaims, previewTopicsV2, rebuildTopicsV2, type Progress } from './topic-organization.js';
 
-export const PROMPT_PAGE_IDS = ['topics', 'prep', 'haseeb', 'tarun'] as const;
+export const PROMPT_PAGE_IDS = ['topics', 'analysis', 'prep', 'haseeb', 'tarun'] as const;
 export type PromptPageId = (typeof PROMPT_PAGE_IDS)[number];
 
 type PromptDefinition = {
@@ -21,6 +22,14 @@ const DEFINITIONS: PromptDefinition[] = [
     mode: 'generated',
     application: 'New claims are filed with this instruction as sources finish processing. Preview it on a sample, then rebuild Topics to apply it to everything.',
     instructions: DEFAULT_TOPICS_INSTRUCTION,
+  },
+  {
+    id: 'analysis',
+    label: 'Topic analysis',
+    purpose: 'Controls how Hermes writes each topic\'s analysis page: the argument in outline, key quotes, what it means, what is contested, what to watch, and connections to other topics.',
+    mode: 'generated',
+    application: 'Saved changes apply to the next analysis pages written. Write five samples first, then the rest; pages already written keep the instruction they were written with until they are rewritten.',
+    instructions: DEFAULT_ANALYSIS_INSTRUCTION,
   },
   {
     id: 'timeline',

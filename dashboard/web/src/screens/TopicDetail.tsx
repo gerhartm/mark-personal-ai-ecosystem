@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { EmptyState, ErrorState, Eyebrow, LoadingRows, Provenance } from '../components/Desk';
 import { api, invalidate, useQuery } from '../lib/api';
 import { IconBookmark, IconCheck, IconStar } from '../components/icons';
+import { TopicAnalysisSection, type CitedClaim } from '../components/TopicAnalysis';
 import { categoryColor, categoryLabel, compact, formatDate, plural, sourceKind, titleCase } from '../lib/desk';
 import './topics.css';
 
@@ -52,6 +53,26 @@ export function TopicDetail() {
   const [reading, setReading] = useState<Reading>(savedReading);
   useEffect(() => { setReading(savedReading); }, [savedReading]);
   const newRefs = useMemo(() => new Set(reading.new_refs), [reading.new_refs]);
+  const claimsByRef = useMemo(() => new Map<string, CitedClaim>(claims.map((claim) => [`${claim.event_id}:${claim.position}`, {
+    text: claim.text, source: compact(claim.source_title, 110) || claimSpeaker(claim), date: claim.subject_date,
+  }])), [claims]);
+  // A numbered mark in the analysis shows the claim it cites: filters are cleared and the claim is scrolled to and outlined.
+  // Each click is a new request, so the same mark clicked again scrolls back to its claim.
+  const [cited, setCited] = useState<{ ref: string; click: number } | null>(null);
+  const cite = (ref: string) => {
+    setSpeaker('Everyone');
+    setSourceType(null);
+    setWindow('All time');
+    setCited((current) => ({ ref, click: (current?.click ?? 0) + 1 }));
+  };
+  useEffect(() => {
+    if (!cited) return;
+    // `window` is this page's time filter here, so browser globals are reached through globalThis.
+    const still = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(`claim-${cited.ref.replace(':', '-')}`)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
+    const timer = setTimeout(() => setCited(null), 2_500);
+    return () => clearTimeout(timer);
+  }, [cited]);
 
   const speakers = useMemo<FilterItem[]>(() => {
     const counts = new Map<string, number>();
@@ -129,6 +150,8 @@ export function TopicDetail() {
         {category ? <ReadingBar tag={topic} reading={reading} setReading={setReading} onSaved={result.refetch} /> : null}
       </div>
 
+      {category ? <TopicAnalysisSection tag={topic} analysis={result.data?.analysis ?? null} claimCount={claims.length} claimsByRef={claimsByRef} onCite={cite} onWritten={result.refetch} /> : null}
+
       {relatedTags.length ? (
         <div className="mb-5 flex flex-wrap items-center gap-1.5">
           {relatedTags.slice(0, 6).map((item) => (
@@ -164,7 +187,7 @@ export function TopicDetail() {
                 <p className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[11px] text-dim"><span><span className="text-[var(--accent-text)]">{plural(new Set(group.items.map(claimSpeaker)).size, 'source label')}</span> ·</span><span>{plural(group.items.length, 'claim')} ·</span><span>grounded in stored sources</span></p>
               )}
               {group.items.map((claim) => (
-                <article data-testid="topic-claim" className="mb-3 border-b border-[var(--line)] pb-3 last:mb-0 last:border-0 last:pb-0" key={`${claim.event_id}-${claim.position}`}>
+                <article data-testid="topic-claim" id={`claim-${claim.event_id}-${claim.position}`} className={`mb-3 scroll-mt-24 border-b border-[var(--line)] pb-3 transition-shadow last:mb-0 last:border-0 last:pb-0 ${cited?.ref === `${claim.event_id}:${claim.position}` ? 'rounded-[4px] shadow-[0_0_0_2px_var(--brass)]' : ''}`} data-cited={cited?.ref === `${claim.event_id}:${claim.position}` ? 'true' : undefined} key={`${claim.event_id}-${claim.position}`}>
                   {newRefs.has(`${claim.event_id}:${claim.position}`) ? <p className="mb-1 font-mono text-[10.5px] tracking-[0.06em] text-[var(--accent-text)] uppercase" data-testid="topic-claim-new">New since you read</p> : null}
                   <p className="mb-[7px] font-serif text-[15px] leading-relaxed text-pretty text-foreground">{claim.text}</p>
                   {claim.evidence_quote ? <details className="mb-2 text-[13px] text-muted-foreground"><summary className="cursor-pointer">Supporting passage</summary><blockquote className="mt-2 border-l-2 border-[var(--brass)] pl-3">{claim.evidence_quote}</blockquote></details> : null}

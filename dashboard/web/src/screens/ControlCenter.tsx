@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorState, Eyebrow, LoadingRows, ViewHead } from '../components/Desk';
+import { AiConnectionPanel } from '../components/AiConnectionPanel';
+import { AnalysisPanel } from '../components/AnalysisPanel';
 import { TopicsRebuildPanel } from '../components/TopicsRebuildPanel';
 import { api, invalidate, useQuery } from '../lib/api';
 import { formatDate } from '../lib/desk';
@@ -177,6 +179,7 @@ export function ControlCenter() {
                   </div>
 
                   {control.id === 'topics' ? <TopicsRebuildPanel dirty={dirty} /> : null}
+                  {control.id === 'analysis' ? <AnalysisPanel dirty={dirty} /> : null}
 
                   {message ? <p className={`mt-4 rounded-[5px] border px-3 py-2 font-mono text-[11px] leading-relaxed ${state === 'error' ? 'border-[var(--rose)] text-[var(--danger-text)]' : 'border-[var(--line)] text-[var(--sage)]'}`} role={state === 'error' ? 'alert' : 'status'}>{message}</p> : null}
 
@@ -211,6 +214,7 @@ export function ControlCenter() {
           ) : null}
         </div>
       </div>
+      <AiConnectionPanel />
     </section>
   );
 }

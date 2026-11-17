@@ -346,7 +346,7 @@ docker compose -p crypto-dashboard-20260905t095230z -f "$C" config -q && echo 'D
 
 Create the key file before adding the mount: Docker turns a missing mount source into an empty directory. The next release recreates the site with the mount; to apply it without a release, run `docker compose -p crypto-dashboard-20260905t095230z -f "$C" up -d --no-deps crypto-dashboard`. Then open Control Center → AI connection: it must say the key is connected, and **Test** on each job must pass through OpenAI.
 
-Switch a job back to Hermes in the same panel (saved and audited as `ai.routes`; refused while a Topics or analysis job runs). To remove the route entirely, restore the `.pre-openai-*` copy of the definition, recreate the site as above, and delete the key file; every job then goes through Hermes. Rotate the key in the OpenAI dashboard and replace the file the same way.
+Switch a job back to Hermes in the same panel (saved and audited as `ai.routes`; refused while a Topics or analysis job runs). To remove the route entirely, restore the `.pre-openai-*` copy of the definition, recreate the site as above, and delete the key file; every job then goes through Hermes. To rotate the key, create a new one in the OpenAI dashboard, run only the `read` line of the install block (it rewrites the file in place, so the site uses the new key on its next call), check the length, then revoke the old key. Running the whole block again replaces the file with a new one, which the running site does not see until it is recreated: the container's mount keeps the file it started with.
 
 ### Telegram owner-experience acceptance mode
 

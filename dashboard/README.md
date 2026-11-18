@@ -332,10 +332,12 @@ Filing and Group waiting claims (Control center) place claims across
 categories, in two passes:
 
 1. Matching: batches of claims are checked against the titles of every topic,
-   in every category. A claim that tells an existing topic's story joins it.
-   The AI also writes a one-line story for each claim, with names spelled the
-   usual way (a story line that adds a figure is not used; the claim's own text
-   stands in).
+   in every category. A claim about the same specific event, proposal, product,
+   deal or argument as a topic joins it when it adds to that story, even from a
+   different angle; a claim that only shares a company, person, sector or theme
+   with a topic does not. The AI also writes a one-line story for each claim,
+   with names spelled the usual way (a story line that adds a figure is not
+   used; the claim's own text stands in).
 2. Grouping: the claims that joined no topic are read together, across
    categories, as story lines with their text and source. Claims that tell one
    story start a new topic, under the one category the AI chooses for it. The
@@ -370,6 +372,55 @@ topic left with fewer than two of its claims still in the research is not
 restored. A second tidy before the next rebuild adds to the saved topics, so one
 undo puts back both. Undo tidy is offered until Topics are rebuilt. Tidy and its
 undo wait while a rebuild or regrouping runs.
+
+Duplicate topics (Control center, below the Topics instruction) finds one story
+split into several topics, usually across categories from when Topics were
+built one category at a time. It runs two passes:
+
+1. Finding: one request reads every topic together (up to 400, largest first),
+   one line each: alias, category, title, context line, claim and source
+   counts, the months its claims cover and its three strongest claims (fewer
+   when the list would pass 360,000 characters). Topics that share wording sit
+   next to each other in the list. The AI proposes merges (two to six topics
+   that tell the same story), related groups (two to eight topics about one
+   subject from different angles, kept as separate pages) and names that look
+   mistranscribed. A proposed merge over 60 claims is linked as related instead.
+2. Checking: each proposed merge is read again with every claim of its topics
+   and the Topics instruction. The check keeps the topics that belong together
+   and writes the merged title, context line and category under the same rules
+   as any topic (figures must appear in the claims). A wrong answer gets one
+   corrected retry; a merge that still fails is left out of the preview. A merge
+   the check turns down is linked as related topics, under the subject the check
+   names. Through the direct route four checks run at a time; through Hermes,
+   one.
+
+The result is a preview (`topics.merge.proposal` in `generation_meta`) listing
+each merge with its topics and the check's reason, the merges turned down, the
+related groups and the names (shown for checking only; nothing renames them).
+Nothing changes until Mark ticks merges and applies them. A merged topic keeps
+the key of its topic with the most claims, so its link, reading marks and
+analysis page carry on; the page is then out of date until it is rewritten. The
+other topics' links open the merged topic (`forward` in the organization), a
+merged topic with no reading marks of its own takes the most recent marks of a
+topic merged into it, and its claims take the merged category. Related groups
+are saved with the organization (`related`), and analysis pages list linked
+topics first among related topics. Claims filed since the search are kept; a
+merge whose topics have gone since cannot be applied, and a preview stops
+applying once Topics are rebuilt. Undo the last merge puts that apply's topics
+back as they were (`topics.merge.previous`); claims filed into a merged topic
+since stay with the topic whose key it kept. Only the latest apply can be
+undone, and only until Topics are rebuilt. A filing run already under way when a
+merge is applied puts a claim matched to a merged-away topic into the merged
+topic.
+
+The search runs as a background job (`topics.merge.job`), usually a few minutes:
+one finding request and one check per proposed merge, along the `crypto_topics`
+route like every Topics call (through Hermes, up to 24,000 output tokens and 20
+minutes for the finding request, 8,000 tokens and 10 minutes per check).
+Filing, rebuilds, previews, Group waiting claims, tidy and analysis pages wait
+while it runs, and it does not start while a rebuild, preview, regrouping or
+analysis run is going. Two checks in a row with no answer stop the checks and
+keep what was checked.
 
 On the Topics page, claims that are not in a topic are listed under their
 source ("Points not in a topic yet"), largest groups first.
@@ -427,7 +478,8 @@ The AI writes each page in one call, along the route set for task
 `crypto_analysis` in the AI connection (below), from the topic's 40 most
 significant claims, the retained passage behind each (up to 900 characters),
 the research note written when it was extracted, and the 24 other topics most
-related to it (shared words, shared sources, same category). The Topic analysis
+related to it (shared words, shared sources, same category, and topics linked
+to it as related by Duplicate topics). The Topic analysis
 instruction in Control center shapes the writing. Its default asks for a plain,
 conversational voice: the point first, real people and companies doing things,
 statements of what is true rather than of what is not, and doubts about the

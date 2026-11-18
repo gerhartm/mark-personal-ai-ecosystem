@@ -136,6 +136,8 @@ export function relatedTopics(topic: TopicV2, organization: OrganizationV2, sour
   const textOf = (item: TopicV2) => `${item.title} ${item.dek} ${item.description}`;
   const mine = wordsOf(textOf(topic));
   const mySources = new Set(topic.claims.map((ref) => sourceOf.get(ref)).filter(Boolean));
+  // Topics the duplicate search linked as one subject from different angles come first.
+  const linked = new Set((organization.related ?? []).filter((group) => group.keys.includes(topic.key)).flatMap((group) => group.keys));
   return organization.topics
     .filter((other) => other.key !== topic.key && other.claims.some((ref) => sourceOf.has(ref)))
     .map((other) => {
@@ -143,7 +145,7 @@ export function relatedTopics(topic: TopicV2, organization: OrganizationV2, sour
       const shared = [...mine].filter((word) => theirs.has(word)).length;
       const sharedSources = new Set(other.claims.map((ref) => sourceOf.get(ref)).filter((source) => source && mySources.has(source))).size;
       const score = (mine.size && theirs.size ? shared / Math.sqrt(mine.size * theirs.size) : 0)
-        + Math.min(3, sharedSources) * 0.15 + (other.category === topic.category ? 0.05 : 0);
+        + Math.min(3, sharedSources) * 0.15 + (other.category === topic.category ? 0.05 : 0) + (linked.has(other.key) ? 1 : 0);
       return { other, score };
     })
     .filter((entry) => entry.score > 0)

@@ -146,6 +146,22 @@ describe('read routes', () => {
     expect((await ask('/api/topics/no-such-topic-anywhere/ask', { question: 'What is this about?' })).status).toBe(404);
   });
 
+  it('reports the duplicate-topic search and changes nothing without a preview', async () => {
+    const status = await json('/api/prompt-controls/topics/merge');
+    expect(status.status).toBe('idle');
+    expect(status.proposal).toBeNull();
+    expect(status.last).toBeNull();
+    const post = (path: string, body: object) => fetch(`${BASE}${path}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const apply = await post('/api/prompt-controls/topics/merge/apply', { accept: ['not-a-merge'] });
+    expect(apply.status).toBe(409);
+    expect(((await apply.json()) as any).error).toBe('no_proposal');
+    const undo = await post('/api/prompt-controls/topics/merge/undo', {});
+    expect(undo.status).toBe(409);
+    expect(((await undo.json()) as any).error).toBe('nothing_to_undo');
+  });
+
   it('returns preserved Ask history without generating placeholder answers', async () => {
     const history = await json('/api/ask/history');
     expect(Array.isArray(history.history)).toBe(true);

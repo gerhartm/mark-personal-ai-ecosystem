@@ -68,6 +68,8 @@ import { queueTopicRebuild, resetTopicRebuildStatus, topicRebuildStatus, startTo
 import { startTopicFilingWorker, topicFilingRunning } from './topic-filing.js';
 import { queueTopicPreview, startTopicPreviewWorker, topicPreviewStatus } from './topic-preview-job.js';
 import { queueTopicWaiting, resetTopicWaitingStatus, startTopicWaitingWorker, topicWaitingBusy, topicWaitingStatus } from './topic-waiting-job.js';
+import { queueTopicMerge, startTopicMergeWorker, topicMergeBusy, topicMergeStatus } from './topic-merge-job.js';
+import { applyMerges, discardMergeProposal, forwardedTopicKey, undoMerge } from './topic-merge.js';
 import { queueTopicAnalysis, startTopicAnalysisWorker, topicAnalysisBusy, topicAnalysisStatus } from './topic-analysis-job.js';
 import { AiConfigurationError, aiConnection, OPENAI_CODE, saveAiRoutes, testAiRoute } from './ai-client.js';
 import { TopicOrganizationError, activeOrganizationV2, classifyHermesFailure, failureText, canUndoRebuild, estimateRebuildCalls, listRounds, liveClaimRefs, tidySummary, tidyTopics, undoTidy, undoTopicRebuild } from './topic-organization.js';
@@ -333,7 +335,10 @@ app.get('/api/sources/:id', async (req, reply) => {
 
 app.get('/api/topics', async (req) => {
   const q = req.query as Record<string, string>;
-  return q.tag ? t.listTopics(undefined, q.tag) : t.topicsPayload();
+  if (!q.tag) return t.topicsPayload();
+  // A topic merged into another opens the topic it now lives in.
+  const movedTo = forwardedTopicKey(q.tag);
+  return movedTo ? { moved_to: movedTo } : t.listTopics(undefined, q.tag);
 });
 
 app.post('/api/topics/:tag/reading', async (req, reply) => {
@@ -425,6 +430,7 @@ app.post('/api/prompt-controls/topics/waiting', async (req, reply) => {
   if (['queued', 'running'].includes(topicRebuildStatus().status)) {
     return reply.code(409).send({ error: 'rebuild_running', message: 'Wait for the current rebuild to finish first.' });
   }
+  if (topicMergeBusy()) return reply.code(409).send(MERGE_RUNNING);
   if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
   if (!activeOrganizationV2()) {
     return reply.code(409).send({ error: 'no_topics', message: 'Rebuild Topics first. There are no waiting claims to group yet.' });
@@ -432,8 +438,37 @@ app.post('/api/prompt-controls/topics/waiting', async (req, reply) => {
   return reply.code(202).send(queueTopicWaiting(actor));
 });
 const ANALYSIS_RUNNING = { error: 'analysis_running', message: 'Wait for the analysis pages being written to finish first. Topics jobs and analysis pages run one at a time, so pages are written from topics that are not changing.' };
-const topicJobsBusy = () => ['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy()
+const MERGE_RUNNING = { error: 'merge_running', message: 'Wait for the duplicate-topic search to finish first.' };
+const topicJobsBusy = () => ['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy() || topicMergeBusy()
   || ['queued', 'running'].includes(String(topicPreviewStatus().status));
+
+// Duplicate topics: a background search that saves a preview, then applying the merges Mark ticks.
+app.get('/api/prompt-controls/topics/merge', async () => topicMergeStatus());
+app.post('/api/prompt-controls/topics/merge', async (req, reply) => {
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isStudioRateLimited(`${actor}:${remote}`)) return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before searching for duplicates again.' });
+  if (topicJobsBusy()) return reply.code(409).send({ error: 'topics_busy', message: 'Wait for the current rebuild, preview or regrouping to finish first.' });
+  if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
+  if (!activeOrganizationV2()) return reply.code(409).send({ error: 'no_topics', message: 'Rebuild Topics first. There are no topics to compare yet.' });
+  return reply.code(202).send(queueTopicMerge(actor));
+});
+const mergeStep = (step: (actor: string, body: any) => unknown, fallback: string) => async (req: any, reply: any) => {
+  if (topicJobsBusy()) return reply.code(409).send({ error: 'topics_busy', message: 'Wait for the current Topics job to finish first.' });
+  if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
+  try {
+    const result = step(requestActor(req), req.body ?? {});
+    resetTopicWaitingStatus();
+    return result;
+  } catch (error) {
+    if (error instanceof TopicOrganizationError) return reply.code(error.status).send({ error: error.code, message: error.message });
+    return reply.code(500).send({ error: 'merge_failed', message: fallback });
+  }
+};
+app.post('/api/prompt-controls/topics/merge/apply', mergeStep((actor, body) => applyMerges(actor, Array.isArray(body.accept) ? body.accept.map(String) : []),
+  'The merges could not be applied. Nothing was changed.'));
+app.post('/api/prompt-controls/topics/merge/undo', mergeStep((actor) => undoMerge(actor), 'The merged topics could not be restored.'));
+app.post('/api/prompt-controls/topics/merge/discard', mergeStep((actor) => discardMergeProposal(actor), 'The preview could not be discarded.'));
 app.get('/api/prompt-controls/analysis/status', async () => topicAnalysisStatus());
 
 // Where the long AI jobs run: OpenAI directly or Hermes. The key itself is never sent to the browser.
@@ -486,7 +521,7 @@ app.post('/api/topics/:tag/analysis', async (req, reply) => {
   if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
   return reply.code(202).send(queueTopicAnalysis(requestActor(req), 'one', tag));
 });
-const topicsBusy = () => ['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy();
+const topicsBusy = () => ['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy() || topicMergeBusy();
 app.get('/api/prompt-controls/topics/tidy', async () => tidySummary());
 app.post('/api/prompt-controls/topics/tidy', async (req, reply) => {
   if (topicsBusy()) return reply.code(409).send({ error: 'topics_busy', message: 'Wait for the current rebuild or regrouping to finish before tidying.' });
@@ -512,6 +547,7 @@ app.post('/api/prompt-controls/topics/tidy/undo', async (req, reply) => {
 });
 app.post('/api/prompt-controls/topics/rebuild/undo', async (req, reply) => {
   if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
+  if (topicMergeBusy()) return reply.code(409).send(MERGE_RUNNING);
   if (['queued', 'running'].includes(topicRebuildStatus().status) || topicWaitingBusy()) {
     return reply.code(409).send({ error: 'rebuild_running', message: 'Wait for the current rebuild or regrouping to finish before undoing.' });
   }
@@ -534,6 +570,7 @@ app.post('/api/prompt-controls/topics/rebuild', async (req, reply) => {
   if (topicWaitingBusy()) {
     return reply.code(409).send({ error: 'waiting_running', message: 'Wait for the waiting claims to finish grouping before rebuilding.' });
   }
+  if (topicMergeBusy()) return reply.code(409).send(MERGE_RUNNING);
   if (topicAnalysisBusy()) return reply.code(409).send(ANALYSIS_RUNNING);
   try {
     return reply.code(202).send(queueTopicRebuild(actor));
@@ -1106,6 +1143,7 @@ if (process.env.NODE_ENV !== 'test') {
   startTopicRebuildWorker();
   startTopicPreviewWorker();
   startTopicWaitingWorker();
+  startTopicMergeWorker();
   startTopicAnalysisWorker({ hermesInUse: topicFilingRunning });
   startTopicFilingWorker();
   console.log(`Crypto Intelligence backend on http://${HOST}:${PORT}`);

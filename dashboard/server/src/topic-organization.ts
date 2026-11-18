@@ -65,7 +65,19 @@ export type OrganizationV2 = {
   /** Claims Hermes answered for but could not categorize; the next rebuild retries them. */
   uncategorized?: string[];
   failed_groups?: number;
+  /** Keys of topics merged into another, and the topic each now lives in, so old links still open. */
+  forward?: Record<string, string>;
+  /** Topics about the same subject from different angles, kept separate and linked. */
+  related?: Array<{ keys: string[]; subject: string }>;
 };
+
+/** The live topic a key now names: itself, or the topic it was merged into, following merges in turn. */
+export function followForward(key: string, organization: Pick<OrganizationV2, 'topics' | 'forward'>) {
+  const live = new Set(organization.topics.map((topic) => topic.key));
+  let target: string | undefined = key;
+  for (let hops = 0; target && !live.has(target) && hops < 10; hops++) target = organization.forward?.[target];
+  return target && live.has(target) ? target : undefined;
+}
 
 export type ClaimRow = {
   ref: string;
@@ -117,7 +129,7 @@ export const limits = {
   matchClaims: 25, matchTopics: 400, acrossClaims: 120, acrossChars: 48_000,
 };
 /** The most claims one topic holds. */
-const MAX_TOPIC_CLAIMS = 60;
+export const MAX_TOPIC_CLAIMS = 60;
 
 /** Failures a smaller request can avoid. Out of credits, rate limits and an unreachable Hermes are not among them. */
 const splittable = (failure: HermesFailure | null | undefined) => failure === 'timeout' || failure === 'empty' || failure === 'error';
@@ -178,13 +190,13 @@ export function loadClaims(options: { sourceId?: string; refs?: string[]; withEv
     .filter((row) => row.text && (!wanted || wanted.has(row.ref)));
 }
 
-function readJson<T>(key: string): T | null {
+export function readJson<T>(key: string): T | null {
   const row = one<{ value: string }>('SELECT value FROM generation_meta WHERE key = ?', key);
   if (!row?.value) return null;
   try { return JSON.parse(row.value) as T; } catch { return null; }
 }
 
-function writeJson(key: string, value: unknown) {
+export function writeJson(key: string, value: unknown) {
   run('INSERT OR REPLACE INTO generation_meta (key, value) VALUES (?, ?)', key, JSON.stringify(value));
 }
 
@@ -1276,7 +1288,7 @@ export function latestPreview(): TopicPreview | null {
  */
 
 const MATCH_RULES = [
-  'A topic is one story, debate or mechanism. Give a claim the topic whose story it tells, whatever category either is filed under. A claim that only shares a subject, a company or a person with a topic does not belong to it: use "topic": null.',
+  'A topic is one story, debate or mechanism. Give a claim the topic whose story it tells, whatever category either is filed under. A claim about the same specific event, proposal, product, deal or argument as a topic belongs to it when it adds to that story, even from a different angle. A claim that only shares a company, a person, a sector or a theme with a topic does not belong to it: use "topic": null.',
   'story: one line of at most 120 characters naming the specific story, debate or mechanism the claim is about, so claims about the same thing can be found together. Write names the way they are usually spelled, correcting an obvious transcription slip, and add no fact or number the claim does not contain.',
 ];
 
@@ -1919,7 +1931,9 @@ export async function fileNewClaims(options: { sourceId?: string; limit?: number
     if (!current || current.generated_at !== organization.generated_at) return;
     const sourceOf = new Map(candidates.map((claim) => [claim.ref, claim.source_id]));
     for (const claim of filed) current.categories[claim.ref] = categories[claim.ref];
-    const counts = applyPlacement(current.topics, current.categories, matching.joins, grouping?.outcome ?? { topics: [], unsorted: [], failed: false }, now(), (ref) => sourceOf.get(ref));
+    // A claim matched to a topic that was merged while it was being filed joins the merged topic.
+    const joins = new Map([...matching.joins].map(([ref, key]) => [ref, followForward(key, current) ?? key]));
+    const counts = applyPlacement(current.topics, current.categories, joins, grouping?.outcome ?? { topics: [], unsorted: [], failed: false }, now(), (ref) => sourceOf.get(ref));
     created = counts.created;
     moved = counts.moved;
     current.uncategorized = [...new Set([...(current.uncategorized ?? []), ...failed, ...parked])];

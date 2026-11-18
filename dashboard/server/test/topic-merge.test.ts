@@ -112,6 +112,14 @@ beforeAll(async () => {
 afterAll(() => rmSync(folder, { recursive: true, force: true }));
 
 describe('reading the answers', () => {
+  it('asks the finder to merge every angle of one story and leave doubtful merges to the check', () => {
+    const rules = merge.FIND_RULES.join('\n');
+    expect(rules).toMatch(/different angle or finding of it, such as two findings from one quarterly report/);
+    expect(rules).toMatch(/propose a merge whenever the topics are likely one story/);
+    expect(rules).not.toMatch(/Be conservative/);
+    expect(merge.checkInstructions(MARK_INSTRUCTION).join('\n')).toMatch(/different angle or finding of it/);
+  });
+
   const topic = (key: string, claims: number) => ({ key, claims: new Array(claims).fill('x') }) as any;
   const aliases = new Map([['t1', topic('a', 30)], ['t2', topic('b', 25)], ['t3', topic('c', 10)], ['t4', topic('d', 4)]]);
   const size = (item: any) => item.claims.length;

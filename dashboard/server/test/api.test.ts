@@ -128,6 +128,24 @@ describe('read routes', () => {
     expect(refused.status).toBe(400);
   });
 
+  it('answers a question from a topic page with that topic\'s records, and refuses bad requests', async () => {
+    const tag = (await json('/api/topics')).topics?.[0]?.tag;
+    expect(tag).toBeTruthy();
+    const ask = (path: string, body: object) => fetch(`${BASE}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.77' },
+      body: JSON.stringify(body),
+    });
+    const asked = await ask(`/api/topics/${encodeURIComponent(tag)}/ask`, { question: 'What is the evidence for this?', highlight: 'a highlighted passage' });
+    expect(asked.status).toBe(200);
+    // These checks run without Hermes, so the route returns the topic's records instead of an answer.
+    const body: any = await asked.json();
+    expect(body.mode).toBe('degraded');
+    expect(body.results.length).toBeGreaterThan(0);
+    expect((await ask(`/api/topics/${encodeURIComponent(tag)}/ask`, { question: 'Hi' })).status).toBe(400);
+    expect((await ask('/api/topics/no-such-topic-anywhere/ask', { question: 'What is this about?' })).status).toBe(404);
+  });
+
   it('returns preserved Ask history without generating placeholder answers', async () => {
     const history = await json('/api/ask/history');
     expect(Array.isArray(history.history)).toBe(true);

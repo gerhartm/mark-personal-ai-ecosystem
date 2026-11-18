@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { EmptyState, ErrorState, Eyebrow, LoadingRows, Provenance } from '../components/Desk';
 import { api, invalidate, useQuery } from '../lib/api';
 import { IconBookmark, IconCheck, IconStar } from '../components/icons';
 import { TopicAnalysisSection, type CitedClaim } from '../components/TopicAnalysis';
+import { TopicAsk } from '../components/TopicAsk';
 import { categoryColor, categoryLabel, compact, formatDate, plural, sourceKind, titleCase } from '../lib/desk';
 import './topics.css';
 
@@ -43,6 +44,8 @@ export function TopicDetail() {
   const [sourceType, setSourceType] = useState<string | null>(null);
   const [window, setWindow] = useState('All time');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Text highlighted inside the page can be asked about.
+  const page = useRef<HTMLElement>(null);
   const claims: Claim[] = result.data?.claims ?? [];
   const relatedTags: RelatedTag[] = result.data?.related_tags ?? [];
   const category: string | null = result.data?.version === 2 ? result.data?.category ?? null : null;
@@ -127,7 +130,7 @@ export function TopicDetail() {
   if (result.error) return <ErrorState error={result.error} retry={result.refetch} />;
 
   return (
-    <section>
+    <section ref={page}>
       {category ? (
         <Link className="mb-4 inline-block font-mono text-[11.5px] text-dim hover:text-[var(--accent-text)]" to={`/?category=${encodeURIComponent(category)}`}>← {categoryLabel(category)} topics</Link>
       ) : (
@@ -148,6 +151,11 @@ export function TopicDetail() {
           {coverage ? ` · ${coverage}` : ''}
         </p>
         {category ? <ReadingBar tag={topic} reading={reading} setReading={setReading} onSaved={result.refetch} /> : null}
+        {claims.length ? (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="topic-ask">
+            <TopicAsk tag={topic} title={result.data?.topic_title ?? titleCase(topic)} scope={page} />
+          </div>
+        ) : null}
       </div>
 
       {category ? <TopicAnalysisSection tag={topic} analysis={result.data?.analysis ?? null} claimCount={claims.length} claimsByRef={claimsByRef} onCite={cite} onWritten={result.refetch} /> : null}

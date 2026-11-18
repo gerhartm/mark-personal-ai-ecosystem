@@ -466,6 +466,30 @@ while pages are written, and a queued run waits for a filing run already under
 way, so pages are written from topics that are not changing. A run interrupted
 by a restart is marked failed at startup, with its pages kept.
 
+### Asking from a topic page
+
+Highlighting text anywhere on a topic page (the analysis or a claim) shows an
+**Ask about this** button just below the highlight. It opens a side panel (a
+bottom sheet on narrow screens) with the passage quoted, three one-tap
+questions and a question box; Enter sends, Shift+Enter starts a new line,
+Escape closes the panel and returns focus to the page. **Ask about this topic**
+in the page header opens the same panel for the whole topic, or for the current
+highlight, so it also works from the keyboard. On wide screens the page makes
+room for the panel instead of sliding under it. Follow-up questions carry the
+conversation so far.
+
+`POST /api/topics/:tag/ask` takes `{ question, highlight, surrounding, history }`
+(the question 3 to 2,000 characters, the highlight up to 2,000, the paragraph or
+claim around it up to 3,000, and up to four earlier exchanges) and shares Ask's
+rate limit. Hermes answers through the same agent path as Ask, at low reasoning
+effort, with a context that puts the topic, the passage, the text around it, the
+conversation and the question ahead of the topic's own events (up to 16, most
+significant first) as evidence; it may still search the unified memory when
+those are not enough, and it treats the passage and page text as evidence, never
+instructions. Answers cite canonical IDs, which link to their records, and are
+saved to Ask history as `About "<passage>" in <topic>: <question>`. Without
+Hermes the route returns the topic's records instead of an answer.
+
 ### AI connection
 
 Hermes is the central brain and answers everything else: Ask, Studio, Prep,

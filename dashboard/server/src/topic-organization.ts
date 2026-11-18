@@ -613,7 +613,7 @@ export const FIXED_TOPIC_RULES = [
   'A topic is one story, debate or mechanism. A new topic needs at least three claims, or claims from at least two different sources; two claims from one source are one point, not a topic. Put each supplied claim in at most one topic. List a claim under "unsorted" only when no other claim, new or existing, shares its story.',
   'Every claim in a topic must have the same category as the topic.',
   'To add claims to an existing topic, use its key. Name new topics "new-1", "new-2" and so on.',
-  'title: one complete phrase of 6 to 14 words, at most 90 characters, plain text.',
+  'title: one complete phrase of 6 to 14 words, at most 90 characters, plain text, worded the way a reader would say it ("Ethena\'s yield depends on funding rates staying positive", not "Ethena yield funding-rate dependence"). When a word could mean two things, use the specific one: "solar and GPU lending" or "DeFi plumbing", never a bare "infrastructure".',
   'dek: one sentence of at most 160 characters giving context: who said it or what happened, and why it matters.',
   'description: optional, 40 to 420 characters, the shared argument or sequence of events.',
   'Use only names, numbers and dates that appear in the claims. Never invent facts, opinions, consensus or sources.',

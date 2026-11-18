@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, ErrorState, Eyebrow, LoadingRows, Provenance } from '../components/Desk';
 import { api, invalidate, useQuery } from '../lib/api';
 import { IconBookmark, IconCheck, IconStar } from '../components/icons';
@@ -40,6 +40,12 @@ export function TopicDetail() {
   const { tag = '' } = useParams();
   const topic = decodeURIComponent(tag);
   const result = useQuery<any>(`/topics?tag=${encodeURIComponent(topic)}`, [topic], 30_000);
+  // A topic merged into another opens the topic it now lives in.
+  const navigate = useNavigate();
+  const movedTo: string | undefined = result.data?.moved_to;
+  useEffect(() => {
+    if (movedTo) navigate(`/topics/${encodeURIComponent(movedTo)}`, { replace: true });
+  }, [movedTo, navigate]);
   const [speaker, setSpeaker] = useState('Everyone');
   const [sourceType, setSourceType] = useState<string | null>(null);
   const [window, setWindow] = useState('All time');

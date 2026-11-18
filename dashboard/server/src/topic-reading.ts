@@ -64,6 +64,25 @@ function saveMarks(marks: Record<string, ReadingMark>) {
 
 const hasMarks = (mark: ReadingMark) => Boolean(mark.read_at || mark.rating || mark.bookmarked_at);
 
+/**
+ * After a merge, the merged topic keeps its own marks. When it has none, it
+ * takes the most recent marks of a topic merged into it; the claims read stay
+ * as they were, so claims added by the merge show as new.
+ */
+export function carryReadingMarks(moves: Array<{ to: string; from: string[] }>) {
+  const marks = loadMarks();
+  let changed = false;
+  for (const move of moves) {
+    if (marks[move.to] && hasMarks(marks[move.to])) continue;
+    const latest = move.from.map((key) => marks[key]).filter((mark): mark is ReadingMark => Boolean(mark && hasMarks(mark)))
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))[0];
+    if (!latest) continue;
+    marks[move.to] = { ...latest, updated_at: now() };
+    changed = true;
+  }
+  if (changed) saveMarks(marks);
+}
+
 type Shown = { key: string; mark: ReadingMark };
 
 /**

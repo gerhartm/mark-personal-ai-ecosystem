@@ -2,6 +2,7 @@ import { fileNewClaims } from './topic-organization.js';
 import { topicRebuildBusy } from './topic-jobs.js';
 import { topicWaitingBusy } from './topic-waiting-job.js';
 import { topicAnalysisBusy } from './topic-analysis-job.js';
+import { topicMergeBusy } from './topic-merge-job.js';
 
 /**
  * Files newly processed claims into Topics on its own timer, so source
@@ -22,9 +23,9 @@ export async function runTopicFiling(now = Date.now()) {
   if (busy || now < pausedUntil) return null;
   busy = true;
   try {
-    // Filing waits while a rebuild or a regrouping of waiting claims is changing Topics.
+    // Filing waits while a rebuild, a regrouping of waiting claims or a duplicate search is working on Topics.
     // It also waits while analysis pages are written, so pages are written from topics that are not changing.
-    return await fileNewClaims({ limit: 20, rebuildBusy: () => topicRebuildBusy() || topicWaitingBusy() || topicAnalysisBusy() });
+    return await fileNewClaims({ limit: 20, rebuildBusy: () => topicRebuildBusy() || topicWaitingBusy() || topicAnalysisBusy() || topicMergeBusy() });
   } catch (error) {
     pausedUntil = Date.now() + BACKOFF;
     console.warn('[topics] filing paused', error instanceof Error ? error.message : error);

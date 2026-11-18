@@ -18,6 +18,7 @@ vi.mock('../src/hermes-client.js', () => {
     return input.slice(start + name.length + 1).split('\n\n')[0].split('\n')
       .filter((line) => line.startsWith('{')).map((line) => JSON.parse(line));
   };
+  // Codes keep titles unique; they are lower case so the name check does not read them as names.
   const letters = (value: number) => { let out = ''; for (let n = value; n > 0; n = Math.floor((n - 1) / 26)) out = String.fromCharCode(65 + ((n - 1) % 26)) + out; return out; };
   const pick = (text: string) => /raised \$/i.test(text) ? 'venture'
     : /stablecoin/i.test(text) ? 'stablecoins'
@@ -66,8 +67,8 @@ vi.mock('../src/hermes-client.js', () => {
             const code = letters(++state.topicNumber);
             topics.push({
               key: `new-${code}`,
-              title: `Synthetic topic ${code} shows Lendex lending shifting between venues`,
-              dek: longDek ? `Context line for synthetic topic ${code}, ${'written at length for an automated test '.repeat(6)}`.trim() : `Context line for synthetic topic ${code}, written for an automated test.`,
+              title: `Synthetic topic ${code.toLowerCase()} shows lending shifting between venues`,
+              dek: longDek ? `Context line for synthetic topic ${code.toLowerCase()}, ${'written at length for an automated test '.repeat(6)}`.trim() : `Context line for synthetic topic ${code.toLowerCase()}, written for an automated test.`,
               description: 'A synthetic description that is long enough to be kept by the validator.',
               claims: ids.splice(0, 2),
             });
@@ -117,7 +118,7 @@ vi.mock('../src/hermes-client.js', () => {
           if (!ids.length) continue;
           marked.push(...ids);
           const code = letters(++state.topicNumber);
-          topics.push({ key: `new-${word}`, category, title: `Synthetic topic ${code} shows ${word} activity moving between venues`, dek: `Context line for synthetic topic ${code}, written for an automated test.`, claims: ids });
+          topics.push({ key: `new-${word}`, category, title: `Synthetic topic ${code.toLowerCase()} shows ${word} activity moving between venues`, dek: `Context line for synthetic topic ${code.toLowerCase()}, written for an automated test.`, claims: ids });
         }
         const byCategory = new Map<string, string[]>();
         for (const claim of claims) if (!marked.includes(claim.id)) byCategory.set(claim.category, [...(byCategory.get(claim.category) ?? []), claim.id]);
@@ -126,8 +127,8 @@ vi.mock('../src/hermes-client.js', () => {
             const code = letters(++state.topicNumber);
             topics.push({
               key: `new-${code}`, category,
-              title: `Synthetic topic ${code} shows Lendex lending shifting between venues`,
-              dek: `Context line for synthetic topic ${code}, written for an automated test.`,
+              title: `Synthetic topic ${code.toLowerCase()} shows lending shifting between venues`,
+              dek: `Context line for synthetic topic ${code.toLowerCase()}, written for an automated test.`,
               description: 'A synthetic description that is long enough to be kept by the validator.',
               claims: ids.splice(0, 2),
             });
@@ -140,7 +141,7 @@ vi.mock('../src/hermes-client.js', () => {
         state.calls.push('retitle');
         return JSON.stringify({ topics: section(input, 'TOPICS').map((topic: any) => ({
           key: topic.key,
-          title: `Retitled topic ${letters(++state.topicNumber)} shows Lendex lending shifting between venues`,
+          title: `Retitled topic ${letters(++state.topicNumber).toLowerCase()} shows lending shifting between venues`,
           dek: 'A shorter context line written for an automated retitle test.',
         })) });
       }
@@ -258,6 +259,18 @@ describe('topic titles, context lines and funding rounds', () => {
     expect(organization.strongTopic(['a:0', 'a:0', 'b:0'], () => 'one')).toBe(false);
     expect(organization.FIXED_TOPIC_RULES[0]).toMatch(/at least three claims, or claims from at least two different sources/);
   });
+  it('finds names a title adds that the claims and their sources never give', () => {
+    const support = 'Felipe argues insiders favor equity. A Crypto Native Financial System | Felipe Montealegre. Theia bought DAT shares in October.';
+    expect(organization.ungroundedNames("Theia's Felipe Montealegre says insiders favor equity", support)).toEqual([]);
+    expect(organization.ungroundedNames('Insiders favor equity, Michael Ippolito and Felipe argue', support)).toEqual(['Michael', 'Ippolito']);
+    // A capital opening a sentence says nothing; a name-shaped first word is still checked. Plurals, months and figures pass.
+    expect(organization.ungroundedNames('Insiders bought DATs in Oct. 2025: Theia leads', support)).toEqual([]);
+    expect(organization.ungroundedNames('MetaDAO holders favor equity, Felipe argues', support)).toEqual(['MetaDAO']);
+    expect(organization.ungroundedNames('Insiders favor Theia-backed equity over FSRA-licensed tokens', support)).toEqual(['FSRA-licensed']);
+    expect(organization.FIXED_TOPIC_RULES.join(' ')).toMatch(/never a bare first name/);
+    expect(organization.FIXED_TOPIC_RULES.join(' ')).toMatch(/appear in the claims or their source titles/);
+  });
+
   it('asks whose view a title states when most of its claims report one', () => {
     const views = [
       'A speaker argues that ending staking rewards would push lenders to cut rates.',

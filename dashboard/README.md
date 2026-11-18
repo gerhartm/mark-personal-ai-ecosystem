@@ -251,7 +251,13 @@ within each category and writes their titles and context lines from the Topics
 instruction in Control center. Claims from one source about the same story or
 debate are asked to share a category, so a debate is not split across
 categories. Every answer is validated against the stored claims, and any figure
-in a title or context line must appear in that topic's claims. The final answer
+in a title or context line must appear in that topic's claims. Names must
+appear in the claims or their source titles: titles name a person by full name
+or firm, never a bare first name, and may take a full name from a source title
+("Yen-quake, Arthur Hayes") when the claims only say "Hayes". A surname, firm or
+title the research never gives fails the check (`title_names`, `dek_names`),
+since that is the model's own knowledge, not the research. A person the claims
+and sources give only a first name for is left out of the title. The final answer
 for a batch is salvaged rather than discarded: wrong claim IDs, repeats and
 claims from another category leave their topic instead of sinking it (a topic
 that loses more than half of what it listed is dropped). A new topic whose only
@@ -391,7 +397,7 @@ built one category at a time. It runs two passes:
 2. Checking: each proposed merge is read again with every claim of its topics
    and the Topics instruction. The check keeps the topics that belong together
    and writes the merged title, context line and category under the same rules
-   as any topic (figures must appear in the claims). A wrong answer gets one
+   as any topic (figures and names must appear in the claims or their sources). A wrong answer gets one
    corrected retry; a merge that still fails is left out of the preview. A merge
    the check turns down is linked as related topics, under the subject the check
    names. Through the direct route four checks run at a time; through Hermes,
@@ -420,10 +426,38 @@ The search runs as a background job (`topics.merge.job`), usually a few minutes:
 one finding request and one check per proposed merge, along the `crypto_topics`
 route like every Topics call (through Hermes, up to 24,000 output tokens and 20
 minutes for the finding request, 8,000 tokens and 10 minutes per check).
-Filing, rebuilds, previews, Group waiting claims, tidy and analysis pages wait
-while it runs, and it does not start while a rebuild, preview, regrouping or
-analysis run is going. Two checks in a row with no answer stop the checks and
-keep what was checked.
+Filing, rebuilds, Group waiting claims, tidy and analysis pages wait while it
+runs, and it does not start while a rebuild, preview, regrouping or analysis run
+is going. Two checks in a row with no answer stop the checks and
+keep what was checked. A reason or subject that mentions a topic's alias names
+the topic instead.
+
+Refresh titles (Control center, below Duplicate topics) rewrites the titles and
+context lines of existing topics under the current Topics instruction and title
+rules, for example after the naming rule above, which earlier titles predate.
+It reads every topic in requests of 8, each topic with its current wording, its
+size, its 12 strongest claims (260 characters each, with their dates) and the
+titles of their sources. The AI answers keep for wording that already follows
+the rules, or gives a new title and context line. Each new one is checked like
+any title: length, plain text, figures and names found in the topic's claims,
+their sources or its current wording, a view said to be someone's, and no
+duplicate of another title. A topic whose answer fails is asked again once in a
+second request with its issues listed; one that still fails keeps its wording.
+Through the direct route four requests run at a time; through Hermes, one, with
+up to 10,000 output tokens and 15 minutes each. Two requests in a row with no
+answer stop the refresh and keep what was answered.
+
+The result is a preview (`topics.titles.proposal` in `generation_meta`) listing
+each new title and context line with the one it replaces. Nothing changes until
+Mark ticks titles and applies them. Applying changes only titles and context
+lines: keys, links, claims, reading marks and analysis pages stay as they are.
+A topic whose wording changed since the preview (merged, regrouped or retitled)
+is skipped. Undo the last title refresh puts back the previous wording
+(`topics.titles.previous`) of each topic not changed again since; only the
+latest apply can be undone, and only until Topics are rebuilt. The refresh runs
+as a background job (`topics.titles.job`); rebuilds, Group waiting claims,
+tidy, duplicate searches and analysis pages wait while it runs, and it does not
+start while one of them or a preview is going.
 
 On the Topics page, claims that are not in a topic are listed under their
 source ("Points not in a topic yet"), largest groups first.

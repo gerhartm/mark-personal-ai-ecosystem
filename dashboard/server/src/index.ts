@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MEDIA_ROOT, audit, all, one, run } from './db.js';
-import { buildAskContext } from './ask-context.js';
+import { buildAskContext, buildTopicAskContext } from './ask-context.js';
 import { cleanHermesError, runHermesAgent } from './hermes-client.js';
 import {
   CaptureInputError,
@@ -914,6 +914,100 @@ app.post('/api/ask', async (req, reply) => {
       history_id: id,
       asked_at: askedAt,
       source_ids: sourceIds,
+    };
+  } catch (error) {
+    return reply.code(503).send({
+      mode: 'error',
+      state: 'hermes_unavailable',
+      message: cleanHermesError(error instanceof Error ? error.message : error),
+      question,
+      results: context.hits,
+    });
+  }
+});
+
+/** Squeezes whitespace and caps a field from the browser. */
+const oneLine = (value: unknown, limit: number) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
+
+/**
+ * A question asked from a topic page, usually about a highlighted passage.
+ * Hermes answers it with the topic's own events as evidence, and the answer is
+ * saved to Ask history like any other.
+ */
+app.post('/api/topics/:tag/ask', async (req, reply) => {
+  const key = (req.params as { tag: string }).tag;
+  const body = (req.body ?? {}) as { question?: unknown; highlight?: unknown; surrounding?: unknown; history?: unknown };
+  const question = String(body.question ?? '').trim();
+  if (question.length < 3 || question.length > 2_000) {
+    return reply.code(400).send({ error: 'invalid_question', message: 'Enter a question between 3 and 2,000 characters.' });
+  }
+  const highlight = oneLine(body.highlight, 2_001);
+  if (highlight.length > 2_000) {
+    return reply.code(400).send({ error: 'invalid_highlight', message: 'Highlight at most 2,000 characters.' });
+  }
+  const detail = t.listTopics(undefined, key) as any;
+  const claims: any[] = Array.isArray(detail?.claims) ? detail.claims : [];
+  const title = oneLine(detail?.topic_title, 200);
+  if (!claims.length || !title) return reply.code(404).send({ error: 'unknown_topic', message: 'That topic no longer exists.' });
+  const history = (Array.isArray(body.history) ? body.history : []).slice(-4)
+    .map((turn: any) => ({ question: String(turn?.question ?? '').trim().slice(0, 2_000), answer: String(turn?.answer ?? '').trim().slice(0, 6_000) }))
+    .filter((turn) => turn.question && turn.answer);
+  const actor = requestActor(req);
+  const remote = String(req.headers['cf-connecting-ip'] ?? req.ip);
+  if (isAskRateLimited(`${actor}:${remote}`)) {
+    return reply.code(429).send({ error: 'rate_limited', message: 'Please wait before asking again.' });
+  }
+  audit(actor, 'ask', key, { length: question.length, highlight_length: highlight.length, follow_up: history.length });
+
+  // The topic's events, most significant first, each shown by its first claim.
+  const events = new Map<string, { id: string; title: string; snippet: string; significance: number }>();
+  for (const claim of claims) {
+    const current = events.get(claim.event_id);
+    const significance = Number(claim.significance) || 0;
+    if (!current) events.set(claim.event_id, { id: claim.event_id, title: claim.source_title ?? claim.source_label ?? claim.event_id, snippet: claim.text ?? '', significance });
+    else current.significance = Math.max(current.significance, significance);
+  }
+  const ranked = [...events.values()].sort((a, b) => b.significance - a.significance);
+  const context = await buildTopicAskContext({
+    question, highlight, history, surrounding: oneLine(body.surrounding, 3_000),
+    topic: { title, dek: oneLine(detail?.topic_dek, 400), events: ranked },
+  });
+  if (!process.env.HERMES_BASE_URL) {
+    return {
+      mode: 'degraded',
+      state: 'intelligence_plane_not_connected',
+      message: 'Hermes is not connected in this environment, so no answer is generated. These are the topic\'s records.',
+      question,
+      results: context.hits,
+    };
+  }
+  try {
+    const answer = (await runHermesAgent(context.input, {
+      title: 'Crypto Intelligence question',
+      reasoningEffort: 'low',
+      timeoutMs: 180_000,
+    })).text;
+    const askedAt = new Date().toISOString();
+    const id = randomUUID();
+    // Saved with its topic and passage, so Ask history reads on its own.
+    const stored = highlight
+      ? `About "${highlight.length > 160 ? `${highlight.slice(0, 157)}...` : highlight}" in ${title}: ${question}`
+      : `About ${title}: ${question}`;
+    run(
+      `INSERT INTO ask_history (id, asked_at, actor, question, answer, source_ids_json, evidence_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id, askedAt, actor, stored, answer, JSON.stringify([]), JSON.stringify(context.hits),
+    );
+    return {
+      mode: 'hermes',
+      state: 'connected',
+      answer,
+      message: answer,
+      question,
+      results: context.hits,
+      evidence_count: context.records,
+      history_id: id,
+      asked_at: askedAt,
     };
   } catch (error) {
     return reply.code(503).send({

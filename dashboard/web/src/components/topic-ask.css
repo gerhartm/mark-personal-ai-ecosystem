@@ -1,0 +1,70 @@
+/* Ask about a topic: a floating button beside a highlight, and a panel that keeps the page in view. */
+
+.topic-ask-spot {
+  position: fixed;
+  z-index: 45;
+  display: inline-flex;
+  min-height: 34px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--brass);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--foreground);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+}
+.topic-ask-spot:hover,
+.topic-ask-spot:focus-visible { background: var(--panel-2); outline: none; }
+
+/* A bottom sheet on narrow screens; a full-height panel on the right from 640px. */
+.topic-ask-panel {
+  position: fixed;
+  z-index: 50;
+  inset: auto 0 0 0;
+  display: flex;
+  max-height: 82vh;
+  flex-direction: column;
+  border-top: 1px solid var(--line-strong);
+  border-radius: 14px 14px 0 0;
+  background: var(--panel);
+  box-shadow: 0 -12px 40px rgb(0 0 0 / 0.28);
+}
+@media (min-width: 640px) {
+  .topic-ask-panel {
+    inset: 0 0 0 auto;
+    width: min(440px, 100vw);
+    max-height: none;
+    border-top: 0;
+    border-left: 1px solid var(--line-strong);
+    border-radius: 0;
+    box-shadow: -16px 0 44px rgb(0 0 0 / 0.24);
+  }
+}
+
+/* The shell's rail is 206px and the page at most 1140px: below the panel's edge, pad the page so no text sits under it. */
+@media (min-width: 1100px) {
+  html.topic-ask-open #main { padding-right: max(40px, calc(1810px - 100vw)); }
+}
+
+.topic-ask-working { display: flex; align-items: center; gap: 8px; }
+.topic-ask-working span {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--brass);
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .topic-ask-panel { animation: topic-ask-rise 180ms ease-out; }
+  @media (min-width: 640px) { .topic-ask-panel { animation-name: topic-ask-slide; } }
+  .topic-ask-working span { animation: topic-ask-spin 900ms linear infinite; }
+}
+@keyframes topic-ask-rise { from { transform: translateY(24px); opacity: 0; } }
+@keyframes topic-ask-slide { from { transform: translateX(24px); opacity: 0; } }
+@keyframes topic-ask-spin { to { transform: rotate(360deg); } }

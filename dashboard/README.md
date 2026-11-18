@@ -428,14 +428,20 @@ The AI writes each page in one call, along the route set for task
 significant claims, the retained passage behind each (up to 900 characters),
 the research note written when it was extracted, and the 24 other topics most
 related to it (shared words, shared sources, same category). The Topic analysis
-instruction in Control center shapes the writing; fixed rules keep every fact,
-figure, name and date to that evidence. Each answer is checked: every point
+instruction in Control center shapes the writing. Its default asks for a plain,
+conversational voice: the point first, real people and companies doing things,
+statements of what is true rather than of what is not, and doubts about the
+evidence kept for the contested section. Fixed rules keep every fact, figure,
+name and date to that evidence and keep the page about the topic rather than
+its material. Each answer is checked: every point
 names claim IDs from the topic, every written figure must appear in the claims,
 passages, notes or claim dates (number words such as "two" count as wording), a
 quote must keep at least nine in ten of its passage's words and add no figure,
-and a connection must name one of the related topics. Missing or malformed
-sections, unknown claim IDs and invented figures get one corrected retry; a
-weak quote, watch item or connection is dropped on its own. A call with no
+a connection must name one of the related topics, and no section may talk about
+the material it was written from ("corpus", the request's section names in
+capitals, "supplied passages", "my interpretation"). Missing or malformed
+sections, unknown claim IDs, invented figures and talk about the material get
+one corrected retry; a weak quote, watch item or connection is dropped on its own. A call with no
 answer is retried once after 30 seconds. A call may take up to 30 minutes on the
 direct route; through Hermes (`auxiliary.crypto_analysis` in its config) it may
 take up to 15 minutes and 24,000 output tokens. Each page records the model and

@@ -382,9 +382,12 @@ built one category at a time. It runs two passes:
    counts, the months its claims cover and its three strongest claims (fewer
    when the list would pass 360,000 characters). Topics that share wording sit
    next to each other in the list. The AI proposes merges (two to six topics
-   that tell the same story), related groups (two to eight topics about one
-   subject from different angles, kept as separate pages) and names that look
-   mistranscribed. A proposed merge over 60 claims is linked as related instead.
+   that tell the same story, including different angles or findings of one
+   event, proposal, report or argument), related groups (two to eight topics
+   that are different stories about one subject, kept as separate pages) and
+   names that look mistranscribed. It proposes a merge whenever the topics are
+   likely one story and leaves doubtful ones to the check. A proposed merge over
+   60 claims is linked as related instead.
 2. Checking: each proposed merge is read again with every claim of its topics
    and the Topics instruction. The check keeps the topics that belong together
    and writes the merged title, context line and category under the same rules

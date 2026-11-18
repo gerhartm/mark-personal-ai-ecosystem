@@ -1197,3 +1197,11 @@ This is an append-only operational record. Newest entries go at the bottom. Neve
 - Verification: each release passed the release gate's checks before it went live.
 - Scope: Hermes configuration and source, OpenViking, the AI connection settings, Cloudflare and the database schema were unchanged.
 - Rollback: `mark-dashboard-release operator revert` (in tmux) restores the previous release.
+
+## 2026-11-18 UTC: Duplicate topics released and first run
+
+- Operator: Mark, with Claude preparing the release and reviewing the result.
+- `10c8eed` (`ux/topic-merge@2050186`, 18 Nov 16:33 UTC): Duplicate topics in Control center. One request reads every topic and proposes merges, related groups and likely mistranscribed names; each proposed merge is checked against all of its claims; Mark applies the merges he ticks, and the last apply can be undone. Claim matching also joins a claim about the same specific event, proposal, product, deal or argument when it comes from a different angle.
+- Data: new `generation_meta` keys `topics.merge.proposal` (the preview) and `topics.merge.previous` (what undo restores), the `app_settings` job key `topics.merge.job`, and two optional fields in the Topics organization, `forward` (old topic links) and `related`. No schema change.
+- Verification: the first search ran from 17:08 to 17:21 UTC on 341 topics through the direct OpenAI route, with 10 calls and no failures. It proposed 9 merges, all confirmed by the check, plus 80 related groups and 4 likely mistranscribed names. Claude reviewed it against about 25 duplicate sets found by hand: the 9 merges were right, but the first pass linked most of the other sets as related instead of proposing them, so its rules were loosened in the next release.
+- Rollback: Undo the last merge in Control center restores the topics of the latest apply; `mark-dashboard-release operator revert` (in tmux) restores the previous release, `cc488c5`; topics already merged stay merged, and old links stop forwarding.

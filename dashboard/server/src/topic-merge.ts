@@ -20,7 +20,7 @@ import { effectiveRoute, generate } from './ai-client.js';
 import {
   activeOrganizationV2, CATEGORIES, CATEGORY_IDS, classifyHermesFailure, dekIssues, FIXED_TOPIC_RULES, followForward, HermesUnavailableError,
   liveClaimRefs, loadClaims, MAX_TOPIC_CLAIMS, ORGANIZATION_KEY, parseModelJson, readJson, similarity, timing, titleIssues,
-  TopicOrganizationError, TOPICS_TASK, ungroundedNumbers, wordSet, writeJson,
+  TopicOrganizationError, TOPICS_TASK, ungroundedNames, ungroundedNumbers, wordSet, writeJson,
   type CategoryId, type ClaimRow, type HermesFailure, type OrganizationV2, type TopicV2,
 } from './topic-organization.js';
 import { carryReadingMarks } from './topic-reading.js';
@@ -222,6 +222,7 @@ export function checkInstructions(markInstruction: string) {
     'keep: the aliases of the topics that belong together, at least two, or [] when they do not. A topic that does not belong stays out.',
     `When you keep two or more, write the merged topic: title, dek, category (one of: ${CATEGORY_IDS.join(', ')}; where the story belongs) and reason (one sentence on why they are one story).`,
     'When you keep fewer than two, the topics are linked as related instead: give subject (a few words naming what they have in common) and reason (one sentence on why they are separate stories).',
+    'In reason and subject, refer to topics by what they cover, never by their alias.',
     `MARK'S TOPICS INSTRUCTION\n${markInstruction}`,
     `FIXED RULES\n${[...FIXED_TOPIC_RULES.slice(3, 5), FIXED_TOPIC_RULES[6]].map((rule) => `- ${rule}`).join('\n')}`,
     'Return JSON only: {"keep":["t1","t2"],"title":"...","dek":"...","category":"...","reason":"..."}, or {"keep":[],"subject":"...","reason":"..."} for separate stories.',
@@ -258,10 +259,14 @@ export function readCheckAnswer(raw: any, aliases: string[], topicOf: (alias: st
   title.hard.forEach((issue) => issues.push(`The title ${issue}.`));
   const titleNumbers = ungroundedNumbers(title.title, support);
   if (titleNumbers.length) issues.push(`The title uses numbers that are not in the claims: ${titleNumbers.slice(0, 3).join(', ')}.`);
+  const titleNames = ungroundedNames(title.title, support);
+  if (titleNames.length) issues.push(`The title uses names that are not in the claims or their sources: ${titleNames.slice(0, 3).join(', ')}.`);
   const dek = dekIssues(String(raw.dek ?? ''));
   dek.hard.forEach((issue) => issues.push(`The ${issue}.`));
   const dekNumbers = ungroundedNumbers(dek.dek, support);
   if (dekNumbers.length) issues.push(`The context line uses numbers that are not in the claims: ${dekNumbers.slice(0, 3).join(', ')}.`);
+  const dekNames = ungroundedNames(dek.dek, support);
+  if (dekNames.length) issues.push(`The context line uses names that are not in the claims or their sources: ${dekNames.slice(0, 3).join(', ')}.`);
   const category = clean(raw.category) as CategoryId;
   if (!CATEGORY_IDS.includes(category)) issues.push(`category must be one of: ${CATEGORY_IDS.join(', ')}.`);
   if (keep.reduce((sum, alias) => sum + claimsOf(alias).length, 0) > MAX_TOPIC_CLAIMS) issues.push(`Together these topics hold more than ${MAX_TOPIC_CLAIMS} claims; keep fewer of them.`);
@@ -362,25 +367,27 @@ export async function findDuplicateTopics(actor: string, markInstruction: string
 
   onProgress?.({ stage: 'saving', done: 1, total: 1 });
   const keyOf = (alias: string) => topicOf(alias).key;
+  // A reason that still mentions an alias ("t18 covers…") names the topic instead.
+  const named = (text: string) => text.replace(/\bt\d+\b/g, (alias) => (aliases.has(alias) ? `"${topicOf(alias).title}"` : alias));
   const merges: ProposedMerge[] = [];
   const rejected: MergeProposal['rejected'] = [];
-  const related = found.related.map((group) => ({ keys: group.aliases.map(keyOf), subject: group.subject }));
+  const related = found.related.map((group) => ({ keys: group.aliases.map(keyOf), subject: named(group.subject) }));
   results.forEach((result, index) => {
     const group = found!.merges[index];
     if (result?.kind === 'merge') {
       const claims = result.keep.flatMap(claimsOf);
       merges.push({
         id: randomUUID(), keys: result.keep.map(keyOf), title: result.title, dek: result.dek, category: result.category,
-        reason: result.reason || group.reason, claims: new Set(claims.map((claim) => claim.ref)).size,
+        reason: named(result.reason || group.reason), claims: new Set(claims.map((claim) => claim.ref)).size,
         sources: new Set(claims.map((claim) => claim.source_id)).size,
       });
       const left = group.aliases.filter((alias) => !result.keep.includes(alias));
       if (left.length) rejected.push({ keys: left.map(keyOf), reason: 'Left out of the merge when every claim was checked.' });
     } else if (result?.kind === 'reject') {
-      rejected.push({ keys: group.aliases.map(keyOf), reason: result.reason || group.reason });
+      rejected.push({ keys: group.aliases.map(keyOf), reason: named(result.reason || group.reason) });
       // Found together by the first pass, so still worth linking.
       if (!related.some((entry) => entry.keys.some((key) => group.aliases.map(keyOf).includes(key)))) {
-        related.push({ keys: group.aliases.map(keyOf), subject: result.subject || group.reason.replace(/[.:;,]+$/, '').slice(0, 120) });
+        related.push({ keys: group.aliases.map(keyOf), subject: named(result.subject || group.reason.replace(/[.:;,]+$/, '').slice(0, 120)) });
       }
     }
   });

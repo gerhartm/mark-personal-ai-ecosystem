@@ -51,7 +51,7 @@ vi.mock('../src/hermes-client.js', () => {
           title: variant === 'bad_number' ? 'Validators would lose $999 million in rewards under the burn proposal' : 'Ethereum validators would lose their rewards under the burn proposal',
           dek: 'Several sources describe one proposal to burn staking rewards and how lenders reacted.',
           category: variant === 'bad_category' ? 'nonsense' : topics[0]?.category,
-          reason: keep.length ? 'Every topic covers the same proposal.' : 'Two different events.',
+          reason: keep.length ? 'Every topic covers the same proposal.' : `${topics[0].t} and ${topics[1].t} are two different events.`,
           ...(keep.length ? {} : { subject: 'Incidents at Drift.' }),
         });
       }
@@ -159,7 +159,8 @@ describe('finding duplicate topics', () => {
     expect(proposal.related.map((group) => [...group.keys].sort())).toEqual(expect.arrayContaining([['backpack-one', 'backpack-two'], ['hack-one', 'hack-two']]));
     // Linked under the subject the check named, without its trailing full stop.
     expect(proposal.related.find((group) => group.keys.includes('hack-one'))?.subject).toBe('Incidents at Drift');
-    expect(proposal.rejected[0].reason).toBe('Two different events.');
+    // A reason that mentions aliases names the topics instead.
+    expect(proposal.rejected[0].reason).toMatch(/^"[^"]*Drift MERGEMEb[^"]*" and "[^"]*Drift MERGEMEb[^"]*" are two different events\.$/);
     expect(proposal.names).toEqual([{ seen: 'Call Sheet', likely: 'Kalshi', keys: ['kalshi'] }]);
     // The first pass read every topic at once; each check read every claim of its topics, with Mark's instruction.
     expect(state.calls[0].input.split('\n').filter((line) => line.startsWith('{"t":'))).toHaveLength(SPEC.length);

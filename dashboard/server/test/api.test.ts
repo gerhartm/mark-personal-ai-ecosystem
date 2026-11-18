@@ -162,6 +162,22 @@ describe('read routes', () => {
     expect(((await undo.json()) as any).error).toBe('nothing_to_undo');
   });
 
+  it('reports the title refresh and changes nothing without a preview', async () => {
+    const status = await json('/api/prompt-controls/topics/titles');
+    expect(status.status).toBe('idle');
+    expect(status.proposal).toBeNull();
+    expect(status.last).toBeNull();
+    const post = (path: string, body: object) => fetch(`${BASE}${path}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const apply = await post('/api/prompt-controls/topics/titles/apply', { accept: ['not-a-title'] });
+    expect(apply.status).toBe(409);
+    expect(((await apply.json()) as any).error).toBe('no_proposal');
+    const undo = await post('/api/prompt-controls/topics/titles/undo', {});
+    expect(undo.status).toBe(409);
+    expect(((await undo.json()) as any).error).toBe('nothing_to_undo');
+  });
+
   it('returns preserved Ask history without generating placeholder answers', async () => {
     const history = await json('/api/ask/history');
     expect(Array.isArray(history.history)).toBe(true);
